@@ -1,0 +1,9 @@
+domain: gympass.com
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: cdn-origin-controller
+repo: github.com/Gympass/cdn-origin-controller
+version: "3"
