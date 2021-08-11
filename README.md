@@ -16,7 +16,7 @@ The controller will look for three locations within the Ingress definition in or
   - `Ingress.spec.rules[].http.paths[].path`: a behavior for each path will be created, allowing different cache behavior for different backends, for example.
   - `Ingress.spec.rules[].http.paths[].pathType`: in order to determine whether to use wildcards or not. For `Prefix` an "*" is appended to the path when defining the behavior.
 
-The following annotation control how origins and behaviors are attached to existing CloudFront distributions:
+The following annotation controls how origins and behaviors are attached to existing CloudFront distributions:
 
   - `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG` 
 
