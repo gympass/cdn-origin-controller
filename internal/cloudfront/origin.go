@@ -19,17 +19,28 @@
 
 package cloudfront
 
-import networkingv1 "k8s.io/api/networking/v1"
-
 type Origin struct {
 	Host      string
 	Behaviors []Behavior
 }
 
 type Behavior struct {
-	Path string
+	PathPattern string
 }
 
-func NewOrigins(ingress networkingv1.Ingress) []Origin {
-	return nil
+type OriginBuilder struct {
+	origin Origin
+}
+
+func NewOriginBuilder(host string) OriginBuilder {
+	return OriginBuilder{origin: Origin{Host: host}}
+}
+
+func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
+	b.origin.Behaviors = append(b.origin.Behaviors, Behavior{PathPattern: pathPattern})
+	return b
+}
+
+func (b OriginBuilder) Build() Origin {
+	return b.origin
 }

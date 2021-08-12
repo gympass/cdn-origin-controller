@@ -23,13 +23,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
-func TestRunCloudFrontOriginTestSuite(t *testing.T) {
+func TestRunOriginTestSuite(t *testing.T) {
 	t.Parallel()
 	suite.Run(t, &OriginTestSuite{})
 }
@@ -38,192 +36,9 @@ type OriginTestSuite struct {
 	suite.Suite
 }
 
-func (s *OriginTestSuite) TestNewOrigins_SingleOriginAndBehavior() {
-	rule := networkingv1.IngressRule{
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
-					},
-				},
-			},
-		},
-	}
-
-	ing := networkingv1.Ingress{
-		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{rule},
-		},
-		Status: networkingv1.IngressStatus{
-			LoadBalancer: corev1.LoadBalancerStatus{
-				Ingress: []corev1.LoadBalancerIngress{
-					{
-						Hostname: "origin1",
-					},
-				},
-			},
-		},
-	}
-
-	cfOrigins := cloudfront.NewOrigins(ing)
-	s.Len(cfOrigins, 1)
-	s.Equal(rule.Host, cfOrigins[0].Host)
-	s.Len(cfOrigins[0].Behaviors, 1)
-	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
-	s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
-}
-
-func (s *OriginTestSuite) TestNewOrigins_SingleOriginMultipleBehaviors() {
-	rule := networkingv1.IngressRule{
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
-					},
-					{
-						Path:     "/some-path",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
-					},
-				},
-			},
-		},
-	}
-
-	ing := networkingv1.Ingress{
-		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{rule},
-		},
-		Status: networkingv1.IngressStatus{
-			LoadBalancer: corev1.LoadBalancerStatus{
-				Ingress: []corev1.LoadBalancerIngress{
-					{
-						Hostname: "origin1",
-					},
-				},
-			},
-		},
-	}
-
-	cfOrigins := cloudfront.NewOrigins(ing)
-	s.Len(cfOrigins, 1)
-	s.Len(cfOrigins[0].Behaviors, 2)
-	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
-	s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
-}
-
-func (s *OriginTestSuite) TestNewCloudFrontOrigins_MultipleOrigins() {
-	rule := networkingv1.IngressRule{
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
-					},
-					{
-						Path:     "/some-path",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
-					},
-				},
-			},
-		},
-	}
-
-	ing := networkingv1.Ingress{
-		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{rule},
-		},
-		Status: networkingv1.IngressStatus{
-			LoadBalancer: corev1.LoadBalancerStatus{
-				Ingress: []corev1.LoadBalancerIngress{
-					{
-						Hostname: "origin1",
-					},
-					{
-						Hostname: "origin2",
-					},
-				},
-			},
-		},
-	}
-
-	cfOrigins := cloudfront.NewOrigins(ing)
-	s.Len(cfOrigins, 2)
-	s.Equal(rule.Host, cfOrigins[0].Host)
-	s.Len(cfOrigins[0].Behaviors, 2)
-	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
-	for _, rule := range ing.Spec.Rules {
-		s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
-	}
-}
-
-func (s *OriginTestSuite) TestNewCloudFrontOrigins_PrefixPathType() {
-	rule := networkingv1.IngressRule{
-		Host: "origin1",
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: pathTypePointer(networkingv1.PathTypePrefix),
-					},
-				},
-			},
-		},
-	}
-
-	ing := networkingv1.Ingress{
-		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{rule},
-		},
-	}
-
-	cfOrigins := cloudfront.NewOrigins(ing)
-	s.Equal("/*", cfOrigins[0].Behaviors[0].Path)
-}
-
-func loadBalancersInOrigins(loadBalancers []corev1.LoadBalancerIngress, origins []cloudfront.Origin) bool {
-	for _, lb := range loadBalancers {
-		if !hostInOrigins(lb.Hostname, origins) {
-			return false
-		}
-	}
-	return true
-}
-
-func hostInOrigins(host string, origins []cloudfront.Origin) bool {
-	var found bool
-	for _, o := range origins {
-		if o.Host == host {
-			found = true
-		}
-	}
-	return found
-}
-
-func pathsInBehaviors(paths []networkingv1.HTTPIngressPath, behaviors []cloudfront.Behavior) bool {
-	for _, p := range paths {
-		if !pathInBehaviors(p, behaviors) {
-			return false
-		}
-	}
-	return true
-}
-
-func pathInBehaviors(path networkingv1.HTTPIngressPath, behaviors []cloudfront.Behavior) bool {
-	var found bool
-	for _, b := range behaviors {
-		if path.Path == b.Path {
-			found = true
-		}
-	}
-	return found
-}
-
-func pathTypePointer(pt networkingv1.PathType) *networkingv1.PathType {
-	return &pt
+func (s *OriginTestSuite) TestNewOriginBuilder_SingleOriginAndBehavior() {
+	o := cloudfront.NewOriginBuilder("origin").WithBehavior("/*").Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 1)
+	s.Equal("/*", o.Behaviors[0].PathPattern)
 }
