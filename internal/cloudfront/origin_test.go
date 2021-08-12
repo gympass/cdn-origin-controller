@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
@@ -39,7 +40,6 @@ type OriginTestSuite struct {
 
 func (s *OriginTestSuite) TestNewOrigins_SingleOriginAndBehavior() {
 	rule := networkingv1.IngressRule{
-		Host: "origin1",
 		IngressRuleValue: networkingv1.IngressRuleValue{
 			HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{
@@ -55,6 +55,15 @@ func (s *OriginTestSuite) TestNewOrigins_SingleOriginAndBehavior() {
 	ing := networkingv1.Ingress{
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{rule},
+		},
+		Status: networkingv1.IngressStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						Hostname: "origin1",
+					},
+				},
+			},
 		},
 	}
 
@@ -62,13 +71,12 @@ func (s *OriginTestSuite) TestNewOrigins_SingleOriginAndBehavior() {
 	s.Len(cfOrigins, 1)
 	s.Equal(rule.Host, cfOrigins[0].Host)
 	s.Len(cfOrigins[0].Behaviors, 1)
-	s.True(hostsInOrigins(ing.Spec.Rules, cfOrigins))
+	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
 	s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
 }
 
 func (s *OriginTestSuite) TestNewOrigins_SingleOriginMultipleBehaviors() {
 	rule := networkingv1.IngressRule{
-		Host: "origin1",
 		IngressRuleValue: networkingv1.IngressRuleValue{
 			HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{
@@ -89,18 +97,26 @@ func (s *OriginTestSuite) TestNewOrigins_SingleOriginMultipleBehaviors() {
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{rule},
 		},
+		Status: networkingv1.IngressStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						Hostname: "origin1",
+					},
+				},
+			},
+		},
 	}
 
 	cfOrigins := cloudfront.NewOrigins(ing)
 	s.Len(cfOrigins, 1)
 	s.Len(cfOrigins[0].Behaviors, 2)
-	s.True(hostsInOrigins(ing.Spec.Rules, cfOrigins))
+	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
 	s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
 }
 
 func (s *OriginTestSuite) TestNewCloudFrontOrigins_MultipleOrigins() {
-	rule1 := networkingv1.IngressRule{
-		Host: "origin1",
+	rule := networkingv1.IngressRule{
 		IngressRuleValue: networkingv1.IngressRuleValue{
 			HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{
@@ -117,20 +133,29 @@ func (s *OriginTestSuite) TestNewCloudFrontOrigins_MultipleOrigins() {
 		},
 	}
 
-	rule2 := *rule1.DeepCopy()
-	rule2.Host = "origin2"
-
 	ing := networkingv1.Ingress{
 		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{rule1, rule2},
+			Rules: []networkingv1.IngressRule{rule},
+		},
+		Status: networkingv1.IngressStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						Hostname: "origin1",
+					},
+					{
+						Hostname: "origin2",
+					},
+				},
+			},
 		},
 	}
 
 	cfOrigins := cloudfront.NewOrigins(ing)
 	s.Len(cfOrigins, 2)
-	s.Equal(rule1.Host, cfOrigins[0].Host)
+	s.Equal(rule.Host, cfOrigins[0].Host)
 	s.Len(cfOrigins[0].Behaviors, 2)
-	s.True(hostsInOrigins(ing.Spec.Rules, cfOrigins))
+	s.True(loadBalancersInOrigins(ing.Status.LoadBalancer.Ingress, cfOrigins))
 	for _, rule := range ing.Spec.Rules {
 		s.True(pathsInBehaviors(rule.HTTP.Paths, cfOrigins[0].Behaviors))
 	}
@@ -161,9 +186,9 @@ func (s *OriginTestSuite) TestNewCloudFrontOrigins_PrefixPathType() {
 	s.Equal("/*", cfOrigins[0].Behaviors[0].Path)
 }
 
-func hostsInOrigins(rules []networkingv1.IngressRule, origins []cloudfront.Origin) bool {
-	for _, r := range rules {
-		if !hostInOrigins(r.Host, origins) {
+func loadBalancersInOrigins(loadBalancers []corev1.LoadBalancerIngress, origins []cloudfront.Origin) bool {
+	for _, lb := range loadBalancers {
+		if !hostInOrigins(lb.Hostname, origins) {
 			return false
 		}
 	}
