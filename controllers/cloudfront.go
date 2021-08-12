@@ -16,3 +16,51 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package controllers
+
+import (
+	"sort"
+
+	networkingv1 "k8s.io/api/networking/v1"
+
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+)
+
+func newOrigin(rules []networkingv1.IngressRule, status networkingv1.IngressStatus) cloudfront.Origin {
+	host := host(status)
+	builder := cloudfront.NewOriginBuilder(host)
+	patterns := sortedPaths(rules)
+	for _, p := range patterns {
+		builder = builder.WithBehavior(p)
+	}
+
+	return builder.Build()
+}
+
+func host(status networkingv1.IngressStatus) string {
+	return status.LoadBalancer.Ingress[0].Hostname
+}
+
+func sortedPaths(rules []networkingv1.IngressRule) []string {
+	var patterns []string
+	for _, r := range rules {
+		rulePatterns := pathPatterns(r)
+		patterns = append(patterns, rulePatterns...)
+	}
+
+	sort.Sort(byLength(patterns))
+	return patterns
+}
+
+func pathPatterns(rule networkingv1.IngressRule) []string {
+	var paths []string
+	for _, p := range rule.HTTP.Paths {
+		pattern := p.Path
+		if *p.PathType == networkingv1.PathTypePrefix {
+			pattern = pattern + "*"
+		}
+		paths = append(paths, pattern)
+	}
+	return paths
+}

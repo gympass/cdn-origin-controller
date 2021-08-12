@@ -16,3 +16,29 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package cloudfront_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/suite"
+
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+)
+
+func TestRunOriginTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &OriginTestSuite{})
+}
+
+type OriginTestSuite struct {
+	suite.Suite
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_SingleOriginAndBehavior() {
+	o := cloudfront.NewOriginBuilder("origin").WithBehavior("/*").Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 1)
+	s.Equal("/*", o.Behaviors[0].PathPattern)
+}

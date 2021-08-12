@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2021 Gpbr Participacoes LTDA.
+# Copyright (c) 2021 GPBR Participacoes LTDA.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -19,4 +19,4 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 command -v addlicense >/dev/null || go install github.com/google/addlicense@latest
-addlicense -c "Gpbr Participacoes LTDA." -l mit **/*.go **/*.sh
+addlicense -c "GPBR Participacoes LTDA." -l mit main.go controllers hack internal

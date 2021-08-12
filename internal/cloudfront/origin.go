@@ -16,3 +16,31 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+package cloudfront
+
+type Origin struct {
+	Host      string
+	Behaviors []Behavior
+}
+
+type Behavior struct {
+	PathPattern string
+}
+
+type OriginBuilder struct {
+	origin Origin
+}
+
+func NewOriginBuilder(host string) OriginBuilder {
+	return OriginBuilder{origin: Origin{Host: host}}
+}
+
+func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
+	b.origin.Behaviors = append(b.origin.Behaviors, Behavior{PathPattern: pathPattern})
+	return b
+}
+
+func (b OriginBuilder) Build() Origin {
+	return b.origin
+}
