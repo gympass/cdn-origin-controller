@@ -20,6 +20,15 @@ The following annotation controls how origins and behaviors are attached to exis
 
   - `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG` 
 
+# Configuration
+
+Use the following environment variables to change the controller's behavior:
+
+| Env var key | Description                                                                                                                                   | Default |
+|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| LOG_LEVEL   | Represents log level of verbosity. Can be "debug", "info", "warn", "error", "dpanic", "panic" and "fatal" (sorted with decreasing verbosity). | info    |
+| DEV_MODE    | When set to "true" logs in unstructured text instead of JSON. Also overrides LOG_LEVEL to "debug".                                            | false   |
+
 # Contributing
 
 Please open an issue in order to report bugs, ask questions or discuss the controller.
