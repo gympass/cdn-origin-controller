@@ -40,9 +40,11 @@ const cdnIDAnnotation = "cdn-origin-controller.gympass.com/cdn.id"
 // Reconciler ...
 type Reconciler struct {
 	client.Client
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	OriginalLog logr.Logger
+	Scheme      *runtime.Scheme
+	Recorder    record.EventRecorder
+
+	log logr.Logger
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -50,14 +52,13 @@ type Reconciler struct {
 
 //Reconcile ...
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
+
 	ingress := &networkingv1.Ingress{}
-
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
-
 	if err != nil {
-
 		if errors.IsNotFound(err) {
-			r.Log.Info("Ignoring not found Ingress. It can be deleted.")
+			r.log.Info("Ignoring not found Ingress. It can be deleted.")
 			return reconcile.Result{}, nil
 		}
 
