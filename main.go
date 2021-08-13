@@ -68,9 +68,7 @@ func main() {
 	flag.Parse()
 
 	operatorCfg := config.Parse()
-
-	fmt.Printf("%+v", operatorCfg)
-
+	
 	ctrl.SetLogger(zap.New(
 		zap.UseFlagOptions(&opts),
 		zap.UseDevMode(operatorCfg.DevMode),
