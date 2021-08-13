@@ -21,8 +21,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
+	"go.uber.org/zap/zapcore"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -36,6 +39,7 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	"github.com/Gympass/cdn-origin-controller/controllers"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 var (
@@ -47,6 +51,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
+	godotenv.Load()
 }
 
 func main() {
@@ -58,13 +63,19 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
-	}
+	var opts zap.Options
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	operatorCfg := config.Parse()
+
+	fmt.Printf("%+v", operatorCfg)
+
+	ctrl.SetLogger(zap.New(
+		zap.UseFlagOptions(&opts),
+		zap.UseDevMode(operatorCfg.DevMode),
+		zap.Level(mustGetLogLevel(operatorCfg.LogLevel)),
+	))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -91,10 +102,10 @@ func main() {
 	}
 
 	reconciler := controllers.Reconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("CDNOrigin"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
+		Client:      mgr.GetClient(),
+		OriginalLog: ctrl.Log.WithName("controllers").WithName("CDNOrigin"),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorderFor("cdn-origin-controller"),
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
@@ -107,4 +118,12 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func mustGetLogLevel(logLvl string) zapcore.Level {
+	var l zapcore.Level
+	if err := l.Set(logLvl); err != nil {
+		panic(fmt.Errorf("invalid log level config: %v", err))
+	}
+	return l
 }
