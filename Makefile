@@ -84,7 +84,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
-vet: add-headers ## Run go vet against code.
+vet: add-headers mod-tidy ## Run go vet against code.
 	go vet ./...
 
 test: manifests generate fmt vet envtest ## Run tests.
@@ -206,3 +206,6 @@ catalog-push: ## Push a catalog image.
 
 add-headers:
 	hack/add-headers.sh
+
+mod-tidy:
+	go mod tidy 

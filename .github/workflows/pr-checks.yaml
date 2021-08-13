@@ -29,18 +29,13 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
         id: go
-      - name: Mod tidy
-        run: |
-          go mod tidy
-          mods_changed=$(git status -s | grep -c -e 'go.mod' -e 'go.sum' || :)
-          [[ $mods_changed -eq 0 ]] || (echo "There was a change in go.mod or go.sum. Run 'go mod tidy'" && exit 1)
       - name: Generate, format and vet
         run: |
           make generate
           make manifests
           make fmt
           make vet
-          changed_files=$(git status -s | grep -v 'go.mod\|go.sum' || :)
+          changed_files=$(git status -s || :)
           generated_changed_files=$(git status -s | grep zz_generated || :)
           [[ -z "$generated_changed_files" ]] || (printf "There is change in auto-generated files" && exit 1)
           [[ -z "$changed_files" ]] ||  (printf "Change is detected in some files: \n$changed_files\n" && exit 1)
