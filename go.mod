@@ -3,6 +3,7 @@ module github.com/Gympass/cdn-origin-controller
 go 1.16
 
 require (
+	github.com/aws/aws-sdk-go v1.40.21
 	github.com/go-logr/logr v0.4.0
 	github.com/joho/godotenv v1.3.0
 	github.com/spf13/viper v1.7.0
