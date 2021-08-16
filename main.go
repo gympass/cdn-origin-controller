@@ -51,7 +51,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
-	godotenv.Load()
+	_ = godotenv.Load()
 }
 
 func main() {
@@ -68,7 +68,7 @@ func main() {
 	flag.Parse()
 
 	operatorCfg := config.Parse()
-	
+
 	ctrl.SetLogger(zap.New(
 		zap.UseFlagOptions(&opts),
 		zap.UseDevMode(operatorCfg.DevMode),
