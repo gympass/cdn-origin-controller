@@ -24,6 +24,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -39,6 +42,7 @@ import (
 
 	//+kubebuilder:scaffold:imports
 	"github.com/Gympass/cdn-origin-controller/controllers"
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
@@ -104,6 +108,7 @@ func main() {
 		OriginalLog: ctrl.Log.WithName("controllers").WithName("CDNOrigin"),
 		Scheme:      mgr.GetScheme(),
 		Recorder:    mgr.GetEventRecorderFor("cdn-origin-controller"),
+		Repo:        cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
 	}
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
@@ -124,4 +129,9 @@ func mustGetLogLevel(logLvl string) zapcore.Level {
 		panic(fmt.Errorf("invalid log level config: %v", err))
 	}
 	return l
+}
+
+func mustGetCloudFrontClient() cloudfrontiface.CloudFrontAPI {
+	s := session.Must(session.NewSession())
+	return awscloudfront.New(s)
 }
