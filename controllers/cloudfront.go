@@ -21,6 +21,7 @@ package controllers
 
 import (
 	"sort"
+	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
 
@@ -58,9 +59,20 @@ func pathPatterns(rule networkingv1.IngressRule) []string {
 	for _, p := range rule.HTTP.Paths {
 		pattern := p.Path
 		if *p.PathType == networkingv1.PathTypePrefix {
-			pattern = pattern + "*"
+			paths = append(paths, buildPatternsForPrefix(pattern)...)
+			continue
 		}
 		paths = append(paths, pattern)
 	}
 	return paths
+}
+
+// https://github.com/kubernetes-sigs/aws-load-balancer-controller/pull/1772/files#diff-ab931de004b4ee78d1a27f20f37cc9acaf851ab150094ec8baa1fdbcf5ca67f1R163-R174
+func buildPatternsForPrefix(path string) []string {
+	if path == "/" {
+		return []string{"/*"}
+	}
+
+	normalizedPath := strings.TrimSuffix(path, "/")
+	return []string{normalizedPath, normalizedPath + "/*"}
 }
