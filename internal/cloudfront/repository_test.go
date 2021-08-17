@@ -69,7 +69,6 @@ func TestRunOriginRepositoryTestSuite(t *testing.T) {
 }
 
 type OriginRepositoryTestSuite struct {
-	awsClient awsClientMock
 	suite.Suite
 }
 
