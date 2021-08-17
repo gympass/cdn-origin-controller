@@ -51,6 +51,7 @@ type repository struct {
 	awsClient cloudfrontiface.CloudFrontAPI
 }
 
+// NewOriginRepository creates a new AWS CloudFront Origin repository
 func NewOriginRepository(awsClient cloudfrontiface.CloudFrontAPI) OriginRepository {
 	return &repository{awsClient: awsClient}
 }
