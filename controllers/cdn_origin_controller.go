@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,16 +34,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
 const cdnIDAnnotation = "cdn-origin-controller.gympass.com/cdn.id"
 
+const (
+	attachOriginFailedReason  = "FailedToAttach"
+	attachOriginSuccessReason = "SuccessfullyAttached"
+)
+
 // Reconciler ...
 type Reconciler struct {
 	client.Client
+
 	OriginalLog logr.Logger
 	Scheme      *runtime.Scheme
 	Recorder    record.EventRecorder
+	Repo        cloudfront.OriginRepository
 
 	log logr.Logger
 }
@@ -58,17 +68,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			r.log.Info("Ignoring not found Ingress. It can be deleted.")
+			r.log.Info("Ignoring not found Ingress.")
 			return reconcile.Result{}, nil
 		}
 
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	fmt.Println(ingress)
+	cfID, ok := ingress.ObjectMeta.Annotations[cdnIDAnnotation]
+	if !ok {
+		r.log.Info(cdnIDAnnotation + " annotation not present. Ignoring reconciliation request.")
+		return ctrl.Result{}, nil
+	}
 
-	fmt.Printf("%+v", newOrigin(ingress.Spec.Rules, ingress.Status))
+	if err := r.Repo.Save(cfID, newOrigin(ingress.Spec.Rules, ingress.Status)); err != nil {
+		r.Recorder.Eventf(ingress, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: saving origin: %v", err)
+		return ctrl.Result{}, fmt.Errorf("saving origin: %v", err)
+	}
 
+	r.Recorder.Event(ingress, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
 	return ctrl.Result{}, nil
 }
 
