@@ -15,13 +15,17 @@ Requirements:
 
 The controller will look for three locations within the Ingress definition in order to determine how the origin and behaviors should be created:
 
-  - `Ingress.status.loadbalancer.ingress[].<host/ip>`: domains of the origins will be retrieved from here.
+  - `Ingress.status.loadbalancer.ingress[].host`: domains of the origins will be retrieved from here.
   - `Ingress.spec.rules[].http.paths[].path`: a behavior for each path will be created, allowing different cache behavior for different backends, for example.
   - `Ingress.spec.rules[].http.paths[].pathType`: in order to determine whether to use wildcards or not. For `Prefix` an "*" is appended to the path when defining the behavior.
 
 The following annotation controls how origins and behaviors are attached to existing CloudFront distributions:
 
-  - `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG` 
+  - `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG`
+
+The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
+
+> **Important**: This sample policy grants the necessary actions for proper functioning of the controller, but it grants them on all CloudFront distributions. Changing this policy to make it more restrictive and secure is encouraged.
 
 # Configuration
 
