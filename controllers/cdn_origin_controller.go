@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
@@ -92,10 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager ...
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		WithEventFilter(predicate.And(
-			&predicate.GenerationChangedPredicate{},
-			&hasCdnAnnotationPredicate{},
-		)).
+		WithEventFilter(&hasCdnAnnotationPredicate{}).
 		For(&networkingv1.Ingress{}).
 		Complete(r)
 }
