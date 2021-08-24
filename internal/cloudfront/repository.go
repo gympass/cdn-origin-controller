@@ -21,6 +21,7 @@ package cloudfront
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/aws/aws-sdk-go/aws"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
@@ -91,6 +92,7 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 func reconcileConfig(config awscloudfront.DistributionConfig, o Origin) awscloudfront.DistributionConfig {
 	config = ensureOriginInConfig(config, newAWSOrigin(o))
 	config = ensureBehaviorsInConfig(config, o)
+	config = ensureCorrectBehaviorPrecedence(config)
 	return config
 }
 
@@ -130,6 +132,11 @@ func ensureBehaviorInConfig(config awscloudfront.DistributionConfig, awsBehavior
 		config.CacheBehaviors.Items = append(config.CacheBehaviors.Items, awsBehavior)
 		config.CacheBehaviors.Quantity = aws.Int64(*config.CacheBehaviors.Quantity + 1)
 	}
+	return config
+}
+
+func ensureCorrectBehaviorPrecedence(config awscloudfront.DistributionConfig) awscloudfront.DistributionConfig {
+	sort.Sort(byDescendingPathLength(config.CacheBehaviors.Items))
 	return config
 }
 

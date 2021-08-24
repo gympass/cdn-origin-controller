@@ -17,16 +17,18 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package cloudfront
 
-type byLength []string
+import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 
-func (s byLength) Len() int {
+type byDescendingPathLength []*awscloudfront.CacheBehavior
+
+func (s byDescendingPathLength) Len() int {
 	return len(s)
 }
-func (s byLength) Swap(i, j int) {
+func (s byDescendingPathLength) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
-func (s byLength) Less(i, j int) bool {
-	return len(s[i]) > len(s[j])
+func (s byDescendingPathLength) Less(i, j int) bool {
+	return len(*s[i].PathPattern) > len(*s[j].PathPattern)
 }

@@ -197,12 +197,33 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExist
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExistYet() {
+	lowerPrecedenceExistingBehavior := &awscloudfront.CacheBehavior{PathPattern: aws.String("/low/precedence/path")}
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
 			Origins:        &awscloudfront.Origins{Quantity: aws.Int64(0)},
-			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(1), Items: []*awscloudfront.CacheBehavior{lowerPrecedenceExistingBehavior}},
 		},
+	}
+
+	expectedNewCacheBehavior := &awscloudfront.CacheBehavior{
+		AllowedMethods: &awscloudfront.AllowedMethods{
+			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
+			Quantity: aws.Int64(7),
+			CachedMethods: &awscloudfront.CachedMethods{
+				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
+				Quantity: aws.Int64(2),
+			},
+		},
+		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		Compress:                   aws.Bool(true),
+		FieldLevelEncryptionId:     aws.String(""),
+		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
+		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		PathPattern:                aws.String("/longer/path/with/higher/precedence"),
+		SmoothStreaming:            aws.Bool(false),
+		TargetOriginId:             aws.String("origin"),
+		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
 	}
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
@@ -231,27 +252,10 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 			},
 			CacheBehaviors: &awscloudfront.CacheBehaviors{
 				Items: []*awscloudfront.CacheBehavior{
-					{
-						AllowedMethods: &awscloudfront.AllowedMethods{
-							Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-							Quantity: aws.Int64(7),
-							CachedMethods: &awscloudfront.CachedMethods{
-								Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-								Quantity: aws.Int64(2),
-							},
-						},
-						CachePolicyId:              aws.String(cachingDisabledPolicyID),
-						Compress:                   aws.Bool(true),
-						FieldLevelEncryptionId:     aws.String(""),
-						LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-						OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-						PathPattern:                aws.String("/*"),
-						SmoothStreaming:            aws.Bool(false),
-						TargetOriginId:             aws.String("origin"),
-						ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-					},
+					expectedNewCacheBehavior,
+					lowerPrecedenceExistingBehavior,
 				},
-				Quantity: aws.Int64(1),
+				Quantity: aws.Int64(2),
 			},
 		},
 		Id:      aws.String("mock id"),
@@ -264,7 +268,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/longer/path/with/higher/precedence"}}}))
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExists() {
