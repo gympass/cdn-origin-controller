@@ -22,12 +22,12 @@ package controllers
 import (
 	"strings"
 
-	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
-func newOrigin(rules []networkingv1.IngressRule, status networkingv1.IngressStatus) cloudfront.Origin {
+func newOrigin(rules []networkingv1beta1.IngressRule, status networkingv1beta1.IngressStatus) cloudfront.Origin {
 	h := originHost(status)
 	builder := cloudfront.NewOriginBuilder(h)
 	patterns := pathPatterns(rules)
@@ -38,11 +38,11 @@ func newOrigin(rules []networkingv1.IngressRule, status networkingv1.IngressStat
 	return builder.Build()
 }
 
-func originHost(status networkingv1.IngressStatus) string {
+func originHost(status networkingv1beta1.IngressStatus) string {
 	return status.LoadBalancer.Ingress[0].Hostname
 }
 
-func pathPatterns(rules []networkingv1.IngressRule) []string {
+func pathPatterns(rules []networkingv1beta1.IngressRule) []string {
 	var patterns []string
 	for _, r := range rules {
 		patterns = append(patterns, pathPatternsForRule(r)...)
@@ -50,11 +50,11 @@ func pathPatterns(rules []networkingv1.IngressRule) []string {
 	return patterns
 }
 
-func pathPatternsForRule(rule networkingv1.IngressRule) []string {
+func pathPatternsForRule(rule networkingv1beta1.IngressRule) []string {
 	var paths []string
 	for _, p := range rule.HTTP.Paths {
 		pattern := p.Path
-		if *p.PathType == networkingv1.PathTypePrefix {
+		if *p.PathType == networkingv1beta1.PathTypePrefix {
 			paths = append(paths, buildPatternsForPrefix(pattern)...)
 			continue
 		}

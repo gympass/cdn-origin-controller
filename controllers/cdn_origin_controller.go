@@ -25,7 +25,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -62,7 +62,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
 
-	ingress := &networkingv1.Ingress{}
+	ingress := &networkingv1beta1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -92,6 +92,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		WithEventFilter(&hasCdnAnnotationPredicate{}).
-		For(&networkingv1.Ingress{}).
+		For(&networkingv1beta1.Ingress{}).
 		Complete(r)
 }

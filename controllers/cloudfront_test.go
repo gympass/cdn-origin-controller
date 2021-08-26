@@ -24,7 +24,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 )
 
 func TestRunIngressConverterTestSuite(t *testing.T) {
@@ -37,14 +37,14 @@ type IngressConverterSuite struct {
 }
 
 func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
-	rules := []networkingv1.IngressRule{
+	rules := []networkingv1beta1.IngressRule{
 		{
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
 						{
 							Path:     "/",
-							PathType: pathTypePointer(networkingv1.PathTypeExact),
+							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 						},
 					},
 				},
@@ -52,7 +52,7 @@ func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
 		},
 	}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -69,18 +69,18 @@ func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
 }
 
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
-	rules := []networkingv1.IngressRule{
+	rules := []networkingv1beta1.IngressRule{
 		{
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
 						{
 							Path:     "/",
-							PathType: pathTypePointer(networkingv1.PathTypeExact),
+							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 						},
 						{
 							Path:     "/foo",
-							PathType: pathTypePointer(networkingv1.PathTypeExact),
+							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 						},
 					},
 				},
@@ -88,7 +88,7 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 		},
 	}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -105,41 +105,41 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
-	rule1 := networkingv1.IngressRule{
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
+	rule1 := networkingv1beta1.IngressRule{
+		IngressRuleValue: networkingv1beta1.IngressRuleValue{
+			HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+				Paths: []networkingv1beta1.HTTPIngressPath{
 					{
 						Path:     "/",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
+						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 					},
 					{
 						Path:     "/foo",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
+						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 					},
 				},
 			},
 		},
 	}
-	rule2 := networkingv1.IngressRule{
-		IngressRuleValue: networkingv1.IngressRuleValue{
-			HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{
+	rule2 := networkingv1beta1.IngressRule{
+		IngressRuleValue: networkingv1beta1.IngressRuleValue{
+			HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+				Paths: []networkingv1beta1.HTTPIngressPath{
 					{
 						Path:     "/foo/bar",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
+						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 					},
 					{
 						Path:     "/bar",
-						PathType: pathTypePointer(networkingv1.PathTypeExact),
+						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
 					},
 				},
 			},
 		},
 	}
-	rules := []networkingv1.IngressRule{rule1, rule2}
+	rules := []networkingv1beta1.IngressRule{rule1, rule2}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -160,14 +160,14 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
-	rules := []networkingv1.IngressRule{
+	rules := []networkingv1beta1.IngressRule{
 		{
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
 						{
 							Path:     "/",
-							PathType: pathTypePointer(networkingv1.PathTypePrefix),
+							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
 						},
 					},
 				},
@@ -175,7 +175,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 		},
 	}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -193,14 +193,14 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
-	rules := []networkingv1.IngressRule{
+	rules := []networkingv1beta1.IngressRule{
 		{
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
 						{
 							Path:     "/foo/",
-							PathType: pathTypePointer(networkingv1.PathTypePrefix),
+							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
 						},
 					},
 				},
@@ -208,7 +208,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 		},
 	}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -227,14 +227,14 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
-	rules := []networkingv1.IngressRule{
+	rules := []networkingv1beta1.IngressRule{
 		{
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
+			IngressRuleValue: networkingv1beta1.IngressRuleValue{
+				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
+					Paths: []networkingv1beta1.HTTPIngressPath{
 						{
 							Path:     "/foo",
-							PathType: pathTypePointer(networkingv1.PathTypePrefix),
+							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
 						},
 					},
 				},
@@ -242,7 +242,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotE
 		},
 	}
 
-	status := networkingv1.IngressStatus{
+	status := networkingv1beta1.IngressStatus{
 		LoadBalancer: corev1.LoadBalancerStatus{
 			Ingress: []corev1.LoadBalancerIngress{
 				{
@@ -259,6 +259,6 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotE
 	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
 }
 
-func pathTypePointer(pt networkingv1.PathType) *networkingv1.PathType {
+func pathTypePointer(pt networkingv1beta1.PathType) *networkingv1beta1.PathType {
 	return &pt
 }
