@@ -24,7 +24,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: name/app
+          images: gympass/cdn-origin-controller
           tags: |
             type=ref,event=branch
             type=ref,event=pr
