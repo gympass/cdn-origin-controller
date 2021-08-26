@@ -101,8 +101,8 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/foo", origin.Behaviors[0].PathPattern)
-	s.Equal("/", origin.Behaviors[1].PathPattern)
+	s.Equal("/", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
 	rule1 := networkingv1.IngressRule{
@@ -152,10 +152,10 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
-	s.Equal("/foo/bar", origin.Behaviors[0].PathPattern)
+	s.Equal("/", origin.Behaviors[0].PathPattern)
 	s.Equal("/foo", origin.Behaviors[1].PathPattern)
-	s.Equal("/bar", origin.Behaviors[2].PathPattern)
-	s.Equal("/", origin.Behaviors[3].PathPattern)
+	s.Equal("/foo/bar", origin.Behaviors[2].PathPattern)
+	s.Equal("/bar", origin.Behaviors[3].PathPattern)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -221,8 +221,8 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/foo/*", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo", origin.Behaviors[1].PathPattern)
+	s.Equal("/foo", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -255,8 +255,8 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotE
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/foo/*", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo", origin.Behaviors[1].PathPattern)
+	s.Equal("/foo", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
 }
 
 func pathTypePointer(pt networkingv1.PathType) *networkingv1.PathType {

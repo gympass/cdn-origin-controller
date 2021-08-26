@@ -20,7 +20,6 @@
 package controllers
 
 import (
-	"sort"
 	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -29,9 +28,9 @@ import (
 )
 
 func newOrigin(rules []networkingv1.IngressRule, status networkingv1.IngressStatus) cloudfront.Origin {
-	host := host(status)
-	builder := cloudfront.NewOriginBuilder(host)
-	patterns := sortedPaths(rules)
+	h := originHost(status)
+	builder := cloudfront.NewOriginBuilder(h)
+	patterns := pathPatterns(rules)
 	for _, p := range patterns {
 		builder = builder.WithBehavior(p)
 	}
@@ -39,22 +38,19 @@ func newOrigin(rules []networkingv1.IngressRule, status networkingv1.IngressStat
 	return builder.Build()
 }
 
-func host(status networkingv1.IngressStatus) string {
+func originHost(status networkingv1.IngressStatus) string {
 	return status.LoadBalancer.Ingress[0].Hostname
 }
 
-func sortedPaths(rules []networkingv1.IngressRule) []string {
+func pathPatterns(rules []networkingv1.IngressRule) []string {
 	var patterns []string
 	for _, r := range rules {
-		rulePatterns := pathPatterns(r)
-		patterns = append(patterns, rulePatterns...)
+		patterns = append(patterns, pathPatternsForRule(r)...)
 	}
-
-	sort.Sort(byLength(patterns))
 	return patterns
 }
 
-func pathPatterns(rule networkingv1.IngressRule) []string {
+func pathPatternsForRule(rule networkingv1.IngressRule) []string {
 	var paths []string
 	for _, p := range rule.HTTP.Paths {
 		pattern := p.Path
