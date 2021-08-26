@@ -25,8 +25,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-
-	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
 func TestRunIngressConverterTestSuite(t *testing.T) {
@@ -67,7 +65,7 @@ func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
-	s.True(pathInBehaviors("/", origin.Behaviors))
+	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
@@ -103,8 +101,8 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.True(pathInBehaviors("/foo", origin.Behaviors))
-	s.True(pathInBehaviors("/", origin.Behaviors))
+	s.Equal("/", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
 	rule1 := networkingv1.IngressRule{
@@ -154,10 +152,10 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
-	s.True(pathInBehaviors("/foo/bar", origin.Behaviors))
-	s.True(pathInBehaviors("/foo", origin.Behaviors))
-	s.True(pathInBehaviors("/bar", origin.Behaviors))
-	s.True(pathInBehaviors("/", origin.Behaviors))
+	s.Equal("/", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo", origin.Behaviors[1].PathPattern)
+	s.Equal("/foo/bar", origin.Behaviors[2].PathPattern)
+	s.Equal("/bar", origin.Behaviors[3].PathPattern)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -190,7 +188,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
-	s.True(pathInBehaviors("/*", origin.Behaviors))
+	s.Equal("/*", origin.Behaviors[0].PathPattern)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -223,8 +221,8 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.True(pathInBehaviors("/foo/*", origin.Behaviors))
-	s.True(pathInBehaviors("/foo", origin.Behaviors))
+	s.Equal("/foo", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -257,19 +255,10 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotE
 	origin := newOrigin(rules, status)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.True(pathInBehaviors("/foo/*", origin.Behaviors))
-	s.True(pathInBehaviors("/foo", origin.Behaviors))
+	s.Equal("/foo", origin.Behaviors[0].PathPattern)
+	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
 }
 
 func pathTypePointer(pt networkingv1.PathType) *networkingv1.PathType {
 	return &pt
-}
-
-func pathInBehaviors(path string, behaviors []cloudfront.Behavior) bool {
-	for _, b := range behaviors {
-		if path == b.PathPattern {
-			return true
-		}
-	}
-	return false
 }
