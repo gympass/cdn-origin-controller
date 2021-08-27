@@ -39,11 +39,13 @@ const (
 
 var errNoAnnotation = errors.New(cdnIDAnnotation + " annotation not present")
 
+// IngressReconciler reconciles Ingress resources of any version
 type IngressReconciler struct {
 	Recorder record.EventRecorder
 	Repo     cloudfront.OriginRepository
 }
 
+// Reconcile an Ingress resource of any version
 func (r *IngressReconciler) Reconcile(obj client.Object) error {
 	cdnID, ok := obj.GetAnnotations()[cdnIDAnnotation]
 	if !ok {
