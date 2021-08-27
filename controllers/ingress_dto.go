@@ -40,11 +40,11 @@ type ingressDTO struct {
 }
 
 func newIngressDTO(obj client.Object) (ingressDTO, error) {
-	switch obj.(type) {
+	switch obj := obj.(type) {
 	case *networkingv1beta1.Ingress:
-		return newIngressDTOV1beta1(obj.(*networkingv1beta1.Ingress)), nil
+		return newIngressDTOV1beta1(obj), nil
 	case *networkingv1.Ingress:
-		return newIngressDTOV1(obj.(*networkingv1.Ingress)), nil
+		return newIngressDTOV1(obj), nil
 	}
 	return ingressDTO{}, errUnsupportedKind
 }
