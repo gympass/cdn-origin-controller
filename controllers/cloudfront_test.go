@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 )
 
@@ -37,119 +36,67 @@ type IngressConverterSuite struct {
 }
 
 func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
-	rules := []networkingv1beta1.IngressRule{
-		{
-			IngressRuleValue: networkingv1beta1.IngressRuleValue{
-				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-					Paths: []networkingv1beta1.HTTPIngressPath{
-						{
-							Path:     "/",
-							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-						},
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/",
+				pathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
-			},
-		},
-	}
-
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
-	rules := []networkingv1beta1.IngressRule{
-		{
-			IngressRuleValue: networkingv1beta1.IngressRuleValue{
-				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-					Paths: []networkingv1beta1.HTTPIngressPath{
-						{
-							Path:     "/",
-							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-						},
-						{
-							Path:     "/foo",
-							PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-						},
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/",
+				pathType:    string(networkingv1beta1.PathTypeExact),
+			},
+			{
+				pathPattern: "/foo",
+				pathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
-			},
-		},
-	}
-
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
-	rule1 := networkingv1beta1.IngressRule{
-		IngressRuleValue: networkingv1beta1.IngressRuleValue{
-			HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-				Paths: []networkingv1beta1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-					},
-					{
-						Path:     "/foo",
-						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/",
+				pathType:    string(networkingv1beta1.PathTypeExact),
 			},
-		},
-	}
-	rule2 := networkingv1beta1.IngressRule{
-		IngressRuleValue: networkingv1beta1.IngressRuleValue{
-			HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-				Paths: []networkingv1beta1.HTTPIngressPath{
-					{
-						Path:     "/foo/bar",
-						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-					},
-					{
-						Path:     "/bar",
-						PathType: pathTypePointer(networkingv1beta1.PathTypeExact),
-					},
-				},
+			{
+				pathPattern: "/foo",
+				pathType:    string(networkingv1beta1.PathTypeExact),
 			},
-		},
-	}
-	rules := []networkingv1beta1.IngressRule{rule1, rule2}
-
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
+			{
+				pathPattern: "/foo/bar",
+				pathType:    string(networkingv1beta1.PathTypeExact),
+			},
+			{
+				pathPattern: "/bar",
+				pathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
@@ -160,32 +107,17 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
-	rules := []networkingv1beta1.IngressRule{
-		{
-			IngressRuleValue: networkingv1beta1.IngressRuleValue{
-				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-					Paths: []networkingv1beta1.HTTPIngressPath{
-						{
-							Path:     "/",
-							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
-						},
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/",
+				pathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
-			},
-		},
-	}
-
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/*", origin.Behaviors[0].PathPattern)
@@ -193,32 +125,17 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
-	rules := []networkingv1beta1.IngressRule{
-		{
-			IngressRuleValue: networkingv1beta1.IngressRuleValue{
-				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-					Paths: []networkingv1beta1.HTTPIngressPath{
-						{
-							Path:     "/foo/",
-							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
-						},
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/foo/",
+				pathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
-			},
-		},
-	}
-
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/foo", origin.Behaviors[0].PathPattern)
@@ -227,38 +144,19 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
-	rules := []networkingv1beta1.IngressRule{
-		{
-			IngressRuleValue: networkingv1beta1.IngressRuleValue{
-				HTTP: &networkingv1beta1.HTTPIngressRuleValue{
-					Paths: []networkingv1beta1.HTTPIngressPath{
-						{
-							Path:     "/foo",
-							PathType: pathTypePointer(networkingv1beta1.PathTypePrefix),
-						},
-					},
-				},
+	dto := ingressDTO{
+		host: "origin1",
+		paths: []path{
+			{
+				pathPattern: "/foo",
+				pathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	status := networkingv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
-				{
-					Hostname: "origin1",
-				},
-			},
-		},
-	}
-
-	origin := newOrigin(rules, status)
+	origin := newOrigin(dto)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/foo", origin.Behaviors[0].PathPattern)
 	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
-}
-
-func pathTypePointer(pt networkingv1beta1.PathType) *networkingv1beta1.PathType {
-	return &pt
 }

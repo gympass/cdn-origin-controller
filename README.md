@@ -9,7 +9,7 @@ Currently, the controller only supports adding origins to AWS CloudFront. Other 
 
 Requirements:
 
-  - Kubernetes with Ingresses on networking.k8s.io/v1beta1 (< v1.22)
+  - Kubernetes with Ingress support for networking.k8s.io/v1 or networking.k8s.io/v1beta1
 
 # AWS CloudFront
 
