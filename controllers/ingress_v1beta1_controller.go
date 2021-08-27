@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// V1Reconciler reconciles v1beta1 Ingress resources
+// V1beta1Reconciler reconciles v1beta1 Ingress resources
 type V1beta1Reconciler struct {
 	client.Client
 
