@@ -41,8 +41,8 @@ func newOrigin(dto ingressDTO) cloudfront.Origin {
 
 func pathPatterns(paths []path) []string {
 	var patterns []string
-	for _, r := range paths {
-		patterns = append(patterns, pathPatternsForPath(r)...)
+	for _, p := range paths {
+		patterns = append(patterns, pathPatternsForPath(p)...)
 	}
 	return patterns
 }

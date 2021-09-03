@@ -21,11 +21,12 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,7 +54,7 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	ingress := &networkingv1beta1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			r.log.Info("Ignoring not found Ingress.")
 			return reconcile.Result{}, nil
 		}
@@ -62,7 +63,7 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	err = r.IngressReconciler.Reconcile(ingress)
-	if err == errNoAnnotation {
+	if errors.Is(err, errNoAnnotation) {
 		r.log.Error(err, "Ignoring reconciliation request")
 		return ctrl.Result{}, nil
 	}
