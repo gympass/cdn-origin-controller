@@ -29,11 +29,13 @@ import (
 
 const ingressKind = "Ingress"
 
+// HasV1beta1Ingress return whether v1beta1 Ingresses are available
 func HasV1beta1Ingress(client discovery.DiscoveryInterface) (bool, error) {
 	gv := networkingv1beta1.SchemeGroupVersion.String()
 	return groupVersionHasIngress(gv, client)
 }
 
+// HasV1Ingress return whether v1 Ingresses are available
 func HasV1Ingress(client discovery.DiscoveryInterface) (bool, error) {
 	gv := networkingv1.SchemeGroupVersion.String()
 	return groupVersionHasIngress(gv, client)
