@@ -103,15 +103,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	reconciler := controllers.Reconciler{
-		Client:      mgr.GetClient(),
-		OriginalLog: ctrl.Log.WithName("controllers").WithName("CDNOrigin"),
-		Scheme:      mgr.GetScheme(),
-		Recorder:    mgr.GetEventRecorderFor("cdn-origin-controller"),
-		Repo:        cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
+	ingressReconciler := controllers.IngressReconciler{
+		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
+		Repo:     cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
 	}
 
-	if err := reconciler.SetupWithManager(mgr); err != nil {
+	v1beta1Reconciler := controllers.V1beta1Reconciler{
+		Client:            mgr.GetClient(),
+		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
+		Scheme:            mgr.GetScheme(),
+		IngressReconciler: ingressReconciler,
+	}
+
+	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up reconciler")
+		os.Exit(1)
+	}
+
+	v1Reconciler := controllers.V1Reconciler{
+		Client:            mgr.GetClient(),
+		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
+		Scheme:            mgr.GetScheme(),
+		IngressReconciler: ingressReconciler,
+	}
+
+	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up reconciler")
 		os.Exit(1)
 	}

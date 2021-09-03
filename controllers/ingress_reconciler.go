@@ -20,46 +20,48 @@
 package controllers
 
 import (
-	"strings"
+	"errors"
+	"fmt"
 
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
-const prefixPathType = string(networkingv1beta1.PathTypePrefix)
+const cdnIDAnnotation = "cdn-origin-controller.gympass.com/cdn.id"
 
-func newOrigin(dto ingressDTO) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(dto.host)
-	patterns := pathPatterns(dto.paths)
-	for _, p := range patterns {
-		builder = builder.WithBehavior(p)
-	}
+const (
+	attachOriginFailedReason  = "FailedToAttach"
+	attachOriginSuccessReason = "SuccessfullyAttached"
+)
 
-	return builder.Build()
+var errNoAnnotation = errors.New(cdnIDAnnotation + " annotation not present")
+
+// IngressReconciler reconciles Ingress resources of any version
+type IngressReconciler struct {
+	Recorder record.EventRecorder
+	Repo     cloudfront.OriginRepository
 }
 
-func pathPatterns(paths []path) []string {
-	var patterns []string
-	for _, p := range paths {
-		patterns = append(patterns, pathPatternsForPath(p)...)
-	}
-	return patterns
-}
-
-func pathPatternsForPath(p path) []string {
-	if p.pathType == prefixPathType {
-		return buildPatternsForPrefix(p.pathPattern)
-	}
-	return []string{p.pathPattern}
-}
-
-// https://github.com/kubernetes-sigs/aws-load-balancer-controller/pull/1772/files#diff-ab931de004b4ee78d1a27f20f37cc9acaf851ab150094ec8baa1fdbcf5ca67f1R163-R174
-func buildPatternsForPrefix(path string) []string {
-	if path == "/" {
-		return []string{"/*"}
+// Reconcile an Ingress resource of any version
+func (r *IngressReconciler) Reconcile(obj client.Object) error {
+	cdnID, ok := obj.GetAnnotations()[cdnIDAnnotation]
+	if !ok {
+		return errNoAnnotation
 	}
 
-	normalizedPath := strings.TrimSuffix(path, "/")
-	return []string{normalizedPath, normalizedPath + "/*"}
+	dto, err := newIngressDTO(obj)
+	if err != nil {
+		return err
+	}
+
+	if err := r.Repo.Save(cdnID, newOrigin(dto)); err != nil {
+		r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: saving origin: %v", err)
+		return fmt.Errorf("saving origin: %v", err)
+	}
+
+	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
+	return nil
 }
