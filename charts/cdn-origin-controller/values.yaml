@@ -2,8 +2,8 @@ replicaCount: 1
 
 image:
   repository: ghcr.io/gympass/cdn-origin-controller
-  tag: "0.0.3"
-  pullPolicy: Always
+  tag: v0.0.4
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
