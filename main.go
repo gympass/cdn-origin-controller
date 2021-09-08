@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -29,6 +30,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
+	k8sdisc "k8s.io/client-go/discovery"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -44,6 +48,7 @@ import (
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/discovery"
 )
 
 var (
@@ -108,33 +113,64 @@ func main() {
 		Repo:     cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
 	}
 
-	v1beta1Reconciler := controllers.V1beta1Reconciler{
-		Client:            mgr.GetClient(),
-		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
-		Scheme:            mgr.GetScheme(),
-		IngressReconciler: ingressReconciler,
-	}
-
-	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to set up reconciler")
-		os.Exit(1)
-	}
-
-	v1Reconciler := controllers.V1Reconciler{
-		Client:            mgr.GetClient(),
-		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
-		Scheme:            mgr.GetScheme(),
-		IngressReconciler: ingressReconciler,
-	}
-
-	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to set up reconciler")
-		os.Exit(1)
-	}
+	mustSetupControllers(mgr, ingressReconciler)
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressReconciler) {
+	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
+	v1Available, err := discovery.HasV1Ingress(discClient)
+	if err != nil {
+		setupLog.Error(err, "Could not discover if v1 Ingresses are available")
+	}
+
+	v1beta1Available, err := discovery.HasV1beta1Ingress(discClient)
+	if err != nil {
+		setupLog.Error(err, "Could not discover if v1beta1 Ingresses are available")
+	}
+
+	if !v1Available && !v1beta1Available {
+		setupLog.Error(errors.New("ingress is not available on cluster"), "Could not set up controllers")
+		os.Exit(1)
+	}
+
+	if v1Available {
+		mustSetupV1Controller(mgr, reconciler)
+	}
+	if v1beta1Available {
+		mustSetupV1beta1Controller(mgr, reconciler)
+	}
+}
+
+func mustSetupV1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+	v1Reconciler := controllers.V1Reconciler{
+		Client:            mgr.GetClient(),
+		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
+		Scheme:            mgr.GetScheme(),
+		IngressReconciler: ir,
+	}
+
+	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up v1 ingress controller")
+		os.Exit(1)
+	}
+}
+
+func mustSetupV1beta1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+	v1beta1Reconciler := controllers.V1beta1Reconciler{
+		Client:            mgr.GetClient(),
+		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
+		Scheme:            mgr.GetScheme(),
+		IngressReconciler: ir,
+	}
+
+	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to set up v1beta1 ingress controller")
 		os.Exit(1)
 	}
 }
