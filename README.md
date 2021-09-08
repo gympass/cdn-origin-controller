@@ -27,6 +27,10 @@ The controller needs permission to manipulate the CloudFront distributions. A [s
 
 > **Important**: This sample policy grants the necessary actions for proper functioning of the controller, but it grants them on all CloudFront distributions. Changing this policy to make it more restrictive and secure is encouraged.
 
+# Installing via Helm
+
+Access the [documentation](https://gympass.github.io/cdn-origin-controller/) to install the cdn-origin-controller using a helm chart repository.
+
 # Configuration
 
 Use the following environment variables to change the controller's behavior:
