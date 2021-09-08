@@ -1,0 +1,13 @@
+apiVersion: v1
+entries:
+  cdn-origin-controller:
+  - apiVersion: v1
+    appVersion: v0.0.1-rc1
+    created: "2021-09-08T17:29:18.177559284Z"
+    description: The cdn-origin-controller Helm Chart
+    digest: bdfd4eadfc37813aa735a8291a1649bc85f3c5614665e3e298a37ad2e66a11c6
+    name: cdn-origin-controller
+    urls:
+    - https://github.com/Gympass/cdn-origin-controller/releases/download/cdn-origin-controller-v0.0.1-rc1/cdn-origin-controller-v0.0.1-rc1.tgz
+    version: v0.0.1-rc1
+generated: "2021-09-08T17:29:18.177564184Z"
