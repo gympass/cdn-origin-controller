@@ -36,9 +36,33 @@ type OriginTestSuite struct {
 	suite.Suite
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_SingleOriginAndBehavior() {
+func (s *OriginTestSuite) TestNewOriginBuilder_SingleBehavior() {
 	o := cloudfront.NewOriginBuilder("origin").WithBehavior("/*").Build()
 	s.Equal("origin", o.Host)
 	s.Len(o.Behaviors, 1)
 	s.Equal("/*", o.Behaviors[0].PathPattern)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_MultipleBehaviors() {
+	o := cloudfront.NewOriginBuilder("origin").
+		WithBehavior("/*").
+		WithBehavior("/foo").
+		WithBehavior("/bar").
+		Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 3)
+	s.Equal("/*", o.Behaviors[0].PathPattern)
+	s.Equal("/foo", o.Behaviors[1].PathPattern)
+	s.Equal("/bar", o.Behaviors[2].PathPattern)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_ViewerFunction() {
+	o := cloudfront.NewOriginBuilder("origin").
+		WithBehavior("/").
+		WithViewerFunction("some-arn").
+		Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 1)
+	s.Equal("/", o.Behaviors[0].PathPattern)
+	s.Equal("some-arn", o.Behaviors[0].ViewerFnARN)
 }

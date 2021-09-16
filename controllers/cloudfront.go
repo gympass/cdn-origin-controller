@@ -30,7 +30,7 @@ import (
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
 func newOrigin(dto ingressDTO) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(dto.host)
+	builder := cloudfront.NewOriginBuilder(dto.host).WithViewerFunction(dto.viewerFnARN)
 	patterns := pathPatterns(dto.paths)
 	for _, p := range patterns {
 		builder = builder.WithBehavior(p)

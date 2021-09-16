@@ -26,10 +26,12 @@ type Origin struct {
 
 type Behavior struct {
 	PathPattern string
+	ViewerFnARN string
 }
 
 type OriginBuilder struct {
-	origin Origin
+	origin      Origin
+	viewerFnARN string
 }
 
 func NewOriginBuilder(host string) OriginBuilder {
@@ -41,6 +43,20 @@ func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
 	return b
 }
 
+func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
+	b.viewerFnARN = fnARN
+	return b
+}
+
 func (b OriginBuilder) Build() Origin {
+	if len(b.viewerFnARN) > 0 {
+		b.addViewerFnToBehaviors()
+	}
 	return b.origin
+}
+
+func (b OriginBuilder) addViewerFnToBehaviors() {
+	for i := range b.origin.Behaviors {
+		b.origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
+	}
 }

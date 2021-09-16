@@ -35,8 +35,9 @@ type path struct {
 }
 
 type ingressDTO struct {
-	host  string
-	paths []path
+	host        string
+	paths       []path
+	viewerFnARN string
 }
 
 func newIngressDTO(obj client.Object) (ingressDTO, error) {
@@ -51,8 +52,9 @@ func newIngressDTO(obj client.Object) (ingressDTO, error) {
 
 func newIngressDTOV1beta1(ing *networkingv1beta1.Ingress) ingressDTO {
 	return ingressDTO{
-		host:  ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths: pathsV1beta1(ing.Spec.Rules),
+		host:        ing.Status.LoadBalancer.Ingress[0].Hostname,
+		paths:       pathsV1beta1(ing.Spec.Rules),
+		viewerFnARN: viewerFnARN(ing),
 	}
 }
 
@@ -72,8 +74,9 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
 
 func newIngressDTOV1(ing *networkingv1.Ingress) ingressDTO {
 	return ingressDTO{
-		host:  ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths: pathsV1(ing.Spec.Rules),
+		host:        ing.Status.LoadBalancer.Ingress[0].Hostname,
+		paths:       pathsV1(ing.Spec.Rules),
+		viewerFnARN: viewerFnARN(ing),
 	}
 }
 
@@ -89,4 +92,8 @@ func pathsV1(rules []networkingv1.IngressRule) []path {
 		}
 	}
 	return paths
+}
+
+func viewerFnARN(obj client.Object) string {
+	return obj.GetAnnotations()[cfViewerFnAnnotation]
 }
