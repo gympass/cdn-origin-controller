@@ -52,7 +52,7 @@ func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
 	return b
 }
 
-// WithViewerFunction associates a function with all viewer requests of all Behaviors in the Origin being build
+// WithViewerFunction associates a function with all viewer requests of all Behaviors in the Origin being built
 func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
 	b.viewerFnARN = fnARN
 	return b
