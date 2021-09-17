@@ -167,6 +167,26 @@ func newAWSOrigin(o Origin) *awscloudfront.Origin {
 }
 
 func newCacheBehavior(behavior Behavior, host string) *awscloudfront.CacheBehavior {
+	cb := baseCacheBehavior(behavior.PathPattern, host)
+	if len(behavior.ViewerFnARN) > 0 {
+		addViewerFunctionAssociation(cb, behavior.ViewerFnARN)
+	}
+	return cb
+}
+
+func addViewerFunctionAssociation(cb *awscloudfront.CacheBehavior, functionARN string) {
+	cb.FunctionAssociations = &awscloudfront.FunctionAssociations{
+		Items: []*awscloudfront.FunctionAssociation{
+			{
+				FunctionARN: aws.String(functionARN),
+				EventType:   aws.String(awscloudfront.EventTypeViewerRequest),
+			},
+		},
+		Quantity: aws.Int64(1),
+	}
+}
+
+func baseCacheBehavior(pathPattern, host string) *awscloudfront.CacheBehavior {
 	return &awscloudfront.CacheBehavior{
 		AllowedMethods: &awscloudfront.AllowedMethods{
 			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
@@ -181,7 +201,7 @@ func newCacheBehavior(behavior Behavior, host string) *awscloudfront.CacheBehavi
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
 		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-		PathPattern:                aws.String(behavior.PathPattern),
+		PathPattern:                aws.String(pathPattern),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String(host),
 		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),

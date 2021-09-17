@@ -19,28 +19,55 @@
 
 package cloudfront
 
+// Origin represents a CloudFront Origin and aggregates Behaviors associated with it
 type Origin struct {
-	Host      string
+	// Host is the origin's hostname
+	Host string
+	// Behaviors is the collection of Behaviors associated with this Origin
 	Behaviors []Behavior
 }
 
+// Behavior represents a CloudFront Cache Behavior
 type Behavior struct {
+	// PathPattern is the path pattern used when configuring the Behavior
 	PathPattern string
+	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
+	ViewerFnARN string
 }
 
+// OriginBuilder allows the construction of a Origin
 type OriginBuilder struct {
-	origin Origin
+	origin      Origin
+	viewerFnARN string
 }
 
+// NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(host string) OriginBuilder {
 	return OriginBuilder{origin: Origin{Host: host}}
 }
 
+// WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
 func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
 	b.origin.Behaviors = append(b.origin.Behaviors, Behavior{PathPattern: pathPattern})
 	return b
 }
 
+// WithViewerFunction associates a function with all viewer requests of all Behaviors in the Origin being built
+func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
+	b.viewerFnARN = fnARN
+	return b
+}
+
+// Build creates an Origin based on configuration made so far
 func (b OriginBuilder) Build() Origin {
+	if len(b.viewerFnARN) > 0 {
+		b.addViewerFnToBehaviors()
+	}
 	return b.origin
+}
+
+func (b OriginBuilder) addViewerFnToBehaviors() {
+	for i := range b.origin.Behaviors {
+		b.origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
+	}
 }

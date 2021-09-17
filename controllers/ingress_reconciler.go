@@ -30,7 +30,10 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
-const cdnIDAnnotation = "cdn-origin-controller.gympass.com/cdn.id"
+const (
+	cdnIDAnnotation      = "cdn-origin-controller.gympass.com/cdn.id"
+	cfViewerFnAnnotation = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
+)
 
 const (
 	attachOriginFailedReason  = "FailedToAttach"

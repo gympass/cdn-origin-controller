@@ -346,3 +346,85 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExi
 	repo := cloudfront.NewOriginRepository(awsClient)
 	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}))
 }
+
+func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction() {
+	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
+		ETag: aws.String(""),
+		DistributionConfig: &awscloudfront.DistributionConfig{
+			Origins:        &awscloudfront.Origins{Quantity: aws.Int64(0)},
+			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+		},
+	}
+
+	expectedNewCacheBehavior := &awscloudfront.CacheBehavior{
+		AllowedMethods: &awscloudfront.AllowedMethods{
+			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
+			Quantity: aws.Int64(7),
+			CachedMethods: &awscloudfront.CachedMethods{
+				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
+				Quantity: aws.Int64(2),
+			},
+		},
+		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		Compress:                   aws.Bool(true),
+		FieldLevelEncryptionId:     aws.String(""),
+		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
+		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		PathPattern:                aws.String("/foo"),
+		SmoothStreaming:            aws.Bool(false),
+		TargetOriginId:             aws.String("origin"),
+		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
+		FunctionAssociations: &awscloudfront.FunctionAssociations{
+			Items: []*awscloudfront.FunctionAssociation{
+				{
+					EventType:   aws.String(awscloudfront.EventTypeViewerRequest),
+					FunctionARN: aws.String("some-arn"),
+				},
+			},
+			Quantity: aws.Int64(1),
+		},
+	}
+
+	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
+		DistributionConfig: &awscloudfront.DistributionConfig{
+			Origins: &awscloudfront.Origins{
+				Items: []*awscloudfront.Origin{
+					{
+						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
+						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
+							HTTPPort:               aws.Int64(80),
+							HTTPSPort:              aws.Int64(443),
+							OriginKeepaliveTimeout: aws.Int64(5),
+							OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
+							OriginReadTimeout:      aws.Int64(30),
+							OriginSslProtocols: &awscloudfront.OriginSslProtocols{
+								Items:    sslProtocols,
+								Quantity: aws.Int64(int64(len(sslProtocols))),
+							},
+						},
+						DomainName: aws.String("origin"),
+						Id:         aws.String("origin"),
+						OriginPath: aws.String(""),
+					},
+				},
+				Quantity: aws.Int64(1),
+			},
+			CacheBehaviors: &awscloudfront.CacheBehaviors{
+				Items: []*awscloudfront.CacheBehavior{
+					expectedNewCacheBehavior,
+				},
+				Quantity: aws.Int64(1),
+			},
+		},
+		Id:      aws.String("mock id"),
+		IfMatch: aws.String(""),
+	}
+
+	var noError error
+	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+
+	repo := cloudfront.NewOriginRepository(awsClient)
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/foo", ViewerFnARN: "some-arn"}}}))
+}
