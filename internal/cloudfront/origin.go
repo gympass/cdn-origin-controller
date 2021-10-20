@@ -19,12 +19,18 @@
 
 package cloudfront
 
+const (
+	defaultResponseTimeout = 30
+)
+
 // Origin represents a CloudFront Origin and aggregates Behaviors associated with it
 type Origin struct {
 	// Host is the origin's hostname
 	Host string
 	// Behaviors is the collection of Behaviors associated with this Origin
 	Behaviors []Behavior
+	// ResponseTimeout
+	ResponseTimeout int64
 }
 
 // Behavior represents a CloudFront Cache Behavior
@@ -39,11 +45,12 @@ type Behavior struct {
 type OriginBuilder struct {
 	origin      Origin
 	viewerFnARN string
+	respTimeout int64
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(host string) OriginBuilder {
-	return OriginBuilder{origin: Origin{Host: host}}
+	return OriginBuilder{origin: Origin{Host: host, ResponseTimeout: defaultResponseTimeout}}
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
@@ -58,10 +65,20 @@ func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
 	return b
 }
 
+// WithResponseTimeout associates a custom response timeout to custom origin
+func (b OriginBuilder) WithResponseTimeout(rpTimeout int64) OriginBuilder {
+	b.respTimeout = rpTimeout
+	return b
+}
+
 // Build creates an Origin based on configuration made so far
 func (b OriginBuilder) Build() Origin {
 	if len(b.viewerFnARN) > 0 {
 		b.addViewerFnToBehaviors()
+	}
+
+	if b.respTimeout > 0 {
+		b.origin.ResponseTimeout = b.respTimeout
 	}
 	return b.origin
 }

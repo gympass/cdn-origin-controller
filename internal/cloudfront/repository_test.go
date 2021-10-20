@@ -143,7 +143,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginDoesNotExist
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin"}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30}))
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExists() {
@@ -193,7 +193,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExist
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin"}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30}))
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExistYet() {
@@ -270,7 +270,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/mid-sized/path/with/medium/precedence"}}}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/mid-sized/path/with/medium/precedence"}}}))
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExists() {
@@ -344,7 +344,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExi
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}))
 }
 
 func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction() {
@@ -426,5 +426,5 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", Behaviors: []cloudfront.Behavior{{PathPattern: "/foo", ViewerFnARN: "some-arn"}}}))
+	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/foo", ViewerFnARN: "some-arn"}}}))
 }
