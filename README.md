@@ -1,7 +1,7 @@
+# cdn-origin-controller
+
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Gympass/cdn-origin-controller&amp;utm_campaign=Badge_Grade)
 [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Coverage)
-
-# cdn-origin-controller
 
 cdn-origin-controller is a Kubernetes controller to attach CDN origins based on Ingress resources. This is made possible by configuring your Ingress resources with certain annotations, which tell the controller how these origins should be created.
 
@@ -9,9 +9,9 @@ Currently, the controller only supports adding origins to AWS CloudFront. Other 
 
 Requirements:
 
-  - Kubernetes with Ingress support for networking.k8s.io/v1 or networking.k8s.io/v1beta1
+- Kubernetes with Ingress support for networking.k8s.io/v1 or networking.k8s.io/v1beta1
 
-# AWS CloudFront
+## AWS CloudFront
 
 The controller will look for three locations within the Ingress definition in order to determine how the origin and behaviors should be created:
 
@@ -29,11 +29,11 @@ The controller needs permission to manipulate the CloudFront distributions. A [s
 
 > **Important**: This sample policy grants the necessary actions for proper functioning of the controller, but it grants them on all CloudFront distributions. Changing this policy to make it more restrictive and secure is encouraged.
 
-# Installing via Helm
+## Installing via Helm
 
 Access the [documentation](https://gympass.github.io/cdn-origin-controller/) to install the cdn-origin-controller using a helm chart repository.
 
-# Configuration
+## Configuration
 
 Use the following environment variables to change the controller's behavior:
 
@@ -42,7 +42,7 @@ Use the following environment variables to change the controller's behavior:
 | LOG_LEVEL   | Represents log level of verbosity. Can be "debug", "info", "warn", "error", "dpanic", "panic" and "fatal" (sorted with decreasing verbosity). | info    |
 | DEV_MODE    | When set to "true" logs in unstructured text instead of JSON. Also overrides LOG_LEVEL to "debug".                                            | false   |
 
-# Contributing
+## Contributing
 
 Please open an issue in order to report bugs, ask questions or discuss the controller.
 
