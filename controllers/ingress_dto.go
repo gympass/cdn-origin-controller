@@ -21,6 +21,7 @@ package controllers
 
 import (
 	"errors"
+	"strconv"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
@@ -35,9 +36,10 @@ type path struct {
 }
 
 type ingressDTO struct {
-	host        string
-	paths       []path
-	viewerFnARN string
+	host              string
+	paths             []path
+	viewerFnARN       string
+	originRespTimeout int64
 }
 
 func newIngressDTO(obj client.Object) (ingressDTO, error) {
@@ -52,9 +54,10 @@ func newIngressDTO(obj client.Object) (ingressDTO, error) {
 
 func newIngressDTOV1beta1(ing *networkingv1beta1.Ingress) ingressDTO {
 	return ingressDTO{
-		host:        ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:       pathsV1beta1(ing.Spec.Rules),
-		viewerFnARN: viewerFnARN(ing),
+		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
+		paths:             pathsV1beta1(ing.Spec.Rules),
+		viewerFnARN:       viewerFnARN(ing),
+		originRespTimeout: originRespTimeout(ing),
 	}
 }
 
@@ -74,9 +77,10 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
 
 func newIngressDTOV1(ing *networkingv1.Ingress) ingressDTO {
 	return ingressDTO{
-		host:        ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:       pathsV1(ing.Spec.Rules),
-		viewerFnARN: viewerFnARN(ing),
+		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
+		paths:             pathsV1(ing.Spec.Rules),
+		viewerFnARN:       viewerFnARN(ing),
+		originRespTimeout: originRespTimeout(ing),
 	}
 }
 
@@ -96,4 +100,10 @@ func pathsV1(rules []networkingv1.IngressRule) []path {
 
 func viewerFnARN(obj client.Object) string {
 	return obj.GetAnnotations()[cfViewerFnAnnotation]
+}
+
+func originRespTimeout(obj client.Object) int64 {
+	val := obj.GetAnnotations()[cfOrigRespTimeoutAnnotation]
+	respTimeout, _ := strconv.ParseInt(val, 10, 64)
+	return respTimeout
 }

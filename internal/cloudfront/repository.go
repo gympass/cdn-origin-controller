@@ -147,6 +147,7 @@ func newAWSOrigin(o Origin) *awscloudfront.Origin {
 		aws.String(originSSLProtocolTLSv11),
 		aws.String(originSSLProtocolTLSv12),
 	}
+
 	return &awscloudfront.Origin{
 		CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
 		CustomOriginConfig: &awscloudfront.CustomOriginConfig{
@@ -154,7 +155,7 @@ func newAWSOrigin(o Origin) *awscloudfront.Origin {
 			HTTPSPort:              aws.Int64(443),
 			OriginKeepaliveTimeout: aws.Int64(5),
 			OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-			OriginReadTimeout:      aws.Int64(30),
+			OriginReadTimeout:      aws.Int64(o.ResponseTimeout),
 			OriginSslProtocols: &awscloudfront.OriginSslProtocols{
 				Items:    SSLProtocols,
 				Quantity: aws.Int64(int64(len(SSLProtocols))),

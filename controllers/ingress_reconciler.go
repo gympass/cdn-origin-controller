@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	cdnIDAnnotation      = "cdn-origin-controller.gympass.com/cdn.id"
-	cfViewerFnAnnotation = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
+	cdnIDAnnotation             = "cdn-origin-controller.gympass.com/cdn.id"
+	cfViewerFnAnnotation        = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
+	cfOrigRespTimeoutAnnotation = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 )
 
 const (
