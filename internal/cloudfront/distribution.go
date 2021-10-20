@@ -19,6 +19,7 @@
 
 package cloudfront
 
+// DistributionBuilder allows the construction of a Distribution
 type DistributionBuilder struct {
 	alternateDomains    []string
 	defaultOriginDomain string
@@ -32,6 +33,7 @@ type DistributionBuilder struct {
 	webACLID            string
 }
 
+// NewDistributionBuilder takes required arguments for a distribution and returns a DistributionBuilder
 func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
 	return DistributionBuilder{
 		description:         description,
@@ -41,6 +43,7 @@ func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group 
 	}
 }
 
+// WithLogging takes in bucket address and file prefix to enable sending CF logs to S3
 func (b DistributionBuilder) WithLogging(bucketAddress, prefix string) DistributionBuilder {
 	b.logging = loggingConfig{
 		Enabled:       true,
@@ -50,11 +53,13 @@ func (b DistributionBuilder) WithLogging(bucketAddress, prefix string) Distribut
 	return b
 }
 
+// WithTags takes in custom tags which should be present at the Distribution
 func (b DistributionBuilder) WithTags(tags map[string]string) DistributionBuilder {
 	b.tags = tags
 	return b
 }
 
+// WithTLS takes in an ACM certificate ARN and a Security Policy ID to enable TLS termination
 func (b DistributionBuilder) WithTLS(certARN, securityPolicyID string) DistributionBuilder {
 	b.tls = tlsConfig{
 		Enabled:          true,
@@ -64,21 +69,25 @@ func (b DistributionBuilder) WithTLS(certARN, securityPolicyID string) Distribut
 	return b
 }
 
+// WithIPv6 enables IPv6
 func (b DistributionBuilder) WithIPv6() DistributionBuilder {
 	b.ipv6Enabled = true
 	return b
 }
 
+// WithAlternateDomains takes a slice of domains to be configured as the Distribution's alternate domains
 func (b DistributionBuilder) WithAlternateDomains(domains []string) DistributionBuilder {
 	b.alternateDomains = domains
 	return b
 }
 
+// WithWebACL takes the ID of the Web ACL that should be associated with the Distribution
 func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 	b.webACLID = id
 	return b
 }
 
+// Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
 func (b DistributionBuilder) Build() Distribution {
 	return Distribution{
 		DefaultOriginDomain: b.defaultOriginDomain,
@@ -114,6 +123,7 @@ func (b DistributionBuilder) defaultTags() map[string]string {
 	return tags
 }
 
+// Distribution represents a CloudFront distribution
 type Distribution struct {
 	AlternateDomains    []string
 	DefaultOriginDomain string
