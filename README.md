@@ -15,15 +15,15 @@ Requirements:
 
 The controller will look for three locations within the Ingress definition in order to determine how the origin and behaviors should be created:
 
-  - `Ingress.status.loadbalancer.ingress[].host`: domains of the origins will be retrieved from here.
-  - `Ingress.spec.rules[].http.paths[].path`: for each path at least one behavior will be created, allowing different cache behavior for different backends, for example.
-  - `Ingress.spec.rules[].http.paths[].pathType`: in order to determine how to create each behavior while replicating routing that is expected from each path type. For `ImplementationSpecific` the value is simply copied as the behavior's path pattern.
+- `Ingress.status.loadbalancer.ingress[].host`: domains of the origins will be retrieved from here.
+- `Ingress.spec.rules[].http.paths[].path`: for each path at least one behavior will be created, allowing different cache behavior for different backends, for example.
+- `Ingress.spec.rules[].http.paths[].pathType`: in order to determine how to create each behavior while replicating routing that is expected from each path type. For `ImplementationSpecific` the value is simply copied as the behavior's path pattern.
 
 The following annotation controls how origins and behaviors are attached to existing CloudFront distributions:
 
-  - `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG`
-  - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
-  - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `30`
+- `cdn-origin-controller.gympass.com/cdn.id`: the ID of the CloudFront distribution where the origins and behaviors should be present. Example: `cdn-origin-controller.gympass.com/cdn.id: E7IQHB92RC62FG`
+- `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
+- `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `30`
 
 The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
 
