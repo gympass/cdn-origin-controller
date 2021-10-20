@@ -7,6 +7,7 @@ cdn-origin-controller is a Kubernetes controller to attach CDN origins based on 
 
 Currently, the controller only supports adding origins to AWS CloudFront. Other CDN providers may become supported based on community use cases.
 
+
 Requirements:
 
 - Kubernetes with Ingress support for networking.k8s.io/v1 or networking.k8s.io/v1beta1
