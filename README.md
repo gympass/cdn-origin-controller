@@ -1,7 +1,7 @@
 # cdn-origin-controller
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Gympass/cdn-origin-controller&amp;utm_campaign=Badge_Grade)
-[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Coverage)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/ca2a2f38c1be40e5b4d94b25ad2134fd)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Gympass/cdn-origin-controller&amp;utm_campaign=Badge_Grade)
+[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/ca2a2f38c1be40e5b4d94b25ad2134fd)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Coverage)
 
 cdn-origin-controller is a Kubernetes controller to attach CDN origins based on Ingress resources. This is made possible by configuring your Ingress resources with certain annotations, which tell the controller how these origins should be created.
 
