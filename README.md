@@ -1,5 +1,6 @@
 # cdn-origin-controller
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/4e0cfdbc39184846b5c0d0961279985a)](https://app.codacy.com/gh/Gympass/cdn-origin-controller?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Grade_Settings)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Gympass/cdn-origin-controller&amp;utm_campaign=Badge_Grade)
 [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/fc9d3d6690714fe79af21149955633c2)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Coverage)
 
