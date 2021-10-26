@@ -20,6 +20,7 @@
 package controllers
 
 import (
+	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -47,14 +48,19 @@ func (p hasCdnAnnotationPredicate) Generic(event.GenericEvent) bool {
 }
 
 func hasCdnAnnotation(o client.Object) bool {
-	return len(o.GetAnnotations()[cdnIDAnnotation]) > 0
+	return len(o.GetAnnotations()[cdnGroupAnnotation]) > 0
 }
 
 func hasLoadBalancer(o client.Object) bool {
-	ing, ok := o.(*networkingv1beta1.Ingress)
+	ingv1beta1, ok := o.(*networkingv1beta1.Ingress)
+	if ok {
+		return len(ingv1beta1.Status.LoadBalancer.Ingress) > 0
+	}
+
+	ingv1, ok := o.(*networkingv1.Ingress)
 	if !ok {
 		return false
 	}
 
-	return len(ing.Status.LoadBalancer.Ingress) > 0
+	return len(ingv1.Status.LoadBalancer.Ingress) > 0
 }

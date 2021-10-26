@@ -32,3 +32,9 @@ func (s byDescendingPathLength) Swap(i, j int) {
 func (s byDescendingPathLength) Less(i, j int) bool {
 	return len(*s[i].PathPattern) > len(*s[j].PathPattern)
 }
+
+type byKey []*awscloudfront.Tag
+
+func (s byKey) Len() int           { return len(s) }
+func (s byKey) Less(i, j int) bool { return *s[i].Key < *s[j].Key }
+func (s byKey) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }

@@ -42,39 +42,74 @@ const (
 	originSSLProtocolSSLv3  = "SSLv3"
 )
 
-// OriginRepository provides a repository for manipulating CloudFront distributions to match desired configuration
-type OriginRepository interface {
-	// Save ensures the given origin exists on the CloudFront distribution of given ID
-	Save(id string, o Origin) error
+// DistributionRepository provides a repository for manipulating CloudFront distributions to match desired configuration
+type DistributionRepository interface {
+	// Create creates the given Distribution on CloudFront
+	Create(Distribution) error
+	// Sync ensures the given Distribution is correctly configured on CloudFront
+	Sync(Distribution) error
 }
+
+// CallerRefFn is the function that should be called when setting the request's caller reference.
+// It should be a unique identifier to prevent the request from being replayed.
+// https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_CreateDistribution.html
+type CallerRefFn func() string
 
 type repository struct {
 	awsClient cloudfrontiface.CloudFrontAPI
+	callerRef CallerRefFn
 }
 
-// NewOriginRepository creates a new AWS CloudFront Origin repository
-func NewOriginRepository(awsClient cloudfrontiface.CloudFrontAPI) OriginRepository {
-	return &repository{awsClient: awsClient}
+// NewDistributionRepository creates a new AWS CloudFront DistributionRepository
+func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRefFn CallerRefFn) DistributionRepository {
+	return &repository{awsClient: awsClient, callerRef: callerRefFn}
 }
 
-func (r repository) Save(id string, o Origin) error {
-	output, err := r.distributionConfigByID(id)
+func (r repository) Create(d Distribution) error {
+	config := reconcileConfig(r.initializedConfig(d.DefaultOrigin.Host), d)
+	createInput := &awscloudfront.CreateDistributionWithTagsInput{
+		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
+			DistributionConfig: &config,
+			Tags:               r.distributionTags(d),
+		},
+	}
+	if _, err := r.awsClient.CreateDistributionWithTags(createInput); err != nil {
+		return fmt.Errorf("creating distribution: %v", err)
+	}
+	return nil
+}
+
+func (r repository) Sync(d Distribution) error {
+	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return fmt.Errorf("getting distribution config: %v", err)
 	}
 
-	config := reconcileConfig(*output.DistributionConfig, o)
+	config := reconcileConfig(*output.DistributionConfig, d)
 
 	updateInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &config,
 		IfMatch:            output.ETag,
-		Id:                 aws.String(id),
+		Id:                 aws.String(d.ID),
 	}
 	if _, err = r.awsClient.UpdateDistribution(updateInput); err != nil {
 		return fmt.Errorf("updating distribution: %v", err)
 	}
 
 	return nil
+}
+
+func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
+	var awsTags awscloudfront.Tags
+	for k, v := range d.Tags {
+		awsTags.Items = append(awsTags.Items, &awscloudfront.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+	// map iteration is non-deterministic, so we sort the tags to make this deterministic and testable
+	sort.Sort(byKey(awsTags.Items))
+	return &awsTags
 }
 
 func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error) {
@@ -89,10 +124,89 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 	return output, nil
 }
 
-func reconcileConfig(config awscloudfront.DistributionConfig, o Origin) awscloudfront.DistributionConfig {
-	config = ensureOriginInConfig(config, newAWSOrigin(o))
-	config = ensureBehaviorsInConfig(config, o)
+// initializedConfig constructs a DistributionConfig with initialized values to prevent nil dereference
+func (r repository) initializedConfig(defaultOriginHost string) awscloudfront.DistributionConfig {
+	return awscloudfront.DistributionConfig{
+		Aliases: &awscloudfront.Aliases{
+			Items:    aws.StringSlice([]string{}),
+			Quantity: aws.Int64(0),
+		},
+		CacheBehaviors: &awscloudfront.CacheBehaviors{
+			Items:    []*awscloudfront.CacheBehavior{},
+			Quantity: aws.Int64(0),
+		},
+		CallerReference:      aws.String(r.callerRef()),
+		Comment:              nil,
+		CustomErrorResponses: nil,
+		DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
+			AllowedMethods:             nil,
+			CachePolicyId:              aws.String(cachingDisabledPolicyID),
+			Compress:                   nil,
+			FieldLevelEncryptionId:     nil,
+			FunctionAssociations:       nil,
+			LambdaFunctionAssociations: nil,
+			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+			RealtimeLogConfigArn:       nil,
+			SmoothStreaming:            nil,
+			TargetOriginId:             aws.String(defaultOriginHost),
+			TrustedKeyGroups:           nil,
+			TrustedSigners:             nil,
+			ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
+		},
+		DefaultRootObject: nil,
+		Enabled:           aws.Bool(true),
+		HttpVersion:       nil,
+		IsIPV6Enabled:     nil,
+		Logging:           nil,
+		OriginGroups:      nil,
+		Origins: &awscloudfront.Origins{
+			Items:    []*awscloudfront.Origin{},
+			Quantity: aws.Int64(0),
+		},
+		PriceClass:        nil,
+		Restrictions:      nil,
+		ViewerCertificate: nil,
+		WebACLId:          nil,
+	}
+}
+
+func reconcileConfig(config awscloudfront.DistributionConfig, d Distribution) awscloudfront.DistributionConfig {
+	config = ensureDistributionConfig(config, d)
+	config = ensureOriginInConfig(config, newAWSOrigin(d.CustomOrigin))
+	config = ensureBehaviorsInConfig(config, d.CustomOrigin)
 	config = ensureCorrectBehaviorPrecedence(config)
+	return config
+}
+
+func ensureDistributionConfig(config awscloudfront.DistributionConfig, d Distribution) awscloudfront.DistributionConfig {
+	config = ensureOriginInConfig(config, newAWSOrigin(d.DefaultOrigin))
+
+	config.PriceClass = aws.String(d.PriceClass)
+	config.WebACLId = aws.String(d.WebACLID)
+	config.HttpVersion = aws.String(awscloudfront.HttpVersionHttp2)
+	config.IsIPV6Enabled = aws.Bool(d.IPv6Enabled)
+	config.Comment = aws.String(d.Description)
+
+	config.Aliases = &awscloudfront.Aliases{
+		Items:    aws.StringSlice(d.AlternateDomains),
+		Quantity: aws.Int64(int64(len(d.AlternateDomains))),
+	}
+
+	if d.TLS.Enabled {
+		config.ViewerCertificate = &awscloudfront.ViewerCertificate{
+			ACMCertificateArn:      aws.String(d.TLS.CertARN),
+			MinimumProtocolVersion: aws.String(d.TLS.SecurityPolicyID),
+			SSLSupportMethod:       aws.String(awscloudfront.SSLSupportMethodSniOnly),
+		}
+	}
+	if d.Logging.Enabled {
+		config.Logging = &awscloudfront.LoggingConfig{
+			Enabled:        aws.Bool(true),
+			Bucket:         aws.String(d.Logging.BucketAddress),
+			Prefix:         aws.String(d.Logging.Prefix),
+			IncludeCookies: aws.Bool(false),
+		}
+	}
 	return config
 }
 

@@ -22,9 +22,10 @@ package config_test
 import (
 	"testing"
 
-	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunConfigTestSuite(t *testing.T) {
@@ -43,6 +44,16 @@ func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
 	}
 
 	viper.Set("cf_custom_tags", "foo=bar,area=platform")
+
+	cfg := config.Parse()
+
+	s.Equal(expected, cfg.CloudFrontCustomTags)
+}
+
+func (s *ConfigTestSuite) TestConfigNoCustomTags() {
+	expected := map[string]string{}
+
+	viper.Set("cf_custom_tags", "")
 
 	cfg := config.Parse()
 

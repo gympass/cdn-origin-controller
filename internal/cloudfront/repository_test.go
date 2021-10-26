@@ -39,12 +39,33 @@ const (
 	allViewerOriginRequestPolicyID = "216adef6-5c7f-47e4-b989-5492eafa07d3"
 )
 
-var sslProtocols = []*string{
-	aws.String("SSLv3"),
-	aws.String("TLSv1"),
-	aws.String("TLSv1.1"),
-	aws.String("TLSv1.2"),
-}
+var (
+	sslProtocols = []*string{
+		aws.String("SSLv3"),
+		aws.String("TLSv1"),
+		aws.String("TLSv1.1"),
+		aws.String("TLSv1.2"),
+	}
+	defaultOrigin = &awscloudfront.Origin{
+		CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
+		CustomOriginConfig: &awscloudfront.CustomOriginConfig{
+			HTTPPort:               aws.Int64(80),
+			HTTPSPort:              aws.Int64(443),
+			OriginKeepaliveTimeout: aws.Int64(5),
+			OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
+			OriginReadTimeout:      aws.Int64(30),
+			OriginSslProtocols: &awscloudfront.OriginSslProtocols{
+				Items:    sslProtocols,
+				Quantity: aws.Int64(int64(len(sslProtocols))),
+			},
+		},
+		DomainName: aws.String("default.origin"),
+		Id:         aws.String("default.origin"),
+		OriginPath: aws.String(""),
+	}
+
+	testCallerRefFn = func() string { return "test caller ref" }
+)
 
 type awsClientMock struct {
 	mock.Mock
@@ -63,24 +84,152 @@ func (c *awsClientMock) UpdateDistribution(in *awscloudfront.UpdateDistributionI
 	return c.expectedUpdateDistributionOutput, args.Error(0)
 }
 
-func TestRunOriginRepositoryTestSuite(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &OriginRepositoryTestSuite{})
+func (c *awsClientMock) CreateDistributionWithTags(in *awscloudfront.CreateDistributionWithTagsInput) (*awscloudfront.CreateDistributionWithTagsOutput, error) {
+	args := c.Called(in)
+	return nil, args.Error(0)
 }
 
-type OriginRepositoryTestSuite struct {
+func TestRunDistributionRepositoryTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &DistributionRepositoryTestSuite{})
+}
+
+type DistributionRepositoryTestSuite struct {
 	suite.Suite
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_CantFetchDistribution() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Success() {
+	awsClient := &awsClientMock{}
+
+	expectedCreateInput := &awscloudfront.CreateDistributionWithTagsInput{
+		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
+			Tags: &awscloudfront.Tags{
+				Items: []*awscloudfront.Tag{
+					{
+						Key:   aws.String("cdn-origin-controller.gympass.com/cdn.group"),
+						Value: aws.String("test group"),
+					},
+					{
+						Key:   aws.String("cdn-origin-controller.gympass.com/owned"),
+						Value: aws.String("true"),
+					},
+					{
+						Key:   aws.String("foo"),
+						Value: aws.String("bar"),
+					},
+				},
+			},
+			DistributionConfig: &awscloudfront.DistributionConfig{
+				Aliases: &awscloudfront.Aliases{
+					Items:    aws.StringSlice([]string{"test.alias.1", "test.alias.2"}),
+					Quantity: aws.Int64(2),
+				},
+				CallerReference: aws.String(testCallerRefFn()),
+				CacheBehaviors: &awscloudfront.CacheBehaviors{
+					Items:    []*awscloudfront.CacheBehavior{},
+					Quantity: aws.Int64(0),
+				},
+				Comment: aws.String("test description"),
+				DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
+					CachePolicyId:         aws.String(cachingDisabledPolicyID),
+					OriginRequestPolicyId: aws.String(allViewerOriginRequestPolicyID),
+					TargetOriginId:        aws.String("default.origin"),
+					ViewerProtocolPolicy:  aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
+				},
+				Enabled:       aws.Bool(true),
+				HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+				IsIPV6Enabled: aws.Bool(true),
+				Logging: &awscloudfront.LoggingConfig{
+					Enabled:        aws.Bool(true),
+					Bucket:         aws.String("test s3"),
+					Prefix:         aws.String("test prefix"),
+					IncludeCookies: aws.Bool(false),
+				},
+				Origins: &awscloudfront.Origins{
+					Items: []*awscloudfront.Origin{
+						defaultOrigin,
+						{
+							CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
+							CustomOriginConfig: &awscloudfront.CustomOriginConfig{
+								HTTPPort:               aws.Int64(80),
+								HTTPSPort:              aws.Int64(443),
+								OriginKeepaliveTimeout: aws.Int64(5),
+								OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
+								OriginReadTimeout:      aws.Int64(30),
+								OriginSslProtocols: &awscloudfront.OriginSslProtocols{
+									Items:    sslProtocols,
+									Quantity: aws.Int64(int64(len(sslProtocols))),
+								},
+							},
+							DomainName: aws.String("origin"),
+							Id:         aws.String("origin"),
+							OriginPath: aws.String(""),
+						},
+					},
+					Quantity: aws.Int64(2),
+				},
+				PriceClass: aws.String(awscloudfront.PriceClassPriceClass100),
+				ViewerCertificate: &awscloudfront.ViewerCertificate{
+					ACMCertificateArn:      aws.String("test:cert:arn"),
+					MinimumProtocolVersion: aws.String("test security policy"),
+					SSLSupportMethod:       aws.String(awscloudfront.SSLSupportMethodSniOnly),
+				},
+				WebACLId: aws.String("test web acl"),
+			},
+		},
+	}
+
+	var noError error
+	awsClient.On("CreateDistributionWithTags", expectedCreateInput).Return(noError).Once()
+
+	distribution := cloudfront.NewDistributionBuilder(
+		cloudfront.Origin{Host: "origin", ResponseTimeout: 30},
+		"default.origin",
+		"test description",
+		awscloudfront.PriceClassPriceClass100,
+		"test group",
+	).
+		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
+		WithWebACL("test web acl").
+		WithTags(map[string]string{"foo": "bar"}).
+		WithLogging("test s3", "test prefix").
+		WithTLS("test:cert:arn", "test security policy").
+		WithIPv6().
+		Build()
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Create(distribution))
+}
+
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_ErrorWhenCreatingDistribution() {
+	awsClient := &awsClientMock{}
+	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(errors.New("mock err")).Once()
+
+	distribution := cloudfront.Distribution{
+		ID: "mock id",
+		DefaultOrigin: cloudfront.Origin{
+			Host:            "default.origin",
+			ResponseTimeout: 30,
+		},
+		CustomOrigin: cloudfront.Origin{
+			Host:            "origin",
+			ResponseTimeout: 30,
+		},
+	}
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.Error(repo.Create(distribution))
+}
+
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantFetchDistribution() {
 	awsClient := &awsClientMock{}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.Error(repo.Save("mock id", cloudfront.Origin{}))
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.Error(repo.Sync(cloudfront.Distribution{}))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_CantUpdateDistribution() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantUpdateDistribution() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -94,11 +243,11 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_CantUpdateDistribu
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.Error(repo.Save("mock id", cloudfront.Origin{}))
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.Error(repo.Sync(cloudfront.Distribution{}))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginDoesNotExistYet() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_OriginDoesNotExistYet() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -109,8 +258,18 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginDoesNotExist
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &awscloudfront.DistributionConfig{
+			Aliases: &awscloudfront.Aliases{
+				Items:    []*string{},
+				Quantity: aws.Int64(0),
+			},
+			Comment:       aws.String(""),
+			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled: aws.Bool(false),
+			WebACLId:      aws.String(""),
+			PriceClass:    aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
+					defaultOrigin,
 					{
 						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
 						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
@@ -129,7 +288,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginDoesNotExist
 						OriginPath: aws.String(""),
 					},
 				},
-				Quantity: aws.Int64(1),
+				Quantity: aws.Int64(2),
 			},
 			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
 		},
@@ -142,11 +301,23 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginDoesNotExist
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30}))
+	distribution := cloudfront.Distribution{
+		ID: "mock id",
+		DefaultOrigin: cloudfront.Origin{
+			Host:            "default.origin",
+			ResponseTimeout: 30,
+		},
+		CustomOrigin: cloudfront.Origin{
+			Host:            "origin",
+			ResponseTimeout: 30,
+		},
+	}
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Sync(distribution))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExists() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_OriginAlreadyExists() {
 	someIncorrectOrigin := &awscloudfront.Origin{Id: aws.String("origin"), DomainName: aws.String("incorrect domain name")}
 
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
@@ -159,6 +330,15 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExist
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &awscloudfront.DistributionConfig{
+			Aliases: &awscloudfront.Aliases{
+				Items:    []*string{},
+				Quantity: aws.Int64(0),
+			},
+			Comment:       aws.String(""),
+			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled: aws.Bool(false),
+			WebACLId:      aws.String(""),
+			PriceClass:    aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					{
@@ -178,8 +358,9 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExist
 						Id:         aws.String("origin"),
 						OriginPath: aws.String(""),
 					},
+					defaultOrigin,
 				},
-				Quantity: aws.Int64(1),
+				Quantity: aws.Int64(2),
 			},
 			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
 		},
@@ -192,11 +373,23 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_OriginAlreadyExist
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30}))
+	distribution := cloudfront.Distribution{
+		ID: "mock id",
+		DefaultOrigin: cloudfront.Origin{
+			Host:            "default.origin",
+			ResponseTimeout: 30,
+		},
+		CustomOrigin: cloudfront.Origin{
+			Host:            "origin",
+			ResponseTimeout: 30,
+		},
+	}
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Sync(distribution))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExistYet() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_BehaviorDoesNotExistYet() {
 	lowerPrecedenceExistingBehavior := &awscloudfront.CacheBehavior{PathPattern: aws.String("/low/precedence/path")}
 	higherPrecedenceExistingBehavior := &awscloudfront.CacheBehavior{PathPattern: aws.String("/very/high/precedence/path/very/lengthy/indeed")}
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
@@ -229,8 +422,18 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &awscloudfront.DistributionConfig{
+			Aliases: &awscloudfront.Aliases{
+				Items:    []*string{},
+				Quantity: aws.Int64(0),
+			},
+			Comment:       aws.String(""),
+			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled: aws.Bool(false),
+			WebACLId:      aws.String(""),
+			PriceClass:    aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
+					defaultOrigin,
 					{
 						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
 						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
@@ -249,7 +452,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 						OriginPath: aws.String(""),
 					},
 				},
-				Quantity: aws.Int64(1),
+				Quantity: aws.Int64(2),
 			},
 			CacheBehaviors: &awscloudfront.CacheBehaviors{
 				Items: []*awscloudfront.CacheBehavior{
@@ -269,11 +472,24 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorDoesNotExi
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/mid-sized/path/with/medium/precedence"}}}))
+	distribution := cloudfront.Distribution{
+		ID: "mock id",
+		CustomOrigin: cloudfront.Origin{
+			Host:            "origin",
+			ResponseTimeout: 30,
+			Behaviors:       []cloudfront.Behavior{{PathPattern: "/mid-sized/path/with/medium/precedence"}},
+		},
+		DefaultOrigin: cloudfront.Origin{
+			Host:            "default.origin",
+			ResponseTimeout: 30,
+		},
+	}
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Sync(distribution))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExists() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_BehaviorAlreadyExists() {
 	existingOrigins := &awscloudfront.Origins{
 		Items: []*awscloudfront.Origin{
 			{
@@ -308,7 +524,16 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExi
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &awscloudfront.DistributionConfig{
-			Origins: existingOrigins,
+			Aliases: &awscloudfront.Aliases{
+				Items:    []*string{},
+				Quantity: aws.Int64(0),
+			},
+			Comment:       aws.String(""),
+			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled: aws.Bool(false),
+			WebACLId:      aws.String(""),
+			PriceClass:    aws.String(""),
+			Origins:       existingOrigins,
 			CacheBehaviors: &awscloudfront.CacheBehaviors{
 				Items: []*awscloudfront.CacheBehavior{
 					{
@@ -343,11 +568,11 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_BehaviorAlreadyExi
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}))
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Sync(cloudfront.Distribution{ID: "mock id", CustomOrigin: cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}}))
 }
 
-func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction() {
+func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithViewerFunction() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -387,8 +612,18 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction
 
 	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: &awscloudfront.DistributionConfig{
+			Aliases: &awscloudfront.Aliases{
+				Items:    []*string{},
+				Quantity: aws.Int64(0),
+			},
+			Comment:       aws.String(""),
+			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled: aws.Bool(false),
+			WebACLId:      aws.String(""),
+			PriceClass:    aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
+					defaultOrigin,
 					{
 						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
 						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
@@ -407,7 +642,7 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction
 						OriginPath: aws.String(""),
 					},
 				},
-				Quantity: aws.Int64(1),
+				Quantity: aws.Int64(2),
 			},
 			CacheBehaviors: &awscloudfront.CacheBehaviors{
 				Items: []*awscloudfront.CacheBehavior{
@@ -425,6 +660,21 @@ func (s *OriginRepositoryTestSuite) TestOriginRepository_Save_WithViewerFunction
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
-	repo := cloudfront.NewOriginRepository(awsClient)
-	s.NoError(repo.Save("mock id", cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/foo", ViewerFnARN: "some-arn"}}}))
+	distribution := cloudfront.Distribution{
+		ID: "mock id",
+		DefaultOrigin: cloudfront.Origin{
+			Host:            "default.origin",
+			ResponseTimeout: 30,
+		},
+		CustomOrigin: cloudfront.Origin{
+			Host:            "origin",
+			ResponseTimeout: 30,
+			Behaviors: []cloudfront.Behavior{
+				{PathPattern: "/foo", ViewerFnARN: "some-arn"},
+			},
+		},
+	}
+
+	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
+	s.NoError(repo.Sync(distribution))
 }

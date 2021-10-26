@@ -28,10 +28,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 const (
-	cdnIDAnnotation             = "cdn-origin-controller.gympass.com/cdn.id"
+	cdnGroupAnnotation          = "cdn-origin-controller.gympass.com/cdn.group"
 	cfViewerFnAnnotation        = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigRespTimeoutAnnotation = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 )
@@ -41,29 +42,37 @@ const (
 	attachOriginSuccessReason = "SuccessfullyAttached"
 )
 
-var errNoAnnotation = errors.New(cdnIDAnnotation + " annotation not present")
+var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
 
 // IngressReconciler reconciles Ingress resources of any version
 type IngressReconciler struct {
 	Recorder record.EventRecorder
-	Repo     cloudfront.OriginRepository
+	Repo     cloudfront.DistributionRepository
+	Config   config.Config
 }
 
 // Reconcile an Ingress resource of any version
 func (r *IngressReconciler) Reconcile(obj client.Object) error {
-	cdnID, ok := obj.GetAnnotations()[cdnIDAnnotation]
-	if !ok {
-		return errNoAnnotation
-	}
-
-	dto, err := newIngressDTO(obj)
+	ip, err := newIngressParams(obj)
 	if err != nil {
 		return err
 	}
 
-	if err := r.Repo.Save(cdnID, newOrigin(dto)); err != nil {
-		r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: saving origin: %v", err)
-		return fmt.Errorf("saving origin: %v", err)
+	dist := newDistribution(newOrigin(ip), ip, r.Config)
+
+	err = nil
+	if len(dist.ID) > 0 {
+		if err := r.Repo.Sync(dist); err != nil {
+			r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: syncing origin: %v", err)
+			return fmt.Errorf("syncing origin: %v", err)
+		}
+		r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
+		return nil
+	}
+
+	if err := r.Repo.Create(dist); err != nil {
+		r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: creating origin: %v", err)
+		return fmt.Errorf("creating origin: %v", err)
 	}
 
 	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
