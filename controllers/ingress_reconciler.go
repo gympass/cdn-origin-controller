@@ -59,22 +59,32 @@ func (r *IngressReconciler) Reconcile(obj client.Object) error {
 	}
 
 	dist := newDistribution(newOrigin(ip), ip, r.Config)
-
-	err = nil
 	if len(dist.ID) > 0 {
-		if err := r.Repo.Sync(dist); err != nil {
-			r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: syncing origin: %v", err)
-			return fmt.Errorf("syncing origin: %v", err)
-		}
-		r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
-		return nil
+		return r.handleUpdate(dist, obj)
 	}
+	return r.handleCreate(dist, obj)
+}
 
+func (r *IngressReconciler) handleUpdate(dist cloudfront.Distribution, obj client.Object) error {
+	if err := r.Repo.Sync(dist); err != nil {
+		return r.handleFailure(fmt.Sprintf("syncing distribution: %v", err), obj)
+	}
+	return r.handleSuccess(obj)
+}
+
+func (r *IngressReconciler) handleCreate(dist cloudfront.Distribution, obj client.Object) error {
 	if err := r.Repo.Create(dist); err != nil {
-		r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: creating origin: %v", err)
-		return fmt.Errorf("creating origin: %v", err)
+		return r.handleFailure(fmt.Sprintf("creating distribution: %v", err), obj)
 	}
+	return r.handleSuccess(obj)
+}
 
-	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
+func (r *IngressReconciler) handleFailure(msg string, obj client.Object) error {
+	r.Recorder.Event(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to reconcile CDN: "+msg)
+	return errors.New(msg)
+}
+
+func (r *IngressReconciler) handleSuccess(obj client.Object) error {
+	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully reconciled CDN")
 	return nil
 }
