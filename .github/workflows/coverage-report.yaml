@@ -2,7 +2,8 @@ name: codacy-coverage-reporter
 on:
   push:
     branches:
-      - "main"
+      - main
+      - develop
 env:
   GO_VERSION: 1.16
 jobs:
