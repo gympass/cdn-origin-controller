@@ -10,6 +10,7 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
     branches:
       - main
+      - develop
 env:
   GO_VERSION: 1.16
 jobs:
