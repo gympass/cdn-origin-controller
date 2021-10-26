@@ -28,10 +28,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 const (
-	cdnIDAnnotation             = "cdn-origin-controller.gympass.com/cdn.id"
+	cdnGroupAnnotation          = "cdn-origin-controller.gympass.com/cdn.group"
 	cfViewerFnAnnotation        = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigRespTimeoutAnnotation = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 )
@@ -41,31 +42,49 @@ const (
 	attachOriginSuccessReason = "SuccessfullyAttached"
 )
 
-var errNoAnnotation = errors.New(cdnIDAnnotation + " annotation not present")
+var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
 
 // IngressReconciler reconciles Ingress resources of any version
 type IngressReconciler struct {
 	Recorder record.EventRecorder
-	Repo     cloudfront.OriginRepository
+	Repo     cloudfront.DistributionRepository
+	Config   config.Config
 }
 
 // Reconcile an Ingress resource of any version
 func (r *IngressReconciler) Reconcile(obj client.Object) error {
-	cdnID, ok := obj.GetAnnotations()[cdnIDAnnotation]
-	if !ok {
-		return errNoAnnotation
-	}
-
-	dto, err := newIngressDTO(obj)
+	ip, err := newIngressParams(obj)
 	if err != nil {
 		return err
 	}
 
-	if err := r.Repo.Save(cdnID, newOrigin(dto)); err != nil {
-		r.Recorder.Eventf(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to attach origin to CDN: saving origin: %v", err)
-		return fmt.Errorf("saving origin: %v", err)
+	dist := newDistribution(newOrigin(ip), ip, r.Config)
+	if len(dist.ID) > 0 {
+		return r.handleUpdate(dist, obj)
 	}
+	return r.handleCreate(dist, obj)
+}
 
-	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully attached origin to CDN")
+func (r *IngressReconciler) handleUpdate(dist cloudfront.Distribution, obj client.Object) error {
+	if err := r.Repo.Sync(dist); err != nil {
+		return r.handleFailure(fmt.Sprintf("syncing distribution: %v", err), obj)
+	}
+	return r.handleSuccess(obj)
+}
+
+func (r *IngressReconciler) handleCreate(dist cloudfront.Distribution, obj client.Object) error {
+	if err := r.Repo.Create(dist); err != nil {
+		return r.handleFailure(fmt.Sprintf("creating distribution: %v", err), obj)
+	}
+	return r.handleSuccess(obj)
+}
+
+func (r *IngressReconciler) handleFailure(msg string, obj client.Object) error {
+	r.Recorder.Event(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to reconcile CDN: "+msg)
+	return errors.New(msg)
+}
+
+func (r *IngressReconciler) handleSuccess(obj client.Object) error {
+	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully reconciled CDN")
 	return nil
 }

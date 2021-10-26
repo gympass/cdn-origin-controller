@@ -35,34 +35,38 @@ type path struct {
 	pathType    string
 }
 
-type ingressDTO struct {
-	host              string
+type ingressParams struct {
+	loadBalancer      string
+	hosts             []string
+	group             string
 	paths             []path
 	viewerFnARN       string
 	originRespTimeout int64
 }
 
-func newIngressDTO(obj client.Object) (ingressDTO, error) {
+func newIngressParams(obj client.Object) (ingressParams, error) {
 	switch obj := obj.(type) {
 	case *networkingv1beta1.Ingress:
-		return newIngressDTOV1beta1(obj), nil
+		return newIngressV1beta1(obj), nil
 	case *networkingv1.Ingress:
-		return newIngressDTOV1(obj), nil
+		return newIngressV1(obj), nil
 	}
-	return ingressDTO{}, errUnsupportedKind
+	return ingressParams{}, errUnsupportedKind
 }
 
-func newIngressDTOV1beta1(ing *networkingv1beta1.Ingress) ingressDTO {
-	return ingressDTO{
-		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:             pathsV1beta1(ing.Spec.Rules),
+func newIngressV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
+	hosts, paths := hostsAndPathsV1beta1(ing.Spec.Rules)
+	return ingressParams{
+		loadBalancer:      ing.Status.LoadBalancer.Ingress[0].Hostname,
+		group:             groupAnnotationValue(ing),
+		hosts:             hosts,
+		paths:             paths,
 		viewerFnARN:       viewerFnARN(ing),
 		originRespTimeout: originRespTimeout(ing),
 	}
 }
 
-func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
-	var paths []path
+func hostsAndPathsV1beta1(rules []networkingv1beta1.IngressRule) (hosts []string, paths []path) {
 	for _, rule := range rules {
 		for _, p := range rule.HTTP.Paths {
 			newPath := path{
@@ -71,21 +75,24 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
 			}
 			paths = append(paths, newPath)
 		}
+		hosts = append(hosts, rule.Host)
 	}
-	return paths
+	return
 }
 
-func newIngressDTOV1(ing *networkingv1.Ingress) ingressDTO {
-	return ingressDTO{
-		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:             pathsV1(ing.Spec.Rules),
+func newIngressV1(ing *networkingv1.Ingress) ingressParams {
+	hosts, paths := hostsAndPathsV1(ing.Spec.Rules)
+	return ingressParams{
+		loadBalancer:      ing.Status.LoadBalancer.Ingress[0].Hostname,
+		group:             groupAnnotationValue(ing),
+		hosts:             hosts,
+		paths:             paths,
 		viewerFnARN:       viewerFnARN(ing),
 		originRespTimeout: originRespTimeout(ing),
 	}
 }
 
-func pathsV1(rules []networkingv1.IngressRule) []path {
-	var paths []path
+func hostsAndPathsV1(rules []networkingv1.IngressRule) (hosts []string, paths []path) {
 	for _, rule := range rules {
 		for _, p := range rule.HTTP.Paths {
 			newPath := path{
@@ -94,8 +101,9 @@ func pathsV1(rules []networkingv1.IngressRule) []path {
 			}
 			paths = append(paths, newPath)
 		}
+		hosts = append(hosts, rule.Host)
 	}
-	return paths
+	return
 }
 
 func viewerFnARN(obj client.Object) string {
@@ -106,4 +114,8 @@ func originRespTimeout(obj client.Object) int64 {
 	val := obj.GetAnnotations()[cfOrigRespTimeoutAnnotation]
 	respTimeout, _ := strconv.ParseInt(val, 10, 64)
 	return respTimeout
+}
+
+func groupAnnotationValue(obj client.Object) string {
+	return obj.GetAnnotations()[cdnGroupAnnotation]
 }

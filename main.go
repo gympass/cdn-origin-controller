@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
@@ -76,12 +77,12 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	operatorCfg := config.Parse()
+	cfg := config.Parse()
 
 	ctrl.SetLogger(zap.New(
 		zap.UseFlagOptions(&opts),
-		zap.UseDevMode(operatorCfg.DevMode),
-		zap.Level(mustGetLogLevel(operatorCfg.LogLevel)),
+		zap.UseDevMode(cfg.DevMode),
+		zap.Level(mustGetLogLevel(cfg.LogLevel)),
 	))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -108,9 +109,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	callerRefFn := func() string { return time.Now().String() }
 	ingressReconciler := controllers.IngressReconciler{
 		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
-		Repo:     cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
+		Repo:     cloudfront.NewDistributionRepository(mustGetCloudFrontClient(), callerRefFn),
+		Config:   cfg,
 	}
 
 	mustSetupControllers(mgr, ingressReconciler)

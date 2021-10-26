@@ -3,10 +3,11 @@ kind: Ingress
 metadata:
   name: minimal-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    cdn-origin-controller.gympass.com/cdn.group: "foo"
 spec:
   rules:
-  - http:
+  - host: foo.bar
+    http:
       paths:
       - path: /testpath
         pathType: Prefix
