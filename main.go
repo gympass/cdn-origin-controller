@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	cdnv1alpha1 "github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
@@ -60,6 +61,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(cdnv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	_ = godotenv.Load()
 }
@@ -111,6 +113,7 @@ func main() {
 
 	callerRefFn := func() string { return time.Now().String() }
 	ingressReconciler := controllers.IngressReconciler{
+		Client:   mgr.GetClient(),
 		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
 		Repo:     cloudfront.NewDistributionRepository(mustGetCloudFrontClient(), callerRefFn),
 		Config:   cfg,
@@ -142,11 +145,13 @@ func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressRec
 		os.Exit(1)
 	}
 
-	if v1Available {
-		mustSetupV1Controller(mgr, reconciler)
-	}
 	if v1beta1Available {
 		mustSetupV1beta1Controller(mgr, reconciler)
+		return
+	}
+
+	if v1Available {
+		mustSetupV1Controller(mgr, reconciler)
 	}
 }
 

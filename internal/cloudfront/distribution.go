@@ -22,6 +22,8 @@ package cloudfront
 // Distribution represents a CloudFront distribution
 type Distribution struct {
 	ID               string
+	ARN              string
+	Address          string
 	AlternateDomains []string
 	CustomOrigin     Origin
 	DefaultOrigin    Origin
