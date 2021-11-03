@@ -66,10 +66,10 @@ func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRe
 }
 
 func (r repository) Create(d Distribution) (Distribution, error) {
-	config := reconcileConfig(r.initializedConfig(d.DefaultOrigin.Host), d)
+	config := r.newAWSDistributionConfig(d)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
-			DistributionConfig: &config,
+			DistributionConfig: config,
 			Tags:               r.distributionTags(d),
 		},
 	}
@@ -85,20 +85,29 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 }
 
 func (r repository) Sync(d Distribution) error {
+	config := r.newAWSDistributionConfig(d)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return fmt.Errorf("getting distribution config: %v", err)
 	}
 
-	config := reconcileConfig(*output.DistributionConfig, d)
+	config.SetCallerReference(*output.DistributionConfig.CallerReference)
 
 	updateInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &config,
+		DistributionConfig: config,
 		IfMatch:            output.ETag,
 		Id:                 aws.String(d.ID),
 	}
 	if _, err = r.awsClient.UpdateDistribution(updateInput); err != nil {
 		return fmt.Errorf("updating distribution: %v", err)
+	}
+
+	tagsInput := &awscloudfront.TagResourceInput{
+		Resource: aws.String(d.ARN),
+		Tags:     r.distributionTags(d),
+	}
+	if _, err = r.awsClient.TagResource(tagsInput); err != nil {
+		return fmt.Errorf("updating tags: %v", err)
 	}
 
 	return nil
@@ -129,19 +138,31 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 	return output, nil
 }
 
-// initializedConfig constructs a DistributionConfig with initialized values to prevent nil dereference
-func (r repository) initializedConfig(defaultOriginHost string) awscloudfront.DistributionConfig {
-	return awscloudfront.DistributionConfig{
+func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.DistributionConfig {
+
+	allOrigins := []*awscloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
+	var allCacheBehaviors []*awscloudfront.CacheBehavior
+
+	for _, o := range d.CustomOrigins {
+		allOrigins = append(allOrigins, newAWSOrigin(o))
+		for _, b := range o.Behaviors {
+			allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b, o.Host))
+		}
+	}
+
+	sort.Sort(byDescendingPathLength(allCacheBehaviors))
+
+	config := &awscloudfront.DistributionConfig{
 		Aliases: &awscloudfront.Aliases{
-			Items:    aws.StringSlice([]string{}),
-			Quantity: aws.Int64(0),
+			Items:    aws.StringSlice(d.AlternateDomains),
+			Quantity: aws.Int64(int64(len(d.AlternateDomains))),
 		},
 		CacheBehaviors: &awscloudfront.CacheBehaviors{
-			Items:    []*awscloudfront.CacheBehavior{},
-			Quantity: aws.Int64(0),
+			Items:    allCacheBehaviors,
+			Quantity: aws.Int64(int64(len(allCacheBehaviors))),
 		},
 		CallerReference:      aws.String(r.callerRef()),
-		Comment:              nil,
+		Comment:              aws.String(d.Description),
 		CustomErrorResponses: nil,
 		DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
 			AllowedMethods:             nil,
@@ -153,48 +174,25 @@ func (r repository) initializedConfig(defaultOriginHost string) awscloudfront.Di
 			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
 			RealtimeLogConfigArn:       nil,
 			SmoothStreaming:            nil,
-			TargetOriginId:             aws.String(defaultOriginHost),
+			TargetOriginId:             aws.String(d.DefaultOrigin.Host),
 			TrustedKeyGroups:           nil,
 			TrustedSigners:             nil,
 			ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
 		},
+		Origins: &awscloudfront.Origins{
+			Items:    allOrigins,
+			Quantity: aws.Int64(int64(len(allOrigins))),
+		},
 		DefaultRootObject: nil,
 		Enabled:           aws.Bool(true),
-		HttpVersion:       nil,
-		IsIPV6Enabled:     nil,
+		HttpVersion:       aws.String(awscloudfront.HttpVersionHttp2),
+		IsIPV6Enabled:     aws.Bool(d.IPv6Enabled),
 		Logging:           nil,
 		OriginGroups:      nil,
-		Origins: &awscloudfront.Origins{
-			Items:    []*awscloudfront.Origin{},
-			Quantity: aws.Int64(0),
-		},
-		PriceClass:        nil,
+		PriceClass:        aws.String(d.PriceClass),
 		Restrictions:      nil,
 		ViewerCertificate: nil,
-		WebACLId:          nil,
-	}
-}
-
-func reconcileConfig(config awscloudfront.DistributionConfig, d Distribution) awscloudfront.DistributionConfig {
-	config = ensureDistributionConfig(config, d)
-	config = ensureOriginInConfig(config, newAWSOrigin(d.CustomOrigins))
-	config = ensureBehaviorsInConfig(config, d.CustomOrigins)
-	config = ensureCorrectBehaviorPrecedence(config)
-	return config
-}
-
-func ensureDistributionConfig(config awscloudfront.DistributionConfig, d Distribution) awscloudfront.DistributionConfig {
-	config = ensureOriginInConfig(config, newAWSOrigin(d.DefaultOrigin))
-
-	config.PriceClass = aws.String(d.PriceClass)
-	config.WebACLId = aws.String(d.WebACLID)
-	config.HttpVersion = aws.String(awscloudfront.HttpVersionHttp2)
-	config.IsIPV6Enabled = aws.Bool(d.IPv6Enabled)
-	config.Comment = aws.String(d.Description)
-
-	config.Aliases = &awscloudfront.Aliases{
-		Items:    aws.StringSlice(d.AlternateDomains),
-		Quantity: aws.Int64(int64(len(d.AlternateDomains))),
+		WebACLId:          aws.String(d.WebACLID),
 	}
 
 	if d.TLS.Enabled {
@@ -212,50 +210,7 @@ func ensureDistributionConfig(config awscloudfront.DistributionConfig, d Distrib
 			IncludeCookies: aws.Bool(false),
 		}
 	}
-	return config
-}
 
-func ensureOriginInConfig(config awscloudfront.DistributionConfig, awsOrigin *awscloudfront.Origin) awscloudfront.DistributionConfig {
-	var found bool
-	for i, item := range config.Origins.Items {
-		if *item.Id == *awsOrigin.Id {
-			config.Origins.Items[i] = awsOrigin
-			found = true
-			break
-		}
-	}
-	if !found {
-		config.Origins.Items = append(config.Origins.Items, awsOrigin)
-		config.Origins.Quantity = aws.Int64(*config.Origins.Quantity + 1)
-	}
-	return config
-}
-
-func ensureBehaviorsInConfig(config awscloudfront.DistributionConfig, o Origin) awscloudfront.DistributionConfig {
-	for _, b := range o.Behaviors {
-		config = ensureBehaviorInConfig(config, newCacheBehavior(b, o.Host))
-	}
-	return config
-}
-
-func ensureBehaviorInConfig(config awscloudfront.DistributionConfig, awsBehavior *awscloudfront.CacheBehavior) awscloudfront.DistributionConfig {
-	var found bool
-	for i, item := range config.CacheBehaviors.Items {
-		if *item.PathPattern == *awsBehavior.PathPattern {
-			config.CacheBehaviors.Items[i] = awsBehavior
-			found = true
-			break
-		}
-	}
-	if !found {
-		config.CacheBehaviors.Items = append(config.CacheBehaviors.Items, awsBehavior)
-		config.CacheBehaviors.Quantity = aws.Int64(*config.CacheBehaviors.Quantity + 1)
-	}
-	return config
-}
-
-func ensureCorrectBehaviorPrecedence(config awscloudfront.DistributionConfig) awscloudfront.DistributionConfig {
-	sort.Sort(byDescendingPathLength(config.CacheBehaviors.Items))
 	return config
 }
 
