@@ -93,30 +93,18 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	}
 
 	dist.ID = cdnStatus.Status.ID
+	dist.ARN = cdnStatus.Status.ARN
 	inSync := true
 	if err := r.syncDistribution(dist); err != nil {
 		inSync = false
+		errUpdate := r.updateCDNStatus(cdnStatus, inSync, obj)
+		return r.handleFailure(either(errUpdate, err), obj)
 	}
 
 	if err := r.updateCDNStatus(cdnStatus, inSync, obj); err != nil {
 		return r.handleFailure(err, obj)
 	}
 	return r.handleSuccess(obj)
-}
-
-func filterIngressRef(ingresses v1alpha1.IngressRefs, obj client.Object) v1alpha1.IngressRefs {
-	for i, ing := range ingresses {
-		if ing.Name == obj.GetName() && ing.Namespace == obj.GetNamespace() {
-			return remove(ingresses, i)
-		}
-	}
-	return ingresses
-}
-
-func remove(ingresses v1alpha1.IngressRefs, i int) v1alpha1.IngressRefs {
-	lastElement := ingresses[len(ingresses)-1]
-	ingresses[i] = lastElement
-	return ingresses[:len(ingresses)-1]
 }
 
 func (r *IngressReconciler) syncDistribution(dist cloudfront.Distribution) error {
@@ -173,5 +161,29 @@ func (r *IngressReconciler) handleFailure(err error, obj client.Object) error {
 
 func (r *IngressReconciler) handleSuccess(obj client.Object) error {
 	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully reconciled CDN")
+	return nil
+}
+
+func filterIngressRef(ingresses v1alpha1.IngressRefs, obj client.Object) v1alpha1.IngressRefs {
+	for i, ing := range ingresses {
+		if ing.Name == obj.GetName() && ing.Namespace == obj.GetNamespace() {
+			return remove(ingresses, i)
+		}
+	}
+	return ingresses
+}
+
+func remove(ingresses v1alpha1.IngressRefs, i int) v1alpha1.IngressRefs {
+	lastElement := ingresses[len(ingresses)-1]
+	ingresses[i] = lastElement
+	return ingresses[:len(ingresses)-1]
+}
+
+func either(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

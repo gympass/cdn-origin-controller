@@ -35,9 +35,9 @@ type IngressRefs []IngressRef
 
 // IngressRef ingress reference
 type IngressRef struct {
-	Name      string `json:"name,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	InSync    bool   `json:"in-sync,omitempty"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	InSync    bool   `json:"in-sync"`
 }
 
 // CDNStatusStatus defines the observed state of CDNStatus
@@ -58,7 +58,6 @@ type CDNStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	//Spec   CDNStatusSpec   `json:"spec,omitempty"`
 	Status CDNStatusStatus `json:"status,omitempty"`
 }
 

@@ -66,8 +66,8 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	ip := newIngressParamsV1beta1(ingress)
-	err = r.IngressReconciler.Reconcile(ip, ingress)
+	reconcilingIP := newIngressParamsV1beta1(ingress)
+	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
 	if errors.Is(err, errNoAnnotation) {
 		r.log.Error(err, "Ignoring reconciliation request")
 		return ctrl.Result{}, nil

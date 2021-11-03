@@ -92,6 +92,9 @@ func (r repository) Sync(d Distribution) error {
 	}
 
 	config.SetCallerReference(*output.DistributionConfig.CallerReference)
+	config.SetDefaultRootObject(*output.DistributionConfig.DefaultRootObject)
+	config.SetCustomErrorResponses(output.DistributionConfig.CustomErrorResponses)
+	config.SetRestrictions(output.DistributionConfig.Restrictions)
 
 	updateInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: config,
@@ -139,9 +142,8 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 }
 
 func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.DistributionConfig {
-
-	allOrigins := []*awscloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
 	var allCacheBehaviors []*awscloudfront.CacheBehavior
+	allOrigins := []*awscloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
 
 	for _, o := range d.CustomOrigins {
 		allOrigins = append(allOrigins, newAWSOrigin(o))
@@ -151,6 +153,8 @@ func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.Dist
 	}
 
 	sort.Sort(byDescendingPathLength(allCacheBehaviors))
+
+	allOrigins = removeDuplicates(allOrigins)
 
 	config := &awscloudfront.DistributionConfig{
 		Aliases: &awscloudfront.Aliases{
@@ -165,15 +169,21 @@ func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.Dist
 		Comment:              aws.String(d.Description),
 		CustomErrorResponses: nil,
 		DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
-			AllowedMethods:             nil,
-			CachePolicyId:              aws.String(cachingDisabledPolicyID),
-			Compress:                   nil,
-			FieldLevelEncryptionId:     nil,
+			AllowedMethods: &awscloudfront.AllowedMethods{
+				Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
+				Quantity: aws.Int64(7),
+				CachedMethods: &awscloudfront.CachedMethods{
+					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
+					Quantity: aws.Int64(2),
+				},
+			},			CachePolicyId:              aws.String(cachingDisabledPolicyID),
+			Compress:                   aws.Bool(true),
+			FieldLevelEncryptionId:     aws.String(""),
 			FunctionAssociations:       nil,
-			LambdaFunctionAssociations: nil,
 			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+			LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
 			RealtimeLogConfigArn:       nil,
-			SmoothStreaming:            nil,
+			SmoothStreaming:            aws.Bool(false),
 			TargetOriginId:             aws.String(d.DefaultOrigin.Host),
 			TrustedKeyGroups:           nil,
 			TrustedSigners:             nil,
@@ -281,4 +291,16 @@ func baseCacheBehavior(pathPattern, host string) *awscloudfront.CacheBehavior {
 		TargetOriginId:             aws.String(host),
 		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
 	}
+}
+
+func removeDuplicates(origins []*awscloudfront.Origin) []*awscloudfront.Origin {
+	var result []*awscloudfront.Origin
+	foundSet := make(map[string]bool)
+	for _, origin := range origins {
+		if !foundSet[*origin.DomainName] {
+			foundSet[*origin.DomainName] = true
+			result = append(result, origin)
+		}
+	}
+	return result
 }
