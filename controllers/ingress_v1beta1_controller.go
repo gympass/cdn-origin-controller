@@ -50,6 +50,7 @@ type V1beta1Reconciler struct {
 //Reconcile a v1beta1 Ingress resource
 func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
+	r.IngressReconciler.log = r.log
 
 	ingress := &networkingv1beta1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)

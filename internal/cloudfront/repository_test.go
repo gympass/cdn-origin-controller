@@ -70,8 +70,9 @@ var (
 type awsClientMock struct {
 	mock.Mock
 	cloudfrontiface.CloudFrontAPI
-	expectedGetDistributionConfigOutput *awscloudfront.GetDistributionConfigOutput
-	expectedUpdateDistributionOutput    *awscloudfront.UpdateDistributionOutput
+	expectedGetDistributionConfigOutput      *awscloudfront.GetDistributionConfigOutput
+	expectedUpdateDistributionOutput         *awscloudfront.UpdateDistributionOutput
+	expectedCreateDistributionWithTagsOutput *awscloudfront.CreateDistributionWithTagsOutput
 }
 
 func (c *awsClientMock) GetDistributionConfig(in *awscloudfront.GetDistributionConfigInput) (*awscloudfront.GetDistributionConfigOutput, error) {
@@ -86,7 +87,7 @@ func (c *awsClientMock) UpdateDistribution(in *awscloudfront.UpdateDistributionI
 
 func (c *awsClientMock) CreateDistributionWithTags(in *awscloudfront.CreateDistributionWithTagsInput) (*awscloudfront.CreateDistributionWithTagsOutput, error) {
 	args := c.Called(in)
-	return nil, args.Error(0)
+	return c.expectedCreateDistributionWithTagsOutput, args.Error(0)
 }
 
 func TestRunDistributionRepositoryTestSuite(t *testing.T) {
@@ -99,7 +100,15 @@ type DistributionRepositoryTestSuite struct {
 }
 
 func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Success() {
-	awsClient := &awsClientMock{}
+	awsClient := &awsClientMock{
+		expectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
+			Distribution: &awscloudfront.Distribution{
+				Id:         aws.String("L2FB5NP10VU7KL"),
+				ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
+				DomainName: aws.String("aoiweoiwe39d.cloudfront.net"),
+			},
+		},
+	}
 
 	expectedCreateInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
@@ -198,7 +207,11 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Succ
 		Build()
 
 	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
-	s.NoError(repo.Create(distribution))
+	dist, err := repo.Create(distribution)
+	s.Equal(dist.ID, "L2FB5NP10VU7KL")
+	s.Equal(dist.ARN, "arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL")
+	s.Equal(dist.Address, "aoiweoiwe39d.cloudfront.net")
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_ErrorWhenCreatingDistribution() {
@@ -218,7 +231,9 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Erro
 	}
 
 	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
-	s.Error(repo.Create(distribution))
+	dist, err := repo.Create(distribution)
+	s.Equal(cloudfront.Distribution{}, dist)
+	s.Error(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantFetchDistribution() {

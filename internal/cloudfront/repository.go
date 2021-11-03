@@ -45,7 +45,7 @@ const (
 // DistributionRepository provides a repository for manipulating CloudFront distributions to match desired configuration
 type DistributionRepository interface {
 	// Create creates the given Distribution on CloudFront
-	Create(Distribution) error
+	Create(Distribution) (Distribution, error)
 	// Sync ensures the given Distribution is correctly configured on CloudFront
 	Sync(Distribution) error
 }
@@ -65,7 +65,7 @@ func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRe
 	return &repository{awsClient: awsClient, callerRef: callerRefFn}
 }
 
-func (r repository) Create(d Distribution) error {
+func (r repository) Create(d Distribution) (Distribution, error) {
 	config := reconcileConfig(r.initializedConfig(d.DefaultOrigin.Host), d)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
@@ -73,10 +73,15 @@ func (r repository) Create(d Distribution) error {
 			Tags:               r.distributionTags(d),
 		},
 	}
-	if _, err := r.awsClient.CreateDistributionWithTags(createInput); err != nil {
-		return fmt.Errorf("creating distribution: %v", err)
+	output, err := r.awsClient.CreateDistributionWithTags(createInput)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
-	return nil
+
+	d.ID = *output.Distribution.Id
+	d.Address = *output.Distribution.DomainName
+	d.ARN = *output.Distribution.ARN
+	return d, nil
 }
 
 func (r repository) Sync(d Distribution) error {

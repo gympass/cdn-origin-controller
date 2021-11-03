@@ -1,0 +1,6 @@
+apiVersion: cdn.gympass.com/v1alpha1
+kind: CDNStatus
+metadata:
+  name: cdnstatus-sample
+status:
+  id: 1
