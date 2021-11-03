@@ -54,31 +54,27 @@ var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
 type IngressReconciler struct {
 	client.Client
 
-	Recorder record.EventRecorder
-	Repo     cloudfront.DistributionRepository
-	Config   config.Config
+	BoundIngressParamsFn func(v1alpha1.IngressRefs) ([]ingressParams, error)
+	Config               config.Config
+	Recorder             record.EventRecorder
+	Repo                 cloudfront.DistributionRepository
 
 	log logr.Logger
 }
 
 // Reconcile an Ingress resource of any version
-func (r *IngressReconciler) Reconcile(obj client.Object) error {
-	ip, err := newIngressParams(obj)
-	if err != nil {
-		return err
-	}
-
-	dist := newDistribution(newOrigin(ip), ip, r.Config)
+func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Object) error {
 	cdnStatus := &v1alpha1.CDNStatus{}
-	nsName := types.NamespacedName{Name: ip.group}
-	err = r.Get(context.Background(), nsName, cdnStatus)
+	nsName := types.NamespacedName{Name: reconciling.group}
+	err := r.Get(context.Background(), nsName, cdnStatus)
 
+	dist := newDistribution(newOrigin(reconciling), reconciling, r.Config)
 	if k8serrors.IsNotFound(err) {
 		dist, err := r.createDistribution(dist)
 		if err != nil {
 			return r.handleFailure(err, obj)
 		}
-		if err := r.createCDNStatus(dist, obj, ip.group); err != nil {
+		if err := r.createCDNStatus(dist, obj, reconciling.group); err != nil {
 			return r.handleFailure(err, obj)
 		}
 		return r.handleSuccess(obj)
@@ -87,6 +83,15 @@ func (r *IngressReconciler) Reconcile(obj client.Object) error {
 	if err != nil {
 		return fmt.Errorf("fetching CDN status: %v", err)
 	}
+
+	boundIngressesParams, err := r.BoundIngressParamsFn(filterIngressRef(cdnStatus.Status.Ingresses, obj))
+	if err != nil {
+		return err
+	}
+	for _, ip := range boundIngressesParams {
+		dist.AddOrigin(newOrigin(ip))
+	}
+
 	dist.ID = cdnStatus.Status.ID
 	inSync := true
 	if err := r.syncDistribution(dist); err != nil {
@@ -97,6 +102,21 @@ func (r *IngressReconciler) Reconcile(obj client.Object) error {
 		return r.handleFailure(err, obj)
 	}
 	return r.handleSuccess(obj)
+}
+
+func filterIngressRef(ingresses v1alpha1.IngressRefs, obj client.Object) v1alpha1.IngressRefs {
+	for i, ing := range ingresses {
+		if ing.Name == obj.GetName() && ing.Namespace == obj.GetNamespace() {
+			return remove(ingresses, i)
+		}
+	}
+	return ingresses
+}
+
+func remove(ingresses v1alpha1.IngressRefs, i int) v1alpha1.IngressRefs {
+	lastElement := ingresses[len(ingresses)-1]
+	ingresses[i] = lastElement
+	return ingresses[:len(ingresses)-1]
 }
 
 func (r *IngressReconciler) syncDistribution(dist cloudfront.Distribution) error {

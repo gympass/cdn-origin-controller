@@ -20,15 +20,12 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-var errUnsupportedKind = errors.New("unsupported kind")
 
 type path struct {
 	pathPattern string
@@ -44,17 +41,7 @@ type ingressParams struct {
 	originRespTimeout int64
 }
 
-func newIngressParams(obj client.Object) (ingressParams, error) {
-	switch obj := obj.(type) {
-	case *networkingv1beta1.Ingress:
-		return newIngressV1beta1(obj), nil
-	case *networkingv1.Ingress:
-		return newIngressV1(obj), nil
-	}
-	return ingressParams{}, errUnsupportedKind
-}
-
-func newIngressV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
+func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
 	hosts, paths := hostsAndPathsV1beta1(ing.Spec.Rules)
 	return ingressParams{
 		loadBalancer:      ing.Status.LoadBalancer.Ingress[0].Hostname,
@@ -80,7 +67,7 @@ func hostsAndPathsV1beta1(rules []networkingv1beta1.IngressRule) (hosts []string
 	return
 }
 
-func newIngressV1(ing *networkingv1.Ingress) ingressParams {
+func newIngressParamsV1(ing *networkingv1.Ingress) ingressParams {
 	hosts, paths := hostsAndPathsV1(ing.Spec.Rules)
 	return ingressParams{
 		loadBalancer:      ing.Status.LoadBalancer.Ingress[0].Hostname,

@@ -177,8 +177,8 @@ func (r repository) initializedConfig(defaultOriginHost string) awscloudfront.Di
 
 func reconcileConfig(config awscloudfront.DistributionConfig, d Distribution) awscloudfront.DistributionConfig {
 	config = ensureDistributionConfig(config, d)
-	config = ensureOriginInConfig(config, newAWSOrigin(d.CustomOrigin))
-	config = ensureBehaviorsInConfig(config, d.CustomOrigin)
+	config = ensureOriginInConfig(config, newAWSOrigin(d.CustomOrigins))
+	config = ensureBehaviorsInConfig(config, d.CustomOrigins)
 	config = ensureCorrectBehaviorPrecedence(config)
 	return config
 }

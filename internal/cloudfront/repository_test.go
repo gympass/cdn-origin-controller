@@ -224,7 +224,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Erro
 			Host:            "default.origin",
 			ResponseTimeout: 30,
 		},
-		CustomOrigin: cloudfront.Origin{
+		CustomOrigins: cloudfront.Origin{
 			Host:            "origin",
 			ResponseTimeout: 30,
 		},
@@ -322,7 +322,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 			Host:            "default.origin",
 			ResponseTimeout: 30,
 		},
-		CustomOrigin: cloudfront.Origin{
+		CustomOrigins: cloudfront.Origin{
 			Host:            "origin",
 			ResponseTimeout: 30,
 		},
@@ -394,7 +394,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 			Host:            "default.origin",
 			ResponseTimeout: 30,
 		},
-		CustomOrigin: cloudfront.Origin{
+		CustomOrigins: cloudfront.Origin{
 			Host:            "origin",
 			ResponseTimeout: 30,
 		},
@@ -489,7 +489,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 
 	distribution := cloudfront.Distribution{
 		ID: "mock id",
-		CustomOrigin: cloudfront.Origin{
+		CustomOrigins: cloudfront.Origin{
 			Host:            "origin",
 			ResponseTimeout: 30,
 			Behaviors:       []cloudfront.Behavior{{PathPattern: "/mid-sized/path/with/medium/precedence"}},
@@ -584,7 +584,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
 
 	repo := cloudfront.NewDistributionRepository(awsClient, testCallerRefFn)
-	s.NoError(repo.Sync(cloudfront.Distribution{ID: "mock id", CustomOrigin: cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}}))
+	s.NoError(repo.Sync(cloudfront.Distribution{ID: "mock id", CustomOrigins: cloudfront.Origin{Host: "origin", ResponseTimeout: 30, Behaviors: []cloudfront.Behavior{{PathPattern: "/*"}}}}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithViewerFunction() {
@@ -681,7 +681,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithVi
 			Host:            "default.origin",
 			ResponseTimeout: 30,
 		},
-		CustomOrigin: cloudfront.Origin{
+		CustomOrigins: cloudfront.Origin{
 			Host:            "origin",
 			ResponseTimeout: 30,
 			Behaviors: []cloudfront.Behavior{

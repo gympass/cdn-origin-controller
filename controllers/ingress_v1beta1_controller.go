@@ -28,9 +28,12 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 )
 
 // V1beta1Reconciler reconciles v1beta1 Ingress resources
@@ -39,7 +42,7 @@ type V1beta1Reconciler struct {
 
 	OriginalLog       logr.Logger
 	Scheme            *runtime.Scheme
-	IngressReconciler IngressReconciler
+	IngressReconciler *IngressReconciler
 
 	log logr.Logger
 }
@@ -63,13 +66,33 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	err = r.IngressReconciler.Reconcile(ingress)
+	ip := newIngressParamsV1beta1(ingress)
+	err = r.IngressReconciler.Reconcile(ip, ingress)
 	if errors.Is(err, errNoAnnotation) {
 		r.log.Error(err, "Ignoring reconciliation request")
 		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, err
+}
+
+func (r *V1beta1Reconciler) BoundIngressesFn() func(v1alpha1.IngressRefs) ([]ingressParams, error) {
+	return func(refs v1alpha1.IngressRefs) ([]ingressParams, error) {
+		var paramList []ingressParams
+		for _, ref := range refs {
+			ing := &networkingv1beta1.Ingress{}
+			key := types.NamespacedName{
+				Namespace: ref.Namespace,
+				Name:      ref.Name,
+			}
+			err := r.Client.Get(context.Background(), key, ing)
+			if err != nil {
+				return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
+			}
+			paramList = append(paramList, newIngressParamsV1beta1(ing))
+		}
+		return paramList, nil
+	}
 }
 
 // SetupWithManager ...
