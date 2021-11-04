@@ -101,6 +101,7 @@ func (r repository) Sync(d Distribution) error {
 		IfMatch:            output.ETag,
 		Id:                 aws.String(d.ID),
 	}
+
 	if _, err = r.awsClient.UpdateDistribution(updateInput); err != nil {
 		return fmt.Errorf("updating distribution: %v", err)
 	}
@@ -109,6 +110,7 @@ func (r repository) Sync(d Distribution) error {
 		Resource: aws.String(d.ARN),
 		Tags:     r.distributionTags(d),
 	}
+
 	if _, err = r.awsClient.TagResource(tagsInput); err != nil {
 		return fmt.Errorf("updating tags: %v", err)
 	}
@@ -176,7 +178,7 @@ func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.Dist
 					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
 					Quantity: aws.Int64(2),
 				},
-			},			CachePolicyId:              aws.String(cachingDisabledPolicyID),
+			}, CachePolicyId: aws.String(cachingDisabledPolicyID),
 			Compress:                   aws.Bool(true),
 			FieldLevelEncryptionId:     aws.String(""),
 			FunctionAssociations:       nil,

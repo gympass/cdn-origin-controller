@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           status:
-            description: Spec   CDNStatusSpec   `json:"spec,omitempty"`
+            description: CDNStatusStatus defines the observed state of CDNStatus
             properties:
               address:
                 type: string
@@ -57,6 +57,10 @@ spec:
                       type: string
                     namespace:
                       type: string
+                  required:
+                  - in-sync
+                  - name
+                  - namespace
                   type: object
                 type: array
             type: object
