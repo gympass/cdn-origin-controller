@@ -163,15 +163,26 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Succ
 				},
 				CallerReference: aws.String(testCallerRefFn()),
 				CacheBehaviors: &awscloudfront.CacheBehaviors{
-					Items:    []*awscloudfront.CacheBehavior{},
 					Quantity: aws.Int64(0),
 				},
 				Comment: aws.String("test description"),
 				DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
-					CachePolicyId:         aws.String(cachingDisabledPolicyID),
-					OriginRequestPolicyId: aws.String(allViewerOriginRequestPolicyID),
-					TargetOriginId:        aws.String("default.origin"),
-					ViewerProtocolPolicy:  aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
+					Compress:                   aws.Bool(true),
+					FieldLevelEncryptionId:     aws.String(""),
+					SmoothStreaming:            aws.Bool(false),
+					LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
+					CachePolicyId:              aws.String(cachingDisabledPolicyID),
+					OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+					TargetOriginId:             aws.String("default.origin"),
+					ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
+					AllowedMethods: &awscloudfront.AllowedMethods{
+						Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
+						Quantity: aws.Int64(7),
+						CachedMethods: &awscloudfront.CachedMethods{
+							Items:    aws.StringSlice([]string{"GET", "HEAD"}),
+							Quantity: aws.Int64(2),
+						},
+					},
 				},
 				Enabled:       aws.Bool(true),
 				HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
@@ -278,8 +289,13 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantUp
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
-			Origins:        &awscloudfront.Origins{Quantity: aws.Int64(0)},
-			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			Origins:              &awscloudfront.Origins{Quantity: aws.Int64(0)},
+			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			Enabled:              aws.Bool(true),
+			CallerReference:      aws.String(testCallerRefFn()),
+			DefaultRootObject:    aws.String("/"),
+			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
+			Restrictions:         &awscloudfront.Restrictions{},
 		},
 	}
 
@@ -296,8 +312,13 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
-			Origins:        &awscloudfront.Origins{Quantity: aws.Int64(0)},
-			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			Origins:              &awscloudfront.Origins{Quantity: aws.Int64(0)},
+			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			Enabled:              aws.Bool(true),
+			CallerReference:      aws.String(testCallerRefFn()),
+			DefaultRootObject:    aws.String("/"),
+			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
+			Restrictions:         &awscloudfront.Restrictions{},
 		},
 	}
 
@@ -307,11 +328,16 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 				Items:    []*string{},
 				Quantity: aws.Int64(0),
 			},
-			Comment:       aws.String(""),
-			HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled: aws.Bool(false),
-			WebACLId:      aws.String(""),
-			PriceClass:    aws.String(""),
+			Enabled:              aws.Bool(true),
+			CallerReference:      aws.String(testCallerRefFn()),
+			DefaultRootObject:    aws.String("/"),
+			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
+			Restrictions:         &awscloudfront.Restrictions{},
+			Comment:              aws.String(""),
+			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
+			IsIPV6Enabled:        aws.Bool(false),
+			WebACLId:             aws.String(""),
+			PriceClass:           aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					defaultOrigin,
@@ -335,7 +361,8 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 				},
 				Quantity: aws.Int64(2),
 			},
-			CacheBehaviors: &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+			DefaultCacheBehavior: expectedDefaultCacheBehavior,
+			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
 		},
 		Id:      aws.String("mock id"),
 		IfMatch: aws.String(""),
@@ -345,6 +372,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
 	distribution := cloudfront.Distribution{
 		ID: "mock id",
