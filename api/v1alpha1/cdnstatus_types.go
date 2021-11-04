@@ -20,6 +20,8 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,15 +32,8 @@ import (
 type CDNStatusSpec struct {
 }
 
-// IngressRefs ingresses list
-type IngressRefs []IngressRef
-
-// IngressRef ingress reference
-type IngressRef struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	InSync    bool   `json:"in-sync"`
-}
+// IngressRefs ingresses map
+type IngressRefs map[string]string
 
 // CDNStatusStatus defines the observed state of CDNStatus
 type CDNStatusStatus struct {
@@ -68,20 +63,18 @@ type namespacedName interface {
 
 // SetRef set IngressRef to the status based on Ingress obj
 func (c *CDNStatus) SetRef(inSync bool, obj namespacedName) {
-	ingresses := c.Status.Ingresses
-	for i, ingRef := range ingresses {
-		if ingRef.Name == obj.GetName() && ingRef.Namespace == obj.GetNamespace() {
-			ingresses[i].InSync = inSync
-			return
-		}
+	if c.Status.Ingresses == nil {
+		c.Status.Ingresses = make(IngressRefs)
 	}
 
-	ingRef := IngressRef{
-		Name:      obj.GetName(),
-		Namespace: obj.GetNamespace(),
-		InSync:    inSync,
+	namespacedName := fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName())
+
+	status := "synced"
+	if !inSync {
+		status = "failed"
 	}
-	c.Status.Ingresses = append(ingresses, ingRef)
+
+	c.Status.Ingresses[namespacedName] = status
 }
 
 //+kubebuilder:object:root=true
