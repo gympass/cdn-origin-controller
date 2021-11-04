@@ -47,22 +47,10 @@ spec:
               id:
                 type: string
               ingresses:
-                description: IngressRefs ingresses list
-                items:
-                  description: IngressRef ingress reference
-                  properties:
-                    in-sync:
-                      type: boolean
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                  required:
-                  - in-sync
-                  - name
-                  - namespace
-                  type: object
-                type: array
+                additionalProperties:
+                  type: string
+                description: IngressRefs ingresses map
+                type: object
             type: object
         type: object
     served: true

@@ -17,14 +17,11 @@ type CDNStatusTestSuite struct {
 }
 
 func (s *CDNStatusTestSuite) Test_SetRef_IngressAlreadyExists() {
+	key := "namespace/name"
 	cdnStatus := CDNStatus{
 		Status: CDNStatusStatus{
 			Ingresses: IngressRefs{
-				{
-					"name",
-					"namespace",
-					false,
-				},
+				key: "failed",
 			},
 		},
 	}
@@ -33,44 +30,37 @@ func (s *CDNStatusTestSuite) Test_SetRef_IngressAlreadyExists() {
 	cdnStatus.SetRef(true, nsName)
 
 	s.Len(cdnStatus.Status.Ingresses, 1)
-	s.True(cdnStatus.Status.Ingresses[0].InSync)
+	s.Equal("synced", cdnStatus.Status.Ingresses[key])
 }
 
 func (s *CDNStatusTestSuite) Test_SetRef_AddFirstIngress() {
 	cdnStatus := CDNStatus{}
 
-	nsName := &metav1.ObjectMeta{Name: "foo", Namespace: "bar"}
+	nsName := &metav1.ObjectMeta{Namespace: "bar", Name: "foo"}
 	cdnStatus.SetRef(true, nsName)
 
-	expectedNewIng := IngressRef{
-		Name:      nsName.Name,
-		Namespace: nsName.Namespace,
-		InSync:    true,
-	}
+	key := "bar/foo"
+
 	s.Len(cdnStatus.Status.Ingresses, 1)
-	s.Equal(expectedNewIng, cdnStatus.Status.Ingresses[0])
+	s.Equal("synced", cdnStatus.Status.Ingresses[key])
 }
 
 func (s *CDNStatusTestSuite) Test_SetRef_AddNewIngressToExistingIngresses() {
-	existingIngRef := IngressRef{
-		Name:      "name",
-		Namespace: "namespace",
-	}
+	existingKey := "namespace/name"
 	cdnStatus := CDNStatus{
 		Status: CDNStatusStatus{
-			Ingresses: IngressRefs{existingIngRef},
+			Ingresses: IngressRefs{
+				existingKey: "failed",
+			},
 		},
 	}
 
 	nsName := &metav1.ObjectMeta{Name: "foo", Namespace: "bar"}
 	cdnStatus.SetRef(true, nsName)
 
-	expectedNewIng := IngressRef{
-		Name:      nsName.Name,
-		Namespace: nsName.Namespace,
-		InSync:    true,
-	}
+	newKey := "bar/foo"
+
 	s.Len(cdnStatus.Status.Ingresses, 2)
-	s.Equal(existingIngRef, cdnStatus.Status.Ingresses[0])
-	s.Equal(expectedNewIng, cdnStatus.Status.Ingresses[1])
+	s.Equal("failed", cdnStatus.Status.Ingresses[existingKey])
+	s.Equal("synced", cdnStatus.Status.Ingresses[newKey])
 }
