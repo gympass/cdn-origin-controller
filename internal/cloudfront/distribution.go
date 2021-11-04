@@ -19,6 +19,8 @@
 
 package cloudfront
 
+import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+
 // Distribution represents a CloudFront distribution
 type Distribution struct {
 	ID               string
@@ -38,6 +40,14 @@ type Distribution struct {
 
 func (d *Distribution) AddOrigin(customOrigin Origin) {
 	d.CustomOrigins = append(d.CustomOrigins, customOrigin)
+}
+
+func (d *Distribution) AddAlternateDomains(domains []string) {
+	for _, domain := range domains {
+		if !strhelper.Contains(d.AlternateDomains, domain) {
+			d.AlternateDomains = append(d.AlternateDomains, domain)
+		}
+	}
 }
 
 type tlsConfig struct {

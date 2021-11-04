@@ -38,9 +38,10 @@ import (
 )
 
 const (
-	cdnGroupAnnotation          = "cdn-origin-controller.gympass.com/cdn.group"
-	cfViewerFnAnnotation        = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
-	cfOrigRespTimeoutAnnotation = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
+	cdnGroupAnnotation               = "cdn-origin-controller.gympass.com/cdn.group"
+	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
+	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
+	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 )
 
 const (
@@ -90,6 +91,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	}
 	for _, ip := range boundIngressesParams {
 		dist.AddOrigin(newOrigin(ip))
+		dist.AddAlternateDomains(ip.alternateDomainNames)
 	}
 
 	dist.ID = cdnStatus.Status.ID
