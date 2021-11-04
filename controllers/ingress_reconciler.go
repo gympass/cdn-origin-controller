@@ -97,8 +97,8 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	inSync := true
 	if err := r.syncDistribution(dist); err != nil {
 		inSync = false
-		errUpdate := r.updateCDNStatus(cdnStatus, inSync, obj)
-		return r.handleFailure(either(errUpdate, err), obj)
+		_ = r.updateCDNStatus(cdnStatus, inSync, obj)
+		return r.handleFailure(err, obj)
 	}
 
 	if err := r.updateCDNStatus(cdnStatus, inSync, obj); err != nil {
@@ -137,7 +137,6 @@ func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj cl
 	}
 
 	if err := r.Create(context.Background(), &cdnStatus); err != nil {
-		r.log.Error(err, "Could not persist CDNStatus resource", "CDNStatus", cdnStatus)
 		return fmt.Errorf("creating CDNStatus resource: %v", err)
 	}
 
@@ -177,13 +176,4 @@ func remove(ingresses v1alpha1.IngressRefs, i int) v1alpha1.IngressRefs {
 	lastElement := ingresses[len(ingresses)-1]
 	ingresses[i] = lastElement
 	return ingresses[:len(ingresses)-1]
-}
-
-func either(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
