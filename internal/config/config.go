@@ -59,8 +59,8 @@ func init() {
 	viper.AutomaticEnv()
 }
 
-// OperatorCfg represents all possible configurations for the Operator
-type OperatorCfg struct {
+// Config represents all possible configurations for the Operator
+type Config struct {
 	// LogLevel represents log verbosity. Overridden to "debug" if DevMode is true.
 	LogLevel string
 	// DevMode when set to "true" logs in unstructured text instead of JSON.
@@ -92,14 +92,14 @@ type OperatorCfg struct {
 }
 
 // Parse environment variables into a config struct
-func Parse() OperatorCfg {
+func Parse() Config {
 	devMode := viper.GetBool(devModeKey)
 	logLvl := viper.GetString(logLevelKey)
 	if devMode {
 		logLvl = "debug"
 	}
 
-	return OperatorCfg{
+	return Config{
 		LogLevel:                      logLvl,
 		DevMode:                       devMode,
 		DefaultOriginDomain:           viper.GetString(cfDefaultOriginDomain),
@@ -118,6 +118,9 @@ func Parse() OperatorCfg {
 
 func extractTags(customTags string) map[string]string {
 	m := make(map[string]string)
+	if len(customTags) == 0 {
+		return m
+	}
 
 	tags := strings.Split(customTags, ",")
 	for _, pair := range tags {

@@ -17,45 +17,45 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package controllers
 
 import (
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRunConfigTestSuite(t *testing.T) {
+func TestRunIngressParamsTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &ConfigTestSuite{})
+	suite.Run(t, &IngressParamsSuite{})
 }
 
-type ConfigTestSuite struct {
+type IngressParamsSuite struct {
 	suite.Suite
 }
 
-func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
-	expected := map[string]string{
-		"foo":  "bar",
-		"area": "platform",
+func (s *IngressParamsSuite) Test_ingressParams_V1_With_AlternativeDomainNames() {
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				"cdn-origin-controller.gympass.com/cf.alternate-domain-names": "banana.com.br,banana.com.br,pera.com.br",
+			},
+		},
+		Status: networkingv1.IngressStatus{
+			LoadBalancer: corev1.LoadBalancerStatus{
+				Ingress: []corev1.LoadBalancerIngress{
+					{
+						Hostname: "ingress.aws.load.balancer.com",
+					},
+				},
+			},
+		},
 	}
-
-	viper.Set("cf_custom_tags", "foo=bar,area=platform")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
-}
-
-func (s *ConfigTestSuite) TestConfigNoCustomTags() {
-	expected := map[string]string{}
-
-	viper.Set("cf_custom_tags", "")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
+	ip := newIngressParamsV1(ing)
+	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.alternateDomainNames)
 }

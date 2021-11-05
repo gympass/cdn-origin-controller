@@ -42,7 +42,7 @@ var (
 	annotatedIngress = func() *networkingv1beta1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
-		i.Annotations[cdnIDAnnotation] = "some value"
+		i.Annotations[cdnGroupAnnotation] = "some value"
 		return i
 	}()
 	provisionedIngress = func() *networkingv1beta1.Ingress {

@@ -36,8 +36,9 @@ type IngressConverterSuite struct {
 }
 
 func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -46,15 +47,16 @@ func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -67,15 +69,16 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
 func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -96,7 +99,7 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
@@ -107,8 +110,9 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -117,7 +121,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/*", origin.Behaviors[0].PathPattern)
@@ -125,8 +129,9 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/foo/",
@@ -135,7 +140,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/foo", origin.Behaviors[0].PathPattern)
@@ -144,8 +149,9 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
-	dto := ingressDTO{
-		host: "origin1",
+	ip := ingressParams{
+		loadBalancer: "origin1",
+		hosts:        []string{"host1"},
 		paths: []path{
 			{
 				pathPattern: "/foo",
@@ -154,7 +160,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotE
 		},
 	}
 
-	origin := newOrigin(dto)
+	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 	s.Equal("/foo", origin.Behaviors[0].PathPattern)

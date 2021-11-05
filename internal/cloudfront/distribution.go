@@ -19,9 +19,53 @@
 
 package cloudfront
 
+import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+
+// Distribution represents a CloudFront distribution
+type Distribution struct {
+	ID               string
+	ARN              string
+	Address          string
+	AlternateDomains []string
+	CustomOrigins    []Origin
+	DefaultOrigin    Origin
+	Description      string
+	IPv6Enabled      bool
+	Logging          loggingConfig
+	PriceClass       string
+	Tags             map[string]string
+	TLS              tlsConfig
+	WebACLID         string
+}
+
+func (d *Distribution) AddOrigin(customOrigin Origin) {
+	d.CustomOrigins = append(d.CustomOrigins, customOrigin)
+}
+
+func (d *Distribution) AddAlternateDomains(domains []string) {
+	for _, domain := range domains {
+		if !strhelper.Contains(d.AlternateDomains, domain) {
+			d.AlternateDomains = append(d.AlternateDomains, domain)
+		}
+	}
+}
+
+type tlsConfig struct {
+	Enabled          bool
+	CertARN          string
+	SecurityPolicyID string
+}
+
+type loggingConfig struct {
+	Enabled       bool
+	BucketAddress string
+	Prefix        string
+}
+
 // DistributionBuilder allows the construction of a Distribution
 type DistributionBuilder struct {
 	alternateDomains    []string
+	customOrigin        Origin
 	defaultOriginDomain string
 	description         string
 	ipv6Enabled         bool
@@ -34,8 +78,9 @@ type DistributionBuilder struct {
 }
 
 // NewDistributionBuilder takes required arguments for a distribution and returns a DistributionBuilder
-func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
+func NewDistributionBuilder(customOrigin Origin, defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
 	return DistributionBuilder{
+		customOrigin:        customOrigin,
 		description:         description,
 		defaultOriginDomain: defaultOriginDomain,
 		priceClass:          priceClass,
@@ -90,15 +135,16 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
 func (b DistributionBuilder) Build() Distribution {
 	return Distribution{
-		DefaultOriginDomain: b.defaultOriginDomain,
-		Description:         b.description,
-		PriceClass:          b.priceClass,
-		Tags:                b.generateTags(),
-		Logging:             b.logging,
-		TLS:                 b.tls,
-		IPv6Enabled:         b.ipv6Enabled,
-		AlternateDomains:    b.alternateDomains,
-		WebACLID:            b.webACLID,
+		CustomOrigins:    []Origin{b.customOrigin},
+		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
+		Description:      b.description,
+		PriceClass:       b.priceClass,
+		Tags:             b.generateTags(),
+		Logging:          b.logging,
+		TLS:              b.tls,
+		IPv6Enabled:      b.ipv6Enabled,
+		AlternateDomains: b.alternateDomains,
+		WebACLID:         b.webACLID,
 	}
 }
 
@@ -121,29 +167,4 @@ func (b DistributionBuilder) defaultTags() map[string]string {
 	tags[managedByTagKey] = managedByTagValue
 	tags[groupTagKey] = b.group
 	return tags
-}
-
-// Distribution represents a CloudFront distribution
-type Distribution struct {
-	AlternateDomains    []string
-	DefaultOriginDomain string
-	Description         string
-	IPv6Enabled         bool
-	Logging             loggingConfig
-	PriceClass          string
-	Tags                map[string]string
-	TLS                 tlsConfig
-	WebACLID            string
-}
-
-type tlsConfig struct {
-	Enabled          bool
-	CertARN          string
-	SecurityPolicyID string
-}
-
-type loggingConfig struct {
-	Enabled       bool
-	BucketAddress string
-	Prefix        string
 }
