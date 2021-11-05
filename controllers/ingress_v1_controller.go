@@ -75,6 +75,7 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	return ctrl.Result{}, err
 }
 
+// BoundIngresses returns a slice of ingressParams for each Ingress associated with a particular CDNStatus
 func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParams, error) {
 	var paramList []ingressParams
 	for _, key := range status.GetIngressKeys() {

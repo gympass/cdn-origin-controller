@@ -74,7 +74,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	err := r.Get(context.Background(), nsName, cdnStatus)
 	if k8serrors.IsNotFound(err) {
-		dist, err := r.createDistribution(dist)
+		dist, err := r.Repo.Create(dist)
 		if err != nil {
 			return r.handleFailure(err, obj)
 		}
@@ -100,7 +100,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	dist.ID = cdnStatus.Status.ID
 	dist.ARN = cdnStatus.Status.ARN
 	inSync := true
-	if err := r.syncDistribution(dist); err != nil {
+	if err := r.Repo.Sync(dist); err != nil {
 		inSync = false
 		_ = r.updateCDNStatus(cdnStatus, inSync, dist, obj)
 		return r.handleFailure(err, obj)
@@ -110,21 +110,6 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 		return r.handleFailure(err, obj)
 	}
 	return r.handleSuccess(obj)
-}
-
-func (r *IngressReconciler) syncDistribution(dist cloudfront.Distribution) error {
-	if err := r.Repo.Sync(dist); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *IngressReconciler) createDistribution(dist cloudfront.Distribution) (cloudfront.Distribution, error) {
-	dist, err := r.Repo.Create(dist)
-	if err != nil {
-		return cloudfront.Distribution{}, fmt.Errorf("creating distribution: %v", err)
-	}
-	return dist, nil
 }
 
 func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj client.Object, group string) error {

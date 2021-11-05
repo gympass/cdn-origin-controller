@@ -38,10 +38,12 @@ type Distribution struct {
 	WebACLID         string
 }
 
+// AddOrigin adds a custom Origin to a Distribution
 func (d *Distribution) AddOrigin(customOrigin Origin) {
 	d.CustomOrigins = append(d.CustomOrigins, customOrigin)
 }
 
+// AddAlternateDomains adds given domains to a Distribution
 func (d *Distribution) AddAlternateDomains(domains []string) {
 	for _, domain := range domains {
 		if !strhelper.Contains(d.AlternateDomains, domain) {

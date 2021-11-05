@@ -78,13 +78,13 @@ func (c *CDNStatus) SetIngressRef(inSync bool, obj namespacedName) {
 	c.Status.Ingresses[ref] = status
 }
 
+// GetIngressKeys returns keys to manipulate all IngressRef stored in the CDNStatus
 func (c *CDNStatus) GetIngressKeys() []client.ObjectKey {
 	var keys []types.NamespacedName
 	for ing := range c.Status.Ingresses {
 		keys = append(keys, ing.ToNamespacedName())
 	}
 	return keys
-
 }
 
 //+kubebuilder:object:root=true
