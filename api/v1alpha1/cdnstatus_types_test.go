@@ -7,7 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
 )
 
 func TestRunCDNStatusTestSuite(t *testing.T) {
@@ -25,7 +24,6 @@ func (s *CDNStatusTestSuite) Test_SetIngressRef_IngressAlreadyExists() {
 		Status: CDNStatusStatus{
 			Ingresses: IngressRefs{
 				key: failedIngressStatus,
-
 			},
 		},
 	}

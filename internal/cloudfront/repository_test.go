@@ -128,7 +128,7 @@ type DistributionRepositoryTestSuite struct {
 }
 
 func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Success() {
- 	awsClient := &awsClientMock{
+	awsClient := &awsClientMock{
 		expectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
 			Distribution: &awscloudfront.Distribution{
 				Id:         aws.String("L2FB5NP10VU7KL"),
@@ -443,7 +443,6 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 						Id:         aws.String("origin"),
 						OriginPath: aws.String(""),
 					},
-					defaultOrigin,
 				},
 				Quantity: aws.Int64(2),
 			},

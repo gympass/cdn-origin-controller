@@ -62,7 +62,6 @@ type IngressReconciler struct {
 	Recorder             record.EventRecorder
 	Repo                 cloudfront.DistributionRepository
 
-
 	log logr.Logger
 }
 

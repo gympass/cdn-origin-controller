@@ -23,12 +23,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 
 // CDNStatusStatus defines the observed state of CDNStatus
 type CDNStatusStatus struct {
@@ -55,7 +53,6 @@ const (
 	failedIngressStatus = "Failed"
 	syncedIngressStatus = "Synced"
 )
-
 
 type namespacedName interface {
 	GetNamespace() string
