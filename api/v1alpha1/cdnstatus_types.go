@@ -21,24 +21,12 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// CDNStatusSpec defines the desired state of CDNStatus
-type CDNStatusSpec struct {
-}
-
-// IngressRefs ingresses list
-type IngressRefs []IngressRef
-
-// IngressRef ingress reference
-type IngressRef struct {
-	Name      string `json:"name,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	InSync    bool   `json:"in-sync,omitempty"`
-}
 
 // CDNStatusStatus defines the observed state of CDNStatus
 type CDNStatusStatus struct {
@@ -58,31 +46,42 @@ type CDNStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	//Spec   CDNStatusSpec   `json:"spec,omitempty"`
 	Status CDNStatusStatus `json:"status,omitempty"`
 }
+
+const (
+	failedIngressStatus = "Failed"
+	syncedIngressStatus = "Synced"
+)
 
 type namespacedName interface {
 	GetNamespace() string
 	GetName() string
 }
 
-// SetRef set IngressRef to the status based on Ingress obj
-func (c *CDNStatus) SetRef(inSync bool, obj namespacedName) {
-	ingresses := c.Status.Ingresses
-	for i, ingRef := range ingresses {
-		if ingRef.Name == obj.GetName() && ingRef.Namespace == obj.GetNamespace() {
-			ingresses[i].InSync = inSync
-			return
-		}
+// SetIngressRef set IngressRef to the status based on Ingress obj
+func (c *CDNStatus) SetIngressRef(inSync bool, obj namespacedName) {
+	if c.Status.Ingresses == nil {
+		c.Status.Ingresses = make(IngressRefs)
 	}
 
-	ingRef := IngressRef{
-		Name:      obj.GetName(),
-		Namespace: obj.GetNamespace(),
-		InSync:    inSync,
+	ref := NewIngressRef(obj.GetNamespace(), obj.GetName())
+
+	status := syncedIngressStatus
+	if !inSync {
+		status = failedIngressStatus
 	}
-	c.Status.Ingresses = append(ingresses, ingRef)
+
+	c.Status.Ingresses[ref] = status
+}
+
+// GetIngressKeys returns keys to manipulate all IngressRef stored in the CDNStatus
+func (c *CDNStatus) GetIngressKeys() []client.ObjectKey {
+	var keys []types.NamespacedName
+	for ing := range c.Status.Ingresses {
+		keys = append(keys, ing.ToNamespacedName())
+	}
+	return keys
 }
 
 //+kubebuilder:object:root=true

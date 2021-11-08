@@ -48,7 +48,7 @@ func (s *OriginTestSuite) TestDistributionBuilder_New() {
 	}
 
 	dist := cloudfront.NewDistributionBuilder(origin, defaultOriginDomain, description, priceClass, group).Build()
-	s.Equal(origin, dist.CustomOrigin)
+	s.Equal([]cloudfront.Origin{origin}, dist.CustomOrigins)
 	s.Equal("test.default.origin", dist.DefaultOrigin.Host)
 	s.Equal("test description", dist.Description)
 	s.Equal("test price class", dist.PriceClass)

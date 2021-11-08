@@ -19,13 +19,15 @@
 
 package cloudfront
 
+import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+
 // Distribution represents a CloudFront distribution
 type Distribution struct {
 	ID               string
 	ARN              string
 	Address          string
 	AlternateDomains []string
-	CustomOrigin     Origin
+	CustomOrigins    []Origin
 	DefaultOrigin    Origin
 	Description      string
 	IPv6Enabled      bool
@@ -34,6 +36,20 @@ type Distribution struct {
 	Tags             map[string]string
 	TLS              tlsConfig
 	WebACLID         string
+}
+
+// AddOrigin adds a custom Origin to a Distribution
+func (d *Distribution) AddOrigin(customOrigin Origin) {
+	d.CustomOrigins = append(d.CustomOrigins, customOrigin)
+}
+
+// AddAlternateDomains adds given domains to a Distribution
+func (d *Distribution) AddAlternateDomains(domains []string) {
+	for _, domain := range domains {
+		if !strhelper.Contains(d.AlternateDomains, domain) {
+			d.AlternateDomains = append(d.AlternateDomains, domain)
+		}
+	}
 }
 
 type tlsConfig struct {
@@ -64,9 +80,9 @@ type DistributionBuilder struct {
 }
 
 // NewDistributionBuilder takes required arguments for a distribution and returns a DistributionBuilder
-func NewDistributionBuilder(origin Origin, defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
+func NewDistributionBuilder(customOrigin Origin, defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
 	return DistributionBuilder{
-		customOrigin:        origin,
+		customOrigin:        customOrigin,
 		description:         description,
 		defaultOriginDomain: defaultOriginDomain,
 		priceClass:          priceClass,
@@ -121,7 +137,7 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
 func (b DistributionBuilder) Build() Distribution {
 	return Distribution{
-		CustomOrigin:     b.customOrigin,
+		CustomOrigins:    []Origin{b.customOrigin},
 		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
 		Description:      b.description,
 		PriceClass:       b.priceClass,

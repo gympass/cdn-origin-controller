@@ -39,8 +39,8 @@ func newDistribution(origin cloudfront.Origin, ing ingressParams, cfg config.Con
 		ing.group,
 	)
 
-	if len(ing.hosts) > 0 {
-		b = b.WithAlternateDomains(ing.hosts)
+	if len(ing.alternateDomainNames) > 0 {
+		b = b.WithAlternateDomains(ing.alternateDomainNames)
 	}
 
 	if cfg.CloudFrontEnableIPV6 {

@@ -31,6 +31,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 )
 
 // V1Reconciler reconciles v1 Ingress resources
@@ -39,7 +41,7 @@ type V1Reconciler struct {
 
 	OriginalLog       logr.Logger
 	Scheme            *runtime.Scheme
-	IngressReconciler IngressReconciler
+	IngressReconciler *IngressReconciler
 
 	log logr.Logger
 }
@@ -63,13 +65,28 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	err = r.IngressReconciler.Reconcile(ingress)
+	reconcilingIP := newIngressParamsV1(ingress)
+	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
 	if errors.Is(err, errNoAnnotation) {
 		r.log.Error(err, "Ignoring reconciliation request")
 		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, err
+}
+
+// BoundIngresses returns a slice of ingressParams for each Ingress associated with a particular CDNStatus
+func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParams, error) {
+	var paramList []ingressParams
+	for _, key := range status.GetIngressKeys() {
+		ing := &networkingv1.Ingress{}
+		err := r.Client.Get(context.Background(), key, ing)
+		if err != nil {
+			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
+		}
+		paramList = append(paramList, newIngressParamsV1(ing))
+	}
+	return paramList, nil
 }
 
 // SetupWithManager ...

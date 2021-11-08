@@ -54,7 +54,7 @@ func hasCdnAnnotation(o client.Object) bool {
 func hasLoadBalancer(o client.Object) bool {
 	ingv1beta1, ok := o.(*networkingv1beta1.Ingress)
 	if ok {
-		return len(ingv1beta1.Status.LoadBalancer.Ingress) > 0
+		return len(ingv1beta1.Status.LoadBalancer.Ingress) > 0 && len(ingv1beta1.Status.LoadBalancer.Ingress[0].Hostname) > 0
 	}
 
 	ingv1, ok := o.(*networkingv1.Ingress)
@@ -62,5 +62,5 @@ func hasLoadBalancer(o client.Object) bool {
 		return false
 	}
 
-	return len(ingv1.Status.LoadBalancer.Ingress) > 0
+	return len(ingv1.Status.LoadBalancer.Ingress) > 0 && len(ingv1.Status.LoadBalancer.Ingress[0].Hostname) > 0
 }

@@ -112,7 +112,7 @@ func main() {
 	}
 
 	callerRefFn := func() string { return time.Now().String() }
-	ingressReconciler := controllers.IngressReconciler{
+	ingressReconciler := &controllers.IngressReconciler{
 		Client:   mgr.GetClient(),
 		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
 		Repo:     cloudfront.NewDistributionRepository(mustGetCloudFrontClient(), callerRefFn),
@@ -128,7 +128,7 @@ func main() {
 	}
 }
 
-func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressReconciler) {
+func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressReconciler) {
 	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
 	v1Available, err := discovery.HasV1Ingress(discClient)
 	if err != nil {
@@ -155,13 +155,14 @@ func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressRec
 	}
 }
 
-func mustSetupV1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+func mustSetupV1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
 	v1Reconciler := controllers.V1Reconciler{
 		Client:            mgr.GetClient(),
 		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
+	v1Reconciler.IngressReconciler.BoundIngressParamsFn = v1Reconciler.BoundIngresses
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1 ingress controller")
@@ -169,13 +170,14 @@ func mustSetupV1Controller(mgr manager.Manager, ir controllers.IngressReconciler
 	}
 }
 
-func mustSetupV1beta1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+func mustSetupV1beta1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
 	v1beta1Reconciler := controllers.V1beta1Reconciler{
 		Client:            mgr.GetClient(),
 		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
+	v1beta1Reconciler.IngressReconciler.BoundIngressParamsFn = v1beta1Reconciler.BoundIngresses
 
 	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1beta1 ingress controller")

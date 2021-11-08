@@ -38,9 +38,10 @@ import (
 )
 
 const (
-	cdnGroupAnnotation          = "cdn-origin-controller.gympass.com/cdn.group"
-	cfViewerFnAnnotation        = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
-	cfOrigRespTimeoutAnnotation = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
+	cdnGroupAnnotation               = "cdn-origin-controller.gympass.com/cdn.group"
+	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
+	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
+	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 )
 
 const (
@@ -50,35 +51,33 @@ const (
 
 var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
 
+type boundIngressesFunc func(v1alpha1.CDNStatus) ([]ingressParams, error)
+
 // IngressReconciler reconciles Ingress resources of any version
 type IngressReconciler struct {
 	client.Client
 
-	Recorder record.EventRecorder
-	Repo     cloudfront.DistributionRepository
-	Config   config.Config
+	BoundIngressParamsFn boundIngressesFunc
+	Config               config.Config
+	Recorder             record.EventRecorder
+	Repo                 cloudfront.DistributionRepository
 
 	log logr.Logger
 }
 
 // Reconcile an Ingress resource of any version
-func (r *IngressReconciler) Reconcile(obj client.Object) error {
-	ip, err := newIngressParams(obj)
-	if err != nil {
-		return err
-	}
-
-	dist := newDistribution(newOrigin(ip), ip, r.Config)
+func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Object) error {
 	cdnStatus := &v1alpha1.CDNStatus{}
-	nsName := types.NamespacedName{Name: ip.group}
-	err = r.Get(context.Background(), nsName, cdnStatus)
+	nsName := types.NamespacedName{Name: reconciling.group}
+	dist := newDistribution(newOrigin(reconciling), reconciling, r.Config)
 
+	err := r.Get(context.Background(), nsName, cdnStatus)
 	if k8serrors.IsNotFound(err) {
-		dist, err := r.createDistribution(dist)
+		dist, err := r.Repo.Create(dist)
 		if err != nil {
 			return r.handleFailure(err, obj)
 		}
-		if err := r.createCDNStatus(dist, obj, ip.group); err != nil {
+		if err := r.createCDNStatus(dist, obj, reconciling.group); err != nil {
 			return r.handleFailure(err, obj)
 		}
 		return r.handleSuccess(obj)
@@ -87,31 +86,29 @@ func (r *IngressReconciler) Reconcile(obj client.Object) error {
 	if err != nil {
 		return fmt.Errorf("fetching CDN status: %v", err)
 	}
-	dist.ID = cdnStatus.Status.ID
-	inSync := true
-	if err := r.syncDistribution(dist); err != nil {
-		inSync = false
+
+	boundIngressesParams, err := r.BoundIngressParamsFn(filterIngressRef(cdnStatus, obj))
+	if err != nil {
+		return err
+	}
+	for _, ip := range boundIngressesParams {
+		dist.AddOrigin(newOrigin(ip))
+		dist.AddAlternateDomains(ip.alternateDomainNames)
 	}
 
-	if err := r.updateCDNStatus(cdnStatus, inSync, obj); err != nil {
+	dist.ID = cdnStatus.Status.ID
+	dist.ARN = cdnStatus.Status.ARN
+	inSync := true
+	if err := r.Repo.Sync(dist); err != nil {
+		inSync = false
+		_ = r.updateCDNStatus(cdnStatus, inSync, dist, obj)
+		return r.handleFailure(err, obj)
+	}
+
+	if err := r.updateCDNStatus(cdnStatus, inSync, dist, obj); err != nil {
 		return r.handleFailure(err, obj)
 	}
 	return r.handleSuccess(obj)
-}
-
-func (r *IngressReconciler) syncDistribution(dist cloudfront.Distribution) error {
-	if err := r.Repo.Sync(dist); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *IngressReconciler) createDistribution(dist cloudfront.Distribution) (cloudfront.Distribution, error) {
-	dist, err := r.Repo.Create(dist)
-	if err != nil {
-		return cloudfront.Distribution{}, fmt.Errorf("creating distribution: %v", err)
-	}
-	return dist, nil
 }
 
 func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj client.Object, group string) error {
@@ -120,25 +117,24 @@ func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj cl
 			Name: group,
 		},
 		Status: v1alpha1.CDNStatusStatus{
-			ID:        dist.ID,
-			ARN:       dist.ARN,
-			Ingresses: []v1alpha1.IngressRef{},
-			Aliases:   dist.AlternateDomains,
-			Address:   dist.Address,
+			ID:      dist.ID,
+			ARN:     dist.ARN,
+			Aliases: dist.AlternateDomains,
+			Address: dist.Address,
 		},
 	}
 
 	if err := r.Create(context.Background(), &cdnStatus); err != nil {
-		r.log.Error(err, "Could not persist CDNStatus resource", "CDNStatus", cdnStatus)
 		return fmt.Errorf("creating CDNStatus resource: %v", err)
 	}
 
 	const inSync = true
-	return r.updateCDNStatus(&cdnStatus, inSync, obj)
+	return r.updateCDNStatus(&cdnStatus, inSync, dist, obj)
 }
 
-func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus, sync bool, obj client.Object) error {
-	status.SetRef(sync, obj)
+func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus, sync bool, dist cloudfront.Distribution, obj client.Object) error {
+	status.SetIngressRef(sync, obj)
+	status.Status.Aliases = dist.AlternateDomains
 	if err := r.Status().Update(context.Background(), status); err != nil {
 		r.log.Error(err, "Could not persist CDNStatus resource", "CDNStatus", status)
 		return err
@@ -154,4 +150,14 @@ func (r *IngressReconciler) handleFailure(err error, obj client.Object) error {
 func (r *IngressReconciler) handleSuccess(obj client.Object) error {
 	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully reconciled CDN")
 	return nil
+}
+
+func filterIngressRef(status *v1alpha1.CDNStatus, obj client.Object) v1alpha1.CDNStatus {
+	statusCopy := status.DeepCopy()
+	for ref := range status.Status.Ingresses {
+		if ref.GetName() == obj.GetName() && ref.GetNamespace() == obj.GetNamespace() {
+			delete(statusCopy.Status.Ingresses, ref)
+		}
+	}
+	return *statusCopy
 }
