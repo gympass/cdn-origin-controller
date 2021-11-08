@@ -16,7 +16,17 @@ spec:
     singular: cdnstatus
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .status.aliases
+      name: Aliases
+      type: string
+    - jsonPath: .status.address
+      name: Address
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: CDNStatus is the Schema for the cdnstatuses API

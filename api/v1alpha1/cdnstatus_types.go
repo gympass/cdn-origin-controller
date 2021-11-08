@@ -40,6 +40,9 @@ type CDNStatusStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
+//+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`
+//+kubebuilder:printcolumn:name="Aliases",type=string,JSONPath=`.status.aliases`
+//+kubebuilder:printcolumn:name="Address",type=string,JSONPath=`.status.address`
 
 // CDNStatus is the Schema for the cdnstatuses API
 type CDNStatus struct {
