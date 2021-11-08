@@ -53,6 +53,7 @@ type V1Reconciler struct {
 func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
 	r.IngressReconciler.log = r.log
+	r.log.Info("Starting reconciliation.")
 
 	ingress := &networkingv1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
@@ -72,6 +73,9 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
+	if err == nil {
+		r.log.Info("Reconciliation successful.")
+	}
 	return ctrl.Result{}, err
 }
 
@@ -84,6 +88,7 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParam
 		if err != nil {
 			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
 		}
+		r.log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
 		paramList = append(paramList, newIngressParamsV1(ing))
 	}
 	return paramList, nil

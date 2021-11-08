@@ -31,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8sdisc "k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -86,6 +88,7 @@ func main() {
 		zap.UseDevMode(cfg.DevMode),
 		zap.Level(mustGetLogLevel(cfg.LogLevel)),
 	))
+	setupLog.V(1).Info("Config parsed.", "config", cfg)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -145,12 +148,15 @@ func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressRe
 		os.Exit(1)
 	}
 
+	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
 	if v1beta1Available {
+		setupLog.V(1).Info(networkingv1beta1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
 		mustSetupV1beta1Controller(mgr, reconciler)
 		return
 	}
 
 	if v1Available {
+		setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
 		mustSetupV1Controller(mgr, reconciler)
 	}
 }
