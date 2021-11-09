@@ -45,8 +45,8 @@ const (
 )
 
 const (
-	attachOriginFailedReason  = "FailedToReconcile"
-	attachOriginSuccessReason = "SuccessfullyReconcile"
+	reasonFailed  = "FailedToReconcile"
+	reasonSuccess = "SuccessfullyReconcile"
 )
 
 var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
@@ -77,13 +77,13 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 		r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", nsName.Name)
 		dist, err := r.Repo.Create(dist)
 		if err != nil {
-			return r.handleFailure(err, obj)
+			return r.handleFailure(err, obj, cdnStatus)
 		}
 		r.log.V(1).Info("Distribution created.", "distribution", dist)
 		if err := r.createCDNStatus(dist, obj, reconciling.group); err != nil {
-			return r.handleFailure(err, obj)
+			return r.handleFailure(err, obj, cdnStatus)
 		}
-		return r.handleSuccess(obj)
+		return r.handleSuccess(obj, cdnStatus)
 	}
 
 	if err != nil {
@@ -108,13 +108,13 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	if err := r.Repo.Sync(dist); err != nil {
 		inSync = false
 		_ = r.updateCDNStatus(cdnStatus, inSync, dist, obj)
-		return r.handleFailure(err, obj)
+		return r.handleFailure(err, obj, cdnStatus)
 	}
 
 	if err := r.updateCDNStatus(cdnStatus, inSync, dist, obj); err != nil {
-		return r.handleFailure(err, obj)
+		return r.handleFailure(err, obj, cdnStatus)
 	}
-	return r.handleSuccess(obj)
+	return r.handleSuccess(obj, cdnStatus)
 }
 
 func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj client.Object, group string) error {
@@ -148,13 +148,25 @@ func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus, sync boo
 	return nil
 }
 
-func (r *IngressReconciler) handleFailure(err error, obj client.Object) error {
-	r.Recorder.Event(obj, corev1.EventTypeWarning, attachOriginFailedReason, "Unable to reconcile CDN: "+err.Error())
+func (r *IngressReconciler) handleFailure(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
+	msg := "Unable to reconcile CDN: " + err.Error()
+	r.Recorder.Event(ingress, corev1.EventTypeWarning, reasonFailed, msg)
+
+	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
+	msg = fmt.Sprintf("%s: %s", ingRef, msg)
+	r.Recorder.Event(status, corev1.EventTypeWarning, reasonFailed, msg)
+
 	return err
 }
 
-func (r *IngressReconciler) handleSuccess(obj client.Object) error {
-	r.Recorder.Event(obj, corev1.EventTypeNormal, attachOriginSuccessReason, "Successfully reconciled CDN")
+func (r *IngressReconciler) handleSuccess(ingress client.Object, status *v1alpha1.CDNStatus) error {
+	msg := "Successfully reconciled CDN"
+	r.Recorder.Event(ingress, corev1.EventTypeNormal, reasonSuccess, msg)
+
+	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
+	msg = fmt.Sprintf("%s: %s", ingRef, msg)
+	r.Recorder.Event(status, corev1.EventTypeNormal, reasonSuccess, msg)
+
 	return nil
 }
 
