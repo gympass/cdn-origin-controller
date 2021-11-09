@@ -45,8 +45,8 @@ const (
 )
 
 const (
-	attachOriginFailedReason  = "FailedToAttach"
-	attachOriginSuccessReason = "SuccessfullyAttached"
+	attachOriginFailedReason  = "FailedToReconcile"
+	attachOriginSuccessReason = "SuccessfullyReconcile"
 )
 
 var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
