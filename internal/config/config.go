@@ -53,7 +53,7 @@ func init() {
 	viper.SetDefault(cfEnableLoggingKey, "false")
 	viper.SetDefault(cfS3BucketLogKey, "")
 	viper.SetDefault(cfEnableIPV6Key, "true")
-	viper.SetDefault(cfDescriptionTemplateKey, "")
+	viper.SetDefault(cfDescriptionTemplateKey, "Serve contents for {{group}} group.")
 	viper.SetDefault(cfAliasCreationKey, "true")
 	viper.SetDefault(cfCustomTagsKey, "")
 	viper.AutomaticEnv()
