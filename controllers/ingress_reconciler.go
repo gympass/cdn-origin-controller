@@ -45,8 +45,8 @@ const (
 )
 
 const (
-	attachOriginFailedReason  = "FailedToAttach"
-	attachOriginSuccessReason = "SuccessfullyAttached"
+	attachOriginFailedReason  = "FailedToReconcile"
+	attachOriginSuccessReason = "SuccessfullyReconcile"
 )
 
 var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
@@ -73,10 +73,13 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	err := r.Get(context.Background(), nsName, cdnStatus)
 	if k8serrors.IsNotFound(err) {
+		r.log.V(1).Info("Built desired distribution.", "distribution", dist)
+		r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", nsName.Name)
 		dist, err := r.Repo.Create(dist)
 		if err != nil {
 			return r.handleFailure(err, obj)
 		}
+		r.log.V(1).Info("Distribution created.", "distribution", dist)
 		if err := r.createCDNStatus(dist, obj, reconciling.group); err != nil {
 			return r.handleFailure(err, obj)
 		}
@@ -87,6 +90,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 		return fmt.Errorf("fetching CDN status: %v", err)
 	}
 
+	r.log.V(1).Info("CDNStatus resource found.", "cdnStatusName", nsName.Name)
 	boundIngressesParams, err := r.BoundIngressParamsFn(filterIngressRef(cdnStatus, obj))
 	if err != nil {
 		return err
@@ -98,6 +102,8 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	dist.ID = cdnStatus.Status.ID
 	dist.ARN = cdnStatus.Status.ARN
+	r.log.V(1).Info("Built desired distribution.", "distribution", dist)
+
 	inSync := true
 	if err := r.Repo.Sync(dist); err != nil {
 		inSync = false
@@ -136,7 +142,7 @@ func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus, sync boo
 	status.SetIngressRef(sync, obj)
 	status.Status.Aliases = dist.AlternateDomains
 	if err := r.Status().Update(context.Background(), status); err != nil {
-		r.log.Error(err, "Could not persist CDNStatus resource", "CDNStatus", status)
+		r.log.Error(err, "Could not persist CDNStatus resource", "cdnStatus", status)
 		return err
 	}
 	return nil
