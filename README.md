@@ -71,21 +71,18 @@ Status:
     default/app1: Synced
     default/app2: Synced
     default/app3: Failed
-Events:                     <none>
+Events:
+  Type    Reason                  Age   From                      Message
+  ----    ------                  ----  ----                      -------
+  Normal  SuccessfullyReconciled  20s   cdn-origin-controller     default/app1: Successfully reconciled CDN
+  Normal  SuccessfullyReconciled  19s   cdn-origin-controller     default/app2: Successfully reconciled CDN
+  Warning FailedToReconcile       12s   cdn-origin-controller     default/app3: Unable to reconcile CDN: some error
+  
 ```
+
+The events are also replicated to the specific Ingress resources which were being reconciled.
 
 > **Important**: the controller relies on this resource to maintain state of which Ingresses are part of a distribution. It's recommended to configure RBAC to only allow the controller and cluster administrators to perform writes against this resource.
-
-In the example above the Ingress `default/app3` is in a failed state. To better understand what is happening you can check that particular Ingress for events:
-
-```bash
-$ kubectl describe ing -n default app3
-# output omitted
-Events:
-  Type    Reason                Age   From                      Message
-  ----    ------                ----  ----                      -------
-  Warning FailedToReconcile     12s   cdn-origin-controller     Unable to reconcile CDN: some error
-```
 
 ## Installing via Helm
 
