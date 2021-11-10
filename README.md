@@ -72,11 +72,11 @@ Status:
     default/app2: Synced
     default/app3: Failed
 Events:
-  Type    Reason                 Age   From                      Message
-  ----    ------                 ----  ----                      -------
-  Normal  SuccessfullyReconcile  20s   cdn-origin-controller     default/app1: Successfully reconciled CDN
-  Normal  SuccessfullyReconcile  19s   cdn-origin-controller     default/app2: Successfully reconciled CDN
-  Warning FailedToReconcile      12s   cdn-origin-controller     default/app3: Unable to reconcile CDN: some error
+  Type    Reason                  Age   From                      Message
+  ----    ------                  ----  ----                      -------
+  Normal  SuccessfullyReconciled  20s   cdn-origin-controller     default/app1: Successfully reconciled CDN
+  Normal  SuccessfullyReconciled  19s   cdn-origin-controller     default/app2: Successfully reconciled CDN
+  Warning FailedToReconcile       12s   cdn-origin-controller     default/app3: Unable to reconcile CDN: some error
   
 ```
 

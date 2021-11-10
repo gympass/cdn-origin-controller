@@ -46,7 +46,7 @@ const (
 
 const (
 	reasonFailed  = "FailedToReconcile"
-	reasonSuccess = "SuccessfullyReconcile"
+	reasonSuccess = "SuccessfullyReconciled"
 )
 
 var errNoAnnotation = errors.New(cdnGroupAnnotation + " annotation not present")
