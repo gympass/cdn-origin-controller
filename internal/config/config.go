@@ -91,8 +91,8 @@ type Config struct {
 	CloudFrontDescriptionTemplate string
 	// CloudFrontRoute53CreateAlias if should create a DNS alias for distribution.
 	CloudFrontRoute53CreateAlias bool
-	// CloudFrontRoute53HostedZoneId is the R53 hosted zone id that should host the aliases
-	CloudFrontRoute53HostedZoneId string
+	// CloudFrontRoute53HostedZoneID is the R53 hosted zone id that should host the aliases
+	CloudFrontRoute53HostedZoneID string
 	// CloudFrontRoute53TxtOwnerValue is the value to be used when creating ownership TXT records for aliases
 	CloudFrontRoute53TxtOwnerValue string
 	// CloudFrontCustomTags all custom tags that will be persisted to distribution.
@@ -120,7 +120,7 @@ func Parse() Config {
 		CloudFrontEnableIPV6:           viper.GetBool(cfEnableIPV6Key),
 		CloudFrontDescriptionTemplate:  viper.GetString(cfDescriptionTemplateKey),
 		CloudFrontRoute53CreateAlias:   viper.GetBool(cfAliasCreationKey),
-		CloudFrontRoute53HostedZoneId:  viper.GetString(cfRoute53HostedZoneKey),
+		CloudFrontRoute53HostedZoneID:  viper.GetString(cfRoute53HostedZoneKey),
 		CloudFrontRoute53TxtOwnerValue: viper.GetString(cfRoute53TxtOwnerValKey),
 		CloudFrontCustomTags:           extractTags(viper.GetString(cfCustomTagsKey)),
 	}

@@ -29,11 +29,13 @@ func Contains(s []string, e string) bool {
 	return false
 }
 
-func Filter(s []string, f func(string) bool) []string {
+// Filter applies a given predicate function to each element of s.
+// If the predicate is satisfied the element gets added to the result slice.
+func Filter(s []string, predicate func(string) bool) []string {
 	var filtered []string
 
 	for _, it := range s {
-		if f(it) {
+		if predicate(it) {
 			filtered = append(filtered, it)
 		}
 	}

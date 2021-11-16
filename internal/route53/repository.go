@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	cfHostedZoneId         = "Z2FDTNDATAQYW2"
+	cfHostedZoneID         = "Z2FDTNDATAQYW2"
 	cfEvaluateTargetHealth = false
 	txtOwnerKey            = "cdn-origin-controller/owner"
 	// ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/ResourceRecordTypes.html
@@ -61,7 +61,7 @@ type repository struct {
 // NewRoute53AliasRepository builds a new AliasRepository
 func NewRoute53AliasRepository(awsClient route53iface.Route53API, config config.Config) AliasRepository {
 	txtValue := fmt.Sprintf(`"%s=%s"`, txtOwnerKey, config.CloudFrontRoute53TxtOwnerValue)
-	return &repository{awsClient: awsClient, hostedZoneID: config.CloudFrontRoute53HostedZoneId, ownershipTXTValue: txtValue}
+	return &repository{awsClient: awsClient, hostedZoneID: config.CloudFrontRoute53HostedZoneID, ownershipTXTValue: txtValue}
 }
 
 func (r repository) Upsert(aliases Aliases) error {
@@ -181,7 +181,7 @@ func (r repository) newAliasChange(target, action, name, rType string) *route53.
 			AliasTarget: &route53.AliasTarget{
 				DNSName:              aws.String(target),
 				EvaluateTargetHealth: aws.Bool(cfEvaluateTargetHealth),
-				HostedZoneId:         aws.String(cfHostedZoneId),
+				HostedZoneId:         aws.String(cfHostedZoneID),
 			},
 			Name: aws.String(name),
 			Type: aws.String(rType),
