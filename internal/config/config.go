@@ -38,7 +38,9 @@ const (
 	cfS3BucketLogKey         = "cf_s3_bucket_log"
 	cfEnableIPV6Key          = "cf_enable_ipv6"
 	cfDescriptionTemplateKey = "cf_description_template"
-	cfAliasCreationKey       = "cf_alias_creation"
+	cfAliasCreationKey       = "cf_route53_create_alias"
+	cfRoute53HostedZoneKey   = "cf_route53_hosted_zone_id"
+	cfRoute53TxtOwnerValKey  = "cf_route53_txt_owner_value"
 	cfCustomTagsKey          = "cf_custom_tags"
 )
 
@@ -54,7 +56,9 @@ func init() {
 	viper.SetDefault(cfS3BucketLogKey, "")
 	viper.SetDefault(cfEnableIPV6Key, "true")
 	viper.SetDefault(cfDescriptionTemplateKey, "Serve contents for {{group}} group.")
-	viper.SetDefault(cfAliasCreationKey, "true")
+	viper.SetDefault(cfAliasCreationKey, "false")
+	viper.SetDefault(cfRoute53HostedZoneKey, "")
+	viper.SetDefault(cfRoute53TxtOwnerValKey, "")
 	viper.SetDefault(cfCustomTagsKey, "")
 	viper.AutomaticEnv()
 }
@@ -85,8 +89,12 @@ type Config struct {
 	CloudFrontEnableIPV6 bool
 	// CloudFrontDescriptionTemplate the description template for distribution.
 	CloudFrontDescriptionTemplate string
-	// CloudFrontAliasCreation if should create a DNS alias for distribution.
-	CloudFrontAliasCreation bool
+	// CloudFrontRoute53CreateAlias if should create a DNS alias for distribution.
+	CloudFrontRoute53CreateAlias bool
+	// CloudFrontRoute53HostedZoneId is the R53 hosted zone id that should host the aliases
+	CloudFrontRoute53HostedZoneId string
+	// CloudFrontRoute53TxtOwnerValue is the value to be used when creating ownership TXT records for aliases
+	CloudFrontRoute53TxtOwnerValue string
 	// CloudFrontCustomTags all custom tags that will be persisted to distribution.
 	CloudFrontCustomTags map[string]string
 }
@@ -100,19 +108,21 @@ func Parse() Config {
 	}
 
 	return Config{
-		LogLevel:                      logLvl,
-		DevMode:                       devMode,
-		DefaultOriginDomain:           viper.GetString(cfDefaultOriginDomain),
-		CloudFrontPriceClass:          viper.GetString(cfPriceClassKey),
-		CloudFrontWAFARN:              viper.GetString(cfWafArnKey),
-		CloudFrontCustomSSLCertARN:    viper.GetString(cfCustomSSLCertArnKey),
-		CloudFrontSecurityPolicy:      viper.GetString(cfSecurityPolicyKey),
-		CloudFrontEnableLogging:       viper.GetBool(cfEnableLoggingKey),
-		CloudFrontS3BucketLog:         viper.GetString(cfS3BucketLogKey),
-		CloudFrontEnableIPV6:          viper.GetBool(cfEnableIPV6Key),
-		CloudFrontDescriptionTemplate: viper.GetString(cfDescriptionTemplateKey),
-		CloudFrontAliasCreation:       viper.GetBool(cfAliasCreationKey),
-		CloudFrontCustomTags:          extractTags(viper.GetString(cfCustomTagsKey)),
+		LogLevel:                       logLvl,
+		DevMode:                        devMode,
+		DefaultOriginDomain:            viper.GetString(cfDefaultOriginDomain),
+		CloudFrontPriceClass:           viper.GetString(cfPriceClassKey),
+		CloudFrontWAFARN:               viper.GetString(cfWafArnKey),
+		CloudFrontCustomSSLCertARN:     viper.GetString(cfCustomSSLCertArnKey),
+		CloudFrontSecurityPolicy:       viper.GetString(cfSecurityPolicyKey),
+		CloudFrontEnableLogging:        viper.GetBool(cfEnableLoggingKey),
+		CloudFrontS3BucketLog:          viper.GetString(cfS3BucketLogKey),
+		CloudFrontEnableIPV6:           viper.GetBool(cfEnableIPV6Key),
+		CloudFrontDescriptionTemplate:  viper.GetString(cfDescriptionTemplateKey),
+		CloudFrontRoute53CreateAlias:   viper.GetBool(cfAliasCreationKey),
+		CloudFrontRoute53HostedZoneId:  viper.GetString(cfRoute53HostedZoneKey),
+		CloudFrontRoute53TxtOwnerValue: viper.GetString(cfRoute53TxtOwnerValKey),
+		CloudFrontCustomTags:           extractTags(viper.GetString(cfCustomTagsKey)),
 	}
 }
 

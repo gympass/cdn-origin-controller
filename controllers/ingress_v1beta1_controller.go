@@ -69,7 +69,7 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	reconcilingIP := newIngressParamsV1beta1(ingress)
 	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
 	if errors.Is(err, errNoAnnotation) {
-		r.log.Error(err, "Ignoring reconciliation request")
+		r.log.Error(err, "Ignoring reconciliation request.")
 		return ctrl.Result{}, nil
 	}
 
