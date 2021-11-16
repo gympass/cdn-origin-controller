@@ -17,27 +17,19 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package strhelper
+package route53_test
 
-// Contains check if string exists in given slice
-func Contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
+import (
+	"testing"
+
+	"github.com/stretchr/testify/suite"
+)
+
+func TestRunAliasRepositoryTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &AliasRepositoryTestSuite{})
 }
 
-// Filter applies a given predicate function to each element of s.
-// If the predicate is satisfied the element gets added to the result slice.
-func Filter(s []string, predicate func(string) bool) []string {
-	var filtered []string
-
-	for _, it := range s {
-		if predicate(it) {
-			filtered = append(filtered, it)
-		}
-	}
-	return filtered
+type AliasRepositoryTestSuite struct {
+	suite.Suite
 }

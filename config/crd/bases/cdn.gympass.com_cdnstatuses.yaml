@@ -54,6 +54,20 @@ spec:
                 type: array
               arn:
                 type: string
+              dns:
+                description: DNSStatus provides status regarding the creation of DNS
+                  records for aliases
+                properties:
+                  records:
+                    items:
+                      type: string
+                    type: array
+                  synced:
+                    type: boolean
+                required:
+                - records
+                - synced
+                type: object
               id:
                 type: string
               ingresses:

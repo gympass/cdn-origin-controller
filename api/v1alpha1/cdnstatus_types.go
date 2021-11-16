@@ -23,10 +23,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+
+// DNSStatus provides status regarding the creation of DNS records for aliases
+type DNSStatus struct {
+	Records []string `json:"records"`
+	Synced  bool     `json:"synced"`
+}
 
 // CDNStatusStatus defines the observed state of CDNStatus
 type CDNStatusStatus struct {
@@ -35,6 +43,7 @@ type CDNStatusStatus struct {
 	Ingresses IngressRefs `json:"ingresses,omitempty"`
 	Aliases   []string    `json:"aliases,omitempty"`
 	Address   string      `json:"address,omitempty"`
+	DNS       *DNSStatus  `json:"dns,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -60,6 +69,35 @@ const (
 type namespacedName interface {
 	GetNamespace() string
 	GetName() string
+}
+
+// SetAliases sets the CDN's aliases
+func (c *CDNStatus) SetAliases(aliases []string) {
+	c.Status.Aliases = aliases
+}
+
+// UpsertDNSRecords inserts the given records at the DNS status section if they're not present already
+func (c *CDNStatus) UpsertDNSRecords(records []string) {
+	if c.Status.DNS == nil {
+		c.Status.DNS = &DNSStatus{Records: records}
+		return
+	}
+
+	for _, r := range records {
+		if !strhelper.Contains(c.Status.DNS.Records, r) {
+			c.Status.DNS.Records = append(c.Status.DNS.Records, r)
+		}
+	}
+}
+
+// RemoveDNSRecords deletes the given records from the DNS status section
+func (c *CDNStatus) RemoveDNSRecords(records []string) {
+	for _, it := range records {
+		predicate := func(i string) bool {
+			return i != it
+		}
+		c.Status.DNS.Records = strhelper.Filter(c.Status.DNS.Records, predicate)
+	}
 }
 
 // SetIngressRef set IngressRef to the status based on Ingress obj

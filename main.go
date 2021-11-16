@@ -28,7 +28,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
+	awsroute53 "github.com/aws/aws-sdk-go/service/route53"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -53,6 +53,7 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/discovery"
+	"github.com/Gympass/cdn-origin-controller/internal/route53"
 )
 
 var (
@@ -114,12 +115,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	s := session.Must(session.NewSession())
+
 	callerRefFn := func() string { return time.Now().String() }
 	ingressReconciler := &controllers.IngressReconciler{
-		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
-		Repo:     cloudfront.NewDistributionRepository(mustGetCloudFrontClient(), callerRefFn),
-		Config:   cfg,
+		Client:    mgr.GetClient(),
+		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
+		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), callerRefFn),
+		AliasRepo: route53.NewRoute53AliasRepository(awsroute53.New(s), cfg),
+		Config:    cfg,
 	}
 
 	mustSetupControllers(mgr, ingressReconciler)
@@ -197,9 +201,4 @@ func mustGetLogLevel(logLvl string) zapcore.Level {
 		panic(fmt.Errorf("invalid log level config: %v", err))
 	}
 	return l
-}
-
-func mustGetCloudFrontClient() cloudfrontiface.CloudFrontAPI {
-	s := session.Must(session.NewSession())
-	return awscloudfront.New(s)
 }

@@ -17,27 +17,50 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package strhelper
+package route53
 
-// Contains check if string exists in given slice
-func Contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
+import awsroute53 "github.com/aws/aws-sdk-go/service/route53"
+
+// Entry represents an alias entry with all desired record types for it
+type Entry struct {
+	Name string
+	Type []string
 }
 
-// Filter applies a given predicate function to each element of s.
-// If the predicate is satisfied the element gets added to the result slice.
-func Filter(s []string, predicate func(string) bool) []string {
-	var filtered []string
+// Aliases represents all aliases which should be bound to a CF distribution
+type Aliases struct {
+	Target  string
+	Entries []Entry
+}
 
-	for _, it := range s {
-		if predicate(it) {
-			filtered = append(filtered, it)
-		}
+// Domains returns a slice of all domains from an Aliases' Entries
+func (a Aliases) Domains() []string {
+	var domains []string
+
+	for _, e := range a.Entries {
+		domains = append(domains, e.Name)
 	}
-	return filtered
+	return domains
+}
+
+// NewAliases builds a new Aliases
+func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
+	aliases := Aliases{
+		Target: target,
+	}
+
+	types := []string{awsroute53.RRTypeA}
+	if ipv6Enabled {
+		types = append(types, awsroute53.RRTypeAaaa)
+	}
+
+	for _, domain := range domains {
+		entry := Entry{
+			Name: domain,
+			Type: types,
+		}
+		aliases.Entries = append(aliases.Entries, entry)
+	}
+
+	return aliases
 }

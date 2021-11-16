@@ -32,9 +32,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/route53"
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 const (
@@ -60,40 +64,98 @@ type IngressReconciler struct {
 	BoundIngressParamsFn boundIngressesFunc
 	Config               config.Config
 	Recorder             record.EventRecorder
-	Repo                 cloudfront.DistributionRepository
+	AliasRepo            route53.AliasRepository
+	DistRepo             cloudfront.DistributionRepository
 
 	log logr.Logger
 }
 
 // Reconcile an Ingress resource of any version
 func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Object) error {
-	cdnStatus := &v1alpha1.CDNStatus{}
-	nsName := types.NamespacedName{Name: reconciling.group}
 	dist := newDistribution(newOrigin(reconciling), reconciling, r.Config)
 
+	var errs *multierror.Error
+	var reconciliationErr error
+	nsName := types.NamespacedName{Name: reconciling.group}
+	cdnStatus := &v1alpha1.CDNStatus{}
 	err := r.Get(context.Background(), nsName, cdnStatus)
-	if k8serrors.IsNotFound(err) {
-		r.log.V(1).Info("Built desired distribution.", "distribution", dist)
-		r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", nsName.Name)
-		dist, err := r.Repo.Create(dist)
-		if err != nil {
-			return r.handleFailure(err, obj, cdnStatus)
-		}
-		r.log.V(1).Info("Distribution created.", "distribution", dist)
-		if err := r.createCDNStatus(dist, obj, reconciling.group); err != nil {
-			return r.handleFailure(err, obj, cdnStatus)
-		}
-		return r.handleSuccess(obj, cdnStatus)
-	}
 
-	if err != nil {
+	shouldCreate := k8serrors.IsNotFound(err)
+	shouldSync := err == nil
+
+	switch {
+	case shouldCreate:
+		dist, reconciliationErr = r.createDistribution(dist, reconciling.group)
+		errs = multierror.Append(errs, reconciliationErr)
+
+		cdnStatus, err = r.createCDNStatus(dist, reconciling.group)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			return fmt.Errorf("creating CDNStatus: %v", errs.ErrorOrNil())
+		}
+	case shouldSync:
+		dist, reconciliationErr = r.syncDistribution(cdnStatus, obj, dist)
+		errs = multierror.Append(errs, reconciliationErr)
+	default:
 		return fmt.Errorf("fetching CDN status: %v", err)
 	}
 
-	r.log.V(1).Info("CDNStatus resource found.", "cdnStatusName", nsName.Name)
+	inSync := true
+	if errs.Len() > 0 {
+		inSync = false
+	}
+	cdnStatus.SetIngressRef(inSync, obj)
+	cdnStatus.SetAliases(dist.AlternateDomains)
+
+	if r.Config.CloudFrontRoute53CreateAlias {
+		err := r.syncAliases(cdnStatus, dist)
+		errs = multierror.Append(errs, err)
+	}
+
+	return r.handleResult(obj, cdnStatus, errs)
+}
+
+func (r *IngressReconciler) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, errs *multierror.Error) error {
+	if err := r.updateCDNStatus(cdnStatus); err != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if errs.Len() > 0 {
+		return r.handleFailure(errs, obj, cdnStatus)
+	}
+
+	return r.handleSuccess(obj, cdnStatus)
+}
+
+func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist cloudfront.Distribution) error {
+	if cdnStatus.Status.DNS == nil {
+		cdnStatus.Status.DNS = &v1alpha1.DNSStatus{Synced: true}
+	}
+
+	upserting, deleting := r.newAliases(dist, cdnStatus)
+
+	errUpsert := r.AliasRepo.Upsert(upserting)
+	if errUpsert == nil {
+		cdnStatus.UpsertDNSRecords(upserting.Domains())
+	}
+	errDelete := r.AliasRepo.Delete(deleting)
+	if errUpsert == nil {
+		cdnStatus.RemoveDNSRecords(deleting.Domains())
+	}
+	var result *multierror.Error
+	if errUpsert != nil || errDelete != nil {
+		cdnStatus.Status.DNS.Synced = false
+		result = multierror.Append(result, errUpsert, errDelete)
+	}
+
+	return result.ErrorOrNil()
+}
+
+func (r *IngressReconciler) syncDistribution(cdnStatus *v1alpha1.CDNStatus, obj client.Object, dist cloudfront.Distribution) (cloudfront.Distribution, error) {
+	r.log.V(1).Info("CDNStatus resource found.", "cdnStatusName", cdnStatus.Name)
 	boundIngressesParams, err := r.BoundIngressParamsFn(filterIngressRef(cdnStatus, obj))
 	if err != nil {
-		return err
+		return dist, err
 	}
 	for _, ip := range boundIngressesParams {
 		dist.AddOrigin(newOrigin(ip))
@@ -102,23 +164,44 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	dist.ID = cdnStatus.Status.ID
 	dist.ARN = cdnStatus.Status.ARN
+	dist.Address = cdnStatus.Status.Address
 	r.log.V(1).Info("Built desired distribution.", "distribution", dist)
 
-	inSync := true
-	if err := r.Repo.Sync(dist); err != nil {
-		inSync = false
-		_ = r.updateCDNStatus(cdnStatus, inSync, dist, obj)
-		return r.handleFailure(err, obj, cdnStatus)
-	}
-
-	if err := r.updateCDNStatus(cdnStatus, inSync, dist, obj); err != nil {
-		return r.handleFailure(err, obj, cdnStatus)
-	}
-	return r.handleSuccess(obj, cdnStatus)
+	return dist, r.DistRepo.Sync(dist)
 }
 
-func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj client.Object, group string) error {
-	cdnStatus := v1alpha1.CDNStatus{
+func (r *IngressReconciler) createDistribution(dist cloudfront.Distribution, group string) (cloudfront.Distribution, error) {
+	r.log.V(1).Info("Built desired distribution.", "distribution", dist)
+	r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", group)
+	modifiedDist, err := r.DistRepo.Create(dist)
+	if err != nil {
+		return dist, err
+	}
+	r.log.V(1).Info("Distribution created.", "distribution", dist)
+	return modifiedDist, err
+}
+
+func (r *IngressReconciler) newAliases(dist cloudfront.Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
+	var deleting []string
+	if status.Status.DNS != nil {
+		deleting = getDeletions(dist.AlternateDomains, status.Status.DNS.Records)
+	}
+
+	return route53.NewAliases(dist.Address, dist.AlternateDomains, dist.IPv6Enabled), route53.NewAliases(dist.Address, deleting, dist.IPv6Enabled)
+}
+
+func getDeletions(desiredDomains, currentDomains []string) []string {
+	var toDelete []string
+	for _, currentDomain := range currentDomains {
+		if !strhelper.Contains(desiredDomains, currentDomain) {
+			toDelete = append(toDelete, currentDomain)
+		}
+	}
+	return toDelete
+}
+
+func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, group string) (*v1alpha1.CDNStatus, error) {
+	cdnStatus := &v1alpha1.CDNStatus{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: group,
 		},
@@ -130,17 +213,14 @@ func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, obj cl
 		},
 	}
 
-	if err := r.Create(context.Background(), &cdnStatus); err != nil {
-		return fmt.Errorf("creating CDNStatus resource: %v", err)
+	err := r.Create(context.Background(), cdnStatus)
+	if err != nil {
+		return nil, err
 	}
-
-	const inSync = true
-	return r.updateCDNStatus(&cdnStatus, inSync, dist, obj)
+	return cdnStatus, nil
 }
 
-func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus, sync bool, dist cloudfront.Distribution, obj client.Object) error {
-	status.SetIngressRef(sync, obj)
-	status.Status.Aliases = dist.AlternateDomains
+func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus) error {
 	if err := r.Status().Update(context.Background(), status); err != nil {
 		r.log.Error(err, "Could not persist CDNStatus resource", "cdnStatus", status)
 		return err
