@@ -55,7 +55,7 @@ const (
 	reasonSuccess = "SuccessfullyReconciled"
 )
 
-var noCDNStatusForIngErr = errors.New("could not find a CDNStatus that referenced the ingress")
+var errNoCDNStatusForIng = errors.New("could not find a CDNStatus that referenced the ingress")
 
 type boundIngressesFunc func(v1alpha1.CDNStatus) ([]ingressParams, error)
 
@@ -82,7 +82,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	}
 
 	cdnStatus, fetchStatusErr := r.fetchCDNStatus(obj)
-	if errors.Is(fetchStatusErr, noCDNStatusForIngErr) {
+	if errors.Is(fetchStatusErr, errNoCDNStatusForIng) {
 		r.log.Error(fmt.Errorf("fetching CDNStatus: %v", fetchStatusErr), "CDNStatus not found for Ingress which has no group annotation but has finalizer. Removing finalizer. State may be inconsistent.")
 		shouldHaveFinalizer := false
 		return r.reconcileFinalizer(obj, shouldHaveFinalizer)
@@ -181,7 +181,7 @@ func (r *IngressReconciler) discoverCDNStatusForIngress(ing client.Object) (*v1a
 			return &s, nil
 		}
 	}
-	return nil, fmt.Errorf("trying to match Ingress (%s/%s): %w", ing.GetNamespace(), ing.GetName(), noCDNStatusForIngErr)
+	return nil, fmt.Errorf("trying to match Ingress (%s/%s): %w", ing.GetNamespace(), ing.GetName(), errNoCDNStatusForIng)
 }
 
 func (r *IngressReconciler) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, shouldHaveFinalizer bool, errs *multierror.Error) error {

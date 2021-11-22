@@ -132,6 +132,7 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 	return b
 }
 
+// WithInfo takes in identifying information from an existing CloudFront to populate the resulting Distribution
 func (b DistributionBuilder) WithInfo(id string, arn string, address string) DistributionBuilder {
 	b.id = id
 	b.arn = arn
