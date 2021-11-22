@@ -41,14 +41,8 @@ func (s *OriginTestSuite) TestDistributionBuilder_New() {
 	description := "test description"
 	priceClass := "test price class"
 	group := "test group"
-	origin := cloudfront.Origin{
-		Host:            "test.custom.origin",
-		Behaviors:       nil,
-		ResponseTimeout: 30,
-	}
 
-	dist := cloudfront.NewDistributionBuilder(origin, defaultOriginDomain, description, priceClass, group).Build()
-	s.Equal([]cloudfront.Origin{origin}, dist.CustomOrigins)
+	dist := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group).Build()
 	s.Equal("test.default.origin", dist.DefaultOrigin.Host)
 	s.Equal("test description", dist.Description)
 	s.Equal("test price class", dist.PriceClass)
@@ -56,10 +50,29 @@ func (s *OriginTestSuite) TestDistributionBuilder_New() {
 	s.Equal("test group", dist.Tags["cdn-origin-controller.gympass.com/cdn.group"])
 }
 
+func (s *OriginTestSuite) TestDistributionBuilder_WithOrigin() {
+	defaultOriginDomain := "test.default.origin"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+	origin := cloudfront.Origin{
+		Host:            "test.custom.origin",
+		Behaviors:       nil,
+		ResponseTimeout: 30,
+	}
+
+	dist := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group).
+		WithOrigin(origin).
+		Build()
+
+	s.Len(dist.CustomOrigins, 1)
+	s.Equal(origin, dist.CustomOrigins[0])
+}
+
 func (s *OriginTestSuite) TestDistributionBuilder_WithLogging() {
 	bucketAddr := "test.bucket.address"
 	prefix := "test prefix"
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithLogging(bucketAddr, prefix).
 		Build()
 
@@ -74,7 +87,7 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithCustomTags() {
 		"testKey2": "testValue2",
 	}
 
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithTags(tags).
 		Build()
 
@@ -87,7 +100,7 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithTLS() {
 	certARN := "test:arn"
 	securityPolicyID := "test-policy"
 
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithTLS(certARN, securityPolicyID).
 		Build()
 
@@ -97,7 +110,7 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithTLS() {
 }
 
 func (s *OriginTestSuite) TestDistributionBuilder_WithIPv6() {
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithIPv6().
 		Build()
 
@@ -107,7 +120,7 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithIPv6() {
 func (s *OriginTestSuite) TestDistributionBuilder_WithAlternateDomains() {
 	domains := []string{"test.domain", "test2.domain"}
 
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithAlternateDomains(domains).
 		Build()
 
@@ -117,9 +130,21 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithAlternateDomains() {
 func (s *OriginTestSuite) TestDistributionBuilder_WithWebACL() {
 	aclID := "test:acl"
 
-	dist := cloudfront.NewDistributionBuilder(cloudfront.Origin{}, "domain", "description", "priceClass", "group").
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
 		WithWebACL(aclID).
 		Build()
 
 	s.Equal("test:acl", dist.WebACLID)
+}
+
+func (s *OriginTestSuite) TestDistributionBuilder_WithInfo() {
+	id, arn, addr := "id", "arn", "addr"
+
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
+		WithInfo(id, arn, addr).
+		Build()
+
+	s.Equal(id, dist.ID)
+	s.Equal(arn, dist.ARN)
+	s.Equal(addr, dist.Address)
 }

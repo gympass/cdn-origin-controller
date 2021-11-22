@@ -30,17 +30,19 @@ import (
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newDistribution(origin cloudfront.Origin, ing ingressParams, cfg config.Config) cloudfront.Distribution {
+func newDistributionBuilder(ingresses []ingressParams, group string, cfg config.Config) cloudfront.DistributionBuilder {
 	b := cloudfront.NewDistributionBuilder(
-		origin,
 		cfg.DefaultOriginDomain,
-		renderDescription(cfg.CloudFrontDescriptionTemplate, ing.group),
+		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
 		cfg.CloudFrontPriceClass,
-		ing.group,
+		group,
 	)
 
-	if len(ing.alternateDomainNames) > 0 {
-		b = b.WithAlternateDomains(ing.alternateDomainNames)
+	for _, ing := range ingresses {
+		b = b.WithOrigin(newOrigin(ing))
+		if len(ing.alternateDomainNames) > 0 {
+			b = b.WithAlternateDomains(ing.alternateDomainNames)
+		}
 	}
 
 	if cfg.CloudFrontEnableIPV6 {
@@ -52,7 +54,7 @@ func newDistribution(origin cloudfront.Origin, ing ingressParams, cfg config.Con
 	}
 
 	if cfg.CloudFrontEnableLogging && len(cfg.CloudFrontS3BucketLog) > 0 {
-		b = b.WithLogging(cfg.CloudFrontS3BucketLog, ing.group)
+		b = b.WithLogging(cfg.CloudFrontS3BucketLog, group)
 	}
 
 	if len(cfg.CloudFrontCustomTags) > 0 {
@@ -63,7 +65,7 @@ func newDistribution(origin cloudfront.Origin, ing ingressParams, cfg config.Con
 		b = b.WithWebACL(cfg.CloudFrontWAFARN)
 	}
 
-	return b.Build()
+	return b
 }
 
 func renderDescription(template, group string) string {

@@ -24,7 +24,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
@@ -56,6 +58,11 @@ var (
 		i.Status = provisionedIngress.Status
 		return i
 	}()
+	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
+		i := baseIngress.DeepCopy()
+		i.Finalizers = []string{cdnFinalizer}
+		return i
+	}()
 )
 
 func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
@@ -84,11 +91,16 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
 			input: event.CreateEvent{Object: annotatedAndProvisionedIngress},
 			want:  true,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.CreateEvent{Object: hasFinalizerIngress},
+			want:  true,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Create(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Create(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -118,11 +130,21 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Update() {
 			input: event.UpdateEvent{ObjectNew: annotatedAndProvisionedIngress},
 			want:  true,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.UpdateEvent{ObjectNew: hasFinalizerIngress},
+			want:  true,
+		},
+		{
+			name:  "Old and New are equal",
+			input: event.UpdateEvent{ObjectNew: hasFinalizerIngress, ObjectOld: hasFinalizerIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Update(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Update(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -150,13 +172,18 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Delete() {
 		{
 			name:  "Has annotation and has been provisioned",
 			input: event.DeleteEvent{Object: annotatedAndProvisionedIngress},
-			want:  false,
+			want:  true,
+		},
+		{
+			name:  "Has finalizer",
+			input: event.DeleteEvent{Object: hasFinalizerIngress},
+			want:  true,
 		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Delete(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Delete(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -186,10 +213,25 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Generic() {
 			input: event.GenericEvent{Object: annotatedAndProvisionedIngress},
 			want:  false,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.GenericEvent{Object: hasFinalizerIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Generic(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Generic(tc.input), "test: %s", tc.name)
 	}
+}
+
+func (s *PredicateSuite) Test_hasLoadBalancer_v1Ingress() {
+	var ing client.Object = &networkingv1.Ingress{}
+	s.False(hasLoadBalancer(ing))
+}
+
+func (s *PredicateSuite) Test_hasLoadBalancer_notAnIngress() {
+	var ing client.Object = &corev1.Service{}
+	s.False(hasLoadBalancer(ing))
 }

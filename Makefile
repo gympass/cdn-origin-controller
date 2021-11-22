@@ -209,3 +209,6 @@ add-headers:
 
 mod-tidy:
 	go mod tidy 
+
+test-cov: test
+	go tool cover -html=cover.out

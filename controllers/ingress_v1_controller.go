@@ -21,7 +21,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -48,6 +47,7 @@ type V1Reconciler struct {
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/finalizers,verbs=update
 
 //Reconcile a v1 Ingress resource
 func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -68,11 +68,6 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 
 	reconcilingIP := newIngressParamsV1(ingress)
 	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
-	if errors.Is(err, errNoAnnotation) {
-		r.log.Error(err, "Ignoring reconciliation request")
-		return ctrl.Result{}, nil
-	}
-
 	if err == nil {
 		r.log.Info("Reconciliation successful.")
 	}
@@ -86,6 +81,8 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParam
 		ing := &networkingv1.Ingress{}
 		err := r.Client.Get(context.Background(), key, ing)
 		if err != nil {
+			// @TODO: handle not found, implying the Ingress has been deleted
+			// and should no longer be part of the status or distribution.
 			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
 		}
 		r.log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
@@ -97,7 +94,7 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParam
 // SetupWithManager ...
 func (r *V1Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		WithEventFilter(&hasCdnAnnotationPredicate{}).
+		WithEventFilter(&ingressPredicate{}).
 		For(&networkingv1.Ingress{}).
 		Complete(r)
 }
