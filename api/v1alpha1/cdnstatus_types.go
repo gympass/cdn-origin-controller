@@ -101,12 +101,12 @@ func (c *CDNStatus) RemoveDNSRecords(records []string) {
 }
 
 // SetIngressRef set IngressRef to the status based on Ingress obj
-func (c *CDNStatus) SetIngressRef(inSync bool, obj namespacedName) {
+func (c *CDNStatus) SetIngressRef(inSync bool, ing namespacedName) {
 	if c.Status.Ingresses == nil {
 		c.Status.Ingresses = make(IngressRefs)
 	}
 
-	ref := NewIngressRef(obj.GetNamespace(), obj.GetName())
+	ref := NewIngressRef(ing.GetNamespace(), ing.GetName())
 
 	status := syncedIngressStatus
 	if !inSync {
@@ -114,6 +114,25 @@ func (c *CDNStatus) SetIngressRef(inSync bool, obj namespacedName) {
 	}
 
 	c.Status.Ingresses[ref] = status
+}
+
+// RemoveIngressRef ensures the given Ingress is not referenced
+func (c *CDNStatus) RemoveIngressRef(ing namespacedName) {
+	if c.Status.Ingresses == nil {
+		return
+	}
+	ref := NewIngressRef(ing.GetNamespace(), ing.GetName())
+	delete(c.Status.Ingresses, ref)
+}
+
+// HasIngressRef returns whether the given Ingress is part of the refs stored by CDNStatus
+func (c *CDNStatus) HasIngressRef(ing namespacedName) bool {
+	if c.Status.Ingresses == nil {
+		return false
+	}
+	ref := NewIngressRef(ing.GetNamespace(), ing.GetName())
+	_, ok := c.Status.Ingresses[ref]
+	return ok
 }
 
 // GetIngressKeys returns keys to manipulate all IngressRef stored in the CDNStatus

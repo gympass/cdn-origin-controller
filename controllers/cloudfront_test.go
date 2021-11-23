@@ -24,18 +24,79 @@ import (
 
 	"github.com/stretchr/testify/suite"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
-func TestRunIngressConverterTestSuite(t *testing.T) {
+func TestRunCloudFrontTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &IngressConverterSuite{})
+	suite.Run(t, &CloudFrontSuite{})
 }
 
-type IngressConverterSuite struct {
+type CloudFrontSuite struct {
 	suite.Suite
 }
 
-func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
+func (s *CloudFrontSuite) Test_newDistributionBuilder_EmptyIngresses() {
+	dist := newDistributionBuilder(nil, "group", config.Config{}).Build()
+	s.Len(dist.CustomOrigins, 0)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
+	ingresses := []ingressParams{
+		{alternateDomainNames: []string{"origin1"}},
+		{alternateDomainNames: []string{"origin2", "origin3"}},
+	}
+	dist := newDistributionBuilder(ingresses, "group", config.Config{}).Build()
+	s.Len(dist.CustomOrigins, 2)
+	s.Equal([]string{"origin1", "origin2", "origin3"}, dist.AlternateDomains)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithIPv6() {
+	dist := newDistributionBuilder(nil, "group", config.Config{CloudFrontEnableIPV6: true}).Build()
+	s.True(dist.IPv6Enabled)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithTLS() {
+	cfg := config.Config{
+		CloudFrontCustomSSLCertARN: "arn",
+		CloudFrontSecurityPolicy:   "policy",
+	}
+	dist := newDistributionBuilder(nil, "group", cfg).Build()
+	s.True(dist.TLS.Enabled)
+	s.Equal("arn", dist.TLS.CertARN)
+	s.Equal("policy", dist.TLS.SecurityPolicyID)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithLogging() {
+	cfg := config.Config{
+		CloudFrontEnableLogging: true,
+		CloudFrontS3BucketLog:   "bucket",
+	}
+	dist := newDistributionBuilder(nil, "group", cfg).Build()
+	s.True(dist.Logging.Enabled)
+	s.Equal("group", dist.Logging.Prefix)
+	s.Equal("bucket", dist.Logging.BucketAddress)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomTags() {
+	cfg := config.Config{
+		CloudFrontCustomTags: map[string]string{
+			"foo": "bar",
+			"bar": "foo",
+		},
+	}
+	dist := newDistributionBuilder(nil, "group", cfg).Build()
+	s.Equal("bar", dist.Tags["foo"])
+	s.Equal("foo", dist.Tags["bar"])
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithWAF() {
+	dist := newDistributionBuilder(nil, "group", config.Config{CloudFrontWAFARN: "waf"}).Build()
+	s.Equal("waf", dist.WebACLID)
+}
+
+func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},
@@ -53,7 +114,7 @@ func (s *IngressConverterSuite) TestNewOrigin_SingleBehaviorAndRule() {
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
-func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
+func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},
@@ -75,7 +136,7 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsSingleRule() {
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 	s.Equal("/foo", origin.Behaviors[1].PathPattern)
 }
-func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() {
+func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},
@@ -109,7 +170,7 @@ func (s *IngressConverterSuite) TestNewOrigins_MultipleBehaviorsMultipleRules() 
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
+func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},
@@ -128,7 +189,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_SingleSl
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
+func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},
@@ -148,7 +209,7 @@ func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_EndsWith
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *IngressConverterSuite) TestNewCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
+func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
 	ip := ingressParams{
 		loadBalancer: "origin1",
 		hosts:        []string{"host1"},

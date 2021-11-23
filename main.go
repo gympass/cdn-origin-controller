@@ -118,10 +118,11 @@ func main() {
 	s := session.Must(session.NewSession())
 
 	callerRefFn := func() string { return time.Now().String() }
+	waitTimeout := time.Minute * 10
 	ingressReconciler := &controllers.IngressReconciler{
 		Client:    mgr.GetClient(),
 		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
-		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), callerRefFn),
+		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), callerRefFn, waitTimeout),
 		AliasRepo: route53.NewRoute53AliasRepository(awsroute53.New(s), cfg),
 		Config:    cfg,
 	}

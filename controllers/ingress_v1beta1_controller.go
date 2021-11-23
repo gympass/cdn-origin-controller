@@ -21,7 +21,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -48,6 +47,7 @@ type V1beta1Reconciler struct {
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/finalizers,verbs=update
 
 //Reconcile a v1beta1 Ingress resource
 func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -68,11 +68,6 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	reconcilingIP := newIngressParamsV1beta1(ingress)
 	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
-	if errors.Is(err, errNoAnnotation) {
-		r.log.Error(err, "Ignoring reconciliation request.")
-		return ctrl.Result{}, nil
-	}
-
 	if err == nil {
 		r.log.Info("Reconciliation successful.")
 	}
@@ -97,7 +92,7 @@ func (r *V1beta1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingress
 // SetupWithManager ...
 func (r *V1beta1Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		WithEventFilter(&hasCdnAnnotationPredicate{}).
+		WithEventFilter(&ingressPredicate{}).
 		For(&networkingv1beta1.Ingress{}).
 		Complete(r)
 }

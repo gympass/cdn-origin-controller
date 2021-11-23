@@ -20,12 +20,16 @@
 package cloudfront
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -48,6 +52,8 @@ type DistributionRepository interface {
 	Create(Distribution) (Distribution, error)
 	// Sync ensures the given Distribution is correctly configured on CloudFront
 	Sync(Distribution) error
+	// Delete deletes the Distribution at AWS
+	Delete(distribution Distribution) error
 }
 
 // CallerRefFn is the function that should be called when setting the request's caller reference.
@@ -56,13 +62,14 @@ type DistributionRepository interface {
 type CallerRefFn func() string
 
 type repository struct {
-	awsClient cloudfrontiface.CloudFrontAPI
-	callerRef CallerRefFn
+	awsClient   cloudfrontiface.CloudFrontAPI
+	callerRef   CallerRefFn
+	waitTimeout time.Duration
 }
 
 // NewDistributionRepository creates a new AWS CloudFront DistributionRepository
-func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRefFn CallerRefFn) DistributionRepository {
-	return &repository{awsClient: awsClient, callerRef: callerRefFn}
+func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRefFn CallerRefFn, waitTimeout time.Duration) DistributionRepository {
+	return &repository{awsClient: awsClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
 }
 
 func (r repository) Create(d Distribution) (Distribution, error) {
@@ -118,6 +125,44 @@ func (r repository) Sync(d Distribution) error {
 	return nil
 }
 
+func (r repository) Delete(d Distribution) error {
+	output, err := r.distributionConfigByID(d.ID)
+	if isNoSuchDistributionErr(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("getting distribution config: %v", err)
+	}
+
+	if *output.DistributionConfig.Enabled {
+		err = r.disableDist(output.DistributionConfig, d.ID, *output.ETag)
+		if isNoSuchDistributionErr(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("disabling distribution: %v", err)
+		}
+	}
+
+	eTag, err := r.waitUntilDeployed(d.ID)
+	if isNoSuchDistributionErr(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("waiting for distribution to be in deployed status: %w", err)
+	}
+
+	input := &awscloudfront.DeleteDistributionInput{
+		Id:      aws.String(d.ID),
+		IfMatch: eTag,
+	}
+	_, err = r.awsClient.DeleteDistribution(input)
+	if isNoSuchDistributionErr(err) {
+		err = nil
+	}
+	return err
+}
+
 func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
 	var awsTags awscloudfront.Tags
 	for k, v := range d.Tags {
@@ -141,6 +186,49 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 		return nil, err
 	}
 	return output, nil
+}
+
+func (r repository) disableDist(config *awscloudfront.DistributionConfig, id, eTag string) error {
+	config.Enabled = aws.Bool(false)
+	updateInput := &awscloudfront.UpdateDistributionInput{
+		DistributionConfig: config,
+		IfMatch:            aws.String(eTag),
+		Id:                 aws.String(id),
+	}
+
+	_, err := r.awsClient.UpdateDistribution(updateInput)
+	return err
+}
+
+const cfDeployedStatus = "Deployed"
+
+func (r repository) waitUntilDeployed(id string) (*string, error) {
+	var eTag *string
+	condition := func() (done bool, err error) {
+		out, err := r.distributionByID(id)
+		if err != nil {
+			if isNoSuchDistributionErr(err) {
+				return false, err
+			}
+			return false, nil
+		}
+		eTag = out.ETag
+		return *out.Distribution.Status == cfDeployedStatus, nil
+	}
+
+	interval := time.Second * 10
+	err := wait.PollImmediate(interval, r.waitTimeout, condition)
+	if err != nil {
+		return nil, err
+	}
+	return eTag, nil
+}
+
+func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionOutput, error) {
+	input := &awscloudfront.GetDistributionInput{
+		Id: aws.String(id),
+	}
+	return r.awsClient.GetDistribution(input)
 }
 
 func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.DistributionConfig {
@@ -305,4 +393,12 @@ func removeDuplicates(origins []*awscloudfront.Origin) []*awscloudfront.Origin {
 		}
 	}
 	return result
+}
+
+func isNoSuchDistributionErr(err error) bool {
+	var aerr awserr.Error
+	if ok := errors.As(err, &aerr); !ok {
+		return false
+	}
+	return aerr.Code() == awscloudfront.ErrCodeNoSuchDistribution
 }
