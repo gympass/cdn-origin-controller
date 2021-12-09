@@ -76,7 +76,7 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 
 // BoundIngresses returns a slice of ingressParams for each Ingress associated with a particular CDNStatus
 func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParams, error) {
-	var paramList []ingressParams
+	var paramsList []ingressParams
 	for _, key := range status.GetIngressKeys() {
 		ing := &networkingv1.Ingress{}
 		err := r.Client.Get(context.Background(), key, ing)
@@ -86,9 +86,17 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParam
 			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
 		}
 		r.log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
-		paramList = append(paramList, newIngressParamsV1(ing))
+
+		params := newIngressParamsV1(ing)
+		paramsList = append(paramsList, params)
+
+		userOriginParamsList, err := r.IngressReconciler.ingressParamsForUserOrigins(params.group, ing)
+		if err != nil {
+			return nil, fmt.Errorf("creating user origins desired state: %v", err)
+		}
+		paramsList = append(paramsList, userOriginParamsList...)
 	}
-	return paramList, nil
+	return paramsList, nil
 }
 
 // SetupWithManager ...

@@ -82,7 +82,7 @@ func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group 
 	}
 }
 
-// WithOrigin takes in a slice of Origin that should be part of the Distribution
+// WithOrigin takes in an Origin that should be part of the Distribution
 func (b DistributionBuilder) WithOrigin(o Origin) DistributionBuilder {
 	b.customOrigins = append(b.customOrigins, o)
 	return b

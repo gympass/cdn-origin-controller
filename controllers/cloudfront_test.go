@@ -143,8 +143,7 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 }
 func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -177,8 +176,7 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -196,8 +194,7 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSp
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/foo/",
@@ -216,8 +213,7 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/foo",

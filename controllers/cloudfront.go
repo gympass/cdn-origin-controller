@@ -40,9 +40,7 @@ func newDistributionBuilder(ingresses []ingressParams, group string, cfg config.
 
 	for _, ing := range ingresses {
 		b = b.WithOrigin(newOrigin(ing))
-		if len(ing.alternateDomainNames) > 0 {
-			b = b.WithAlternateDomains(ing.alternateDomainNames)
-		}
+		b = b.WithAlternateDomains(ing.alternateDomainNames)
 	}
 
 	if cfg.CloudFrontEnableIPV6 {
@@ -75,7 +73,8 @@ func renderDescription(template, group string) string {
 func newOrigin(ing ingressParams) cloudfront.Origin {
 	builder := cloudfront.NewOriginBuilder(ing.destinationHost).
 		WithViewerFunction(ing.viewerFnARN).
-		WithResponseTimeout(ing.originRespTimeout)
+		WithResponseTimeout(ing.originRespTimeout).
+		WithRequestPolicy(ing.originReqPolicy)
 
 	patterns := pathPatterns(ing.paths)
 	for _, p := range patterns {

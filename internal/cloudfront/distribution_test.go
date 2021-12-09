@@ -63,7 +63,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 	}
 
 	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group).
-		WithOrigins(origin).
+		WithOrigin(origin).
 		Build()
 
 	s.NoError(err)
@@ -163,7 +163,8 @@ func (s *DistributionTestSuite) TestDistributionBuilder_InvalidDistribution() {
 	origin2 := cloudfront.NewOriginBuilder("host").WithResponseTimeout(40).Build()
 
 	_, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
-		WithOrigins(origin1, origin2).
+		WithOrigin(origin1).
+		WithOrigin(origin2).
 		Build()
 
 	s.Error(err)
