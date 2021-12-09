@@ -23,10 +23,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 type path struct {
@@ -35,8 +36,7 @@ type path struct {
 }
 
 type ingressParams struct {
-	loadBalancer         string
-	hosts                []string
+	destinationHost      string
 	group                string
 	paths                []path
 	viewerFnARN          string
@@ -45,19 +45,18 @@ type ingressParams struct {
 }
 
 func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
-	hosts, paths := hostsAndPathsV1beta1(ing.Spec.Rules)
 	return ingressParams{
-		loadBalancer:         ing.Status.LoadBalancer.Ingress[0].Hostname,
+		destinationHost:      ing.Status.LoadBalancer.Ingress[0].Hostname,
 		group:                groupAnnotationValue(ing),
-		hosts:                hosts,
-		paths:                paths,
+		paths:                pathsV1beta1(ing.Spec.Rules),
 		viewerFnARN:          viewerFnARN(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
 	}
 }
 
-func hostsAndPathsV1beta1(rules []networkingv1beta1.IngressRule) (hosts []string, paths []path) {
+func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
+	var paths []path
 	for _, rule := range rules {
 		for _, p := range rule.HTTP.Paths {
 			newPath := path{
@@ -66,25 +65,23 @@ func hostsAndPathsV1beta1(rules []networkingv1beta1.IngressRule) (hosts []string
 			}
 			paths = append(paths, newPath)
 		}
-		hosts = append(hosts, rule.Host)
 	}
-	return
+	return paths
 }
 
 func newIngressParamsV1(ing *networkingv1.Ingress) ingressParams {
-	hosts, paths := hostsAndPathsV1(ing.Spec.Rules)
 	return ingressParams{
-		loadBalancer:         ing.Status.LoadBalancer.Ingress[0].Hostname,
+		destinationHost:      ing.Status.LoadBalancer.Ingress[0].Hostname,
 		group:                groupAnnotationValue(ing),
-		hosts:                hosts,
-		paths:                paths,
+		paths:                pathsV1(ing.Spec.Rules),
 		viewerFnARN:          viewerFnARN(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
 	}
 }
 
-func hostsAndPathsV1(rules []networkingv1.IngressRule) (hosts []string, paths []path) {
+func pathsV1(rules []networkingv1.IngressRule) []path {
+	var paths []path
 	for _, rule := range rules {
 		for _, p := range rule.HTTP.Paths {
 			newPath := path{
@@ -93,9 +90,8 @@ func hostsAndPathsV1(rules []networkingv1.IngressRule) (hosts []string, paths []
 			}
 			paths = append(paths, newPath)
 		}
-		hosts = append(hosts, rule.Host)
 	}
-	return
+	return paths
 }
 
 func viewerFnARN(obj client.Object) string {

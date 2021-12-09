@@ -45,8 +45,8 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_EmptyIngresses() {
 
 func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
 	ingresses := []ingressParams{
-		{alternateDomainNames: []string{"origin1"}},
-		{alternateDomainNames: []string{"origin2", "origin3"}},
+		{destinationHost: "lb", alternateDomainNames: []string{"origin1"}},
+		{destinationHost: "lb", alternateDomainNames: []string{"origin2", "origin3"}},
 	}
 	dist, err := newDistributionBuilder(ingresses, "group", config.Config{}).Build()
 	s.NoError(err)
@@ -105,8 +105,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithWAF() {
 
 func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/",
@@ -123,8 +122,7 @@ func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
 
 func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 	ip := ingressParams{
-		loadBalancer: "origin1",
-		hosts:        []string{"host1"},
+		destinationHost: "origin1",
 		paths: []path{
 			{
 				pathPattern: "/",

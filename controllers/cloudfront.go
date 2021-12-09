@@ -73,7 +73,7 @@ func renderDescription(template, group string) string {
 }
 
 func newOrigin(ing ingressParams) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(ing.loadBalancer).
+	builder := cloudfront.NewOriginBuilder(ing.destinationHost).
 		WithViewerFunction(ing.viewerFnARN).
 		WithResponseTimeout(ing.originRespTimeout)
 
