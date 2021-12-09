@@ -117,7 +117,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	shouldSyncDist := foundStatus && !shouldDeleteDist
 	switch {
 	case shouldCreateDist:
-		dist, distErr = r.createDistribution(r.build(distBuilder), group)
+		dist, distErr = r.createDistribution(distBuilder, group)
 		if distErr != nil {
 			return fmt.Errorf("creating distribution: %v", distErr)
 		}
@@ -247,7 +247,12 @@ func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist clou
 	return result.ErrorOrNil()
 }
 
-func (r *IngressReconciler) createDistribution(dist cloudfront.Distribution, group string) (cloudfront.Distribution, error) {
+func (r *IngressReconciler) createDistribution(builder cloudfront.DistributionBuilder, group string) (cloudfront.Distribution, error) {
+	dist, err := r.build(builder)
+	if err != nil {
+		return cloudfront.Distribution{}, fmt.Errorf("building desired distribution: %v", err)
+	}
+
 	r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", group)
 	modifiedDist, err := r.DistRepo.Create(dist)
 	if err != nil {
@@ -258,19 +263,28 @@ func (r *IngressReconciler) createDistribution(dist cloudfront.Distribution, gro
 }
 
 func (r *IngressReconciler) syncDistribution(cdnStatus *v1alpha1.CDNStatus, builder cloudfront.DistributionBuilder) (cloudfront.Distribution, error) {
-	dist := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
+	dist, err := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
+	if err != nil {
+		return cloudfront.Distribution{}, fmt.Errorf("building desired distribution: %v", err)
+	}
 	return dist, r.DistRepo.Sync(dist)
 }
 
 func (r *IngressReconciler) deleteDistribution(cdnStatus *v1alpha1.CDNStatus, builder cloudfront.DistributionBuilder) (cloudfront.Distribution, error) {
-	dist := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
+	dist, err := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
+	if err != nil {
+		return cloudfront.Distribution{}, fmt.Errorf("building desired distribution: %v", err)
+	}
 	return dist, r.DistRepo.Delete(dist)
 }
 
-func (r *IngressReconciler) build(distBuilder cloudfront.DistributionBuilder) cloudfront.Distribution {
-	dist := distBuilder.Build()
+func (r *IngressReconciler) build(distBuilder cloudfront.DistributionBuilder) (cloudfront.Distribution, error) {
+	dist, err := distBuilder.Build()
+	if err != nil {
+		return cloudfront.Distribution{}, err
+	}
 	r.log.V(1).Info("Built desired distribution.", "distribution", dist)
-	return dist
+	return dist, nil
 }
 
 func (r *IngressReconciler) newAliases(dist cloudfront.Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
