@@ -43,11 +43,30 @@ func (s *OriginTestSuite) TestDistributionBuilder_New() {
 	group := "test group"
 
 	dist := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group).Build()
+	s.Equal("test.default.origin", dist.DefaultOrigin.Host)
 	s.Equal("test description", dist.Description)
-	s.Equal("test.default.origin", dist.DefaultOriginDomain)
 	s.Equal("test price class", dist.PriceClass)
 	s.Equal("true", dist.Tags["cdn-origin-controller.gympass.com/owned"])
 	s.Equal("test group", dist.Tags["cdn-origin-controller.gympass.com/cdn.group"])
+}
+
+func (s *OriginTestSuite) TestDistributionBuilder_WithOrigin() {
+	defaultOriginDomain := "test.default.origin"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+	origin := cloudfront.Origin{
+		Host:            "test.custom.origin",
+		Behaviors:       nil,
+		ResponseTimeout: 30,
+	}
+
+	dist := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group).
+		WithOrigin(origin).
+		Build()
+
+	s.Len(dist.CustomOrigins, 1)
+	s.Equal(origin, dist.CustomOrigins[0])
 }
 
 func (s *OriginTestSuite) TestDistributionBuilder_WithLogging() {
@@ -116,4 +135,16 @@ func (s *OriginTestSuite) TestDistributionBuilder_WithWebACL() {
 		Build()
 
 	s.Equal("test:acl", dist.WebACLID)
+}
+
+func (s *OriginTestSuite) TestDistributionBuilder_WithInfo() {
+	id, arn, addr := "id", "arn", "addr"
+
+	dist := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group").
+		WithInfo(id, arn, addr).
+		Build()
+
+	s.Equal(id, dist.ID)
+	s.Equal(arn, dist.ARN)
+	s.Equal(addr, dist.Address)
 }

@@ -25,16 +25,59 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newOrigin(dto ingressDTO) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(dto.host).
-		WithViewerFunction(dto.viewerFnARN).
-		WithResponseTimeout(dto.originRespTimeout)
+func newDistributionBuilder(ingresses []ingressParams, group string, cfg config.Config) cloudfront.DistributionBuilder {
+	b := cloudfront.NewDistributionBuilder(
+		cfg.DefaultOriginDomain,
+		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
+		cfg.CloudFrontPriceClass,
+		group,
+	)
 
-	patterns := pathPatterns(dto.paths)
+	for _, ing := range ingresses {
+		b = b.WithOrigin(newOrigin(ing))
+		if len(ing.alternateDomainNames) > 0 {
+			b = b.WithAlternateDomains(ing.alternateDomainNames)
+		}
+	}
+
+	if cfg.CloudFrontEnableIPV6 {
+		b = b.WithIPv6()
+	}
+
+	if len(cfg.CloudFrontCustomSSLCertARN) > 0 && len(cfg.CloudFrontSecurityPolicy) > 0 {
+		b = b.WithTLS(cfg.CloudFrontCustomSSLCertARN, cfg.CloudFrontSecurityPolicy)
+	}
+
+	if cfg.CloudFrontEnableLogging && len(cfg.CloudFrontS3BucketLog) > 0 {
+		b = b.WithLogging(cfg.CloudFrontS3BucketLog, group)
+	}
+
+	if len(cfg.CloudFrontCustomTags) > 0 {
+		b = b.WithTags(cfg.CloudFrontCustomTags)
+	}
+
+	if len(cfg.CloudFrontWAFARN) > 0 {
+		b = b.WithWebACL(cfg.CloudFrontWAFARN)
+	}
+
+	return b
+}
+
+func renderDescription(template, group string) string {
+	return strings.ReplaceAll(template, "{{group}}", group)
+}
+
+func newOrigin(ing ingressParams) cloudfront.Origin {
+	builder := cloudfront.NewOriginBuilder(ing.loadBalancer).
+		WithViewerFunction(ing.viewerFnARN).
+		WithResponseTimeout(ing.originRespTimeout)
+
+	patterns := pathPatterns(ing.paths)
 	for _, p := range patterns {
 		builder = builder.WithBehavior(p)
 	}

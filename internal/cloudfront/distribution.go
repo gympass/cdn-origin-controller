@@ -19,9 +19,44 @@
 
 package cloudfront
 
+import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+
+// Distribution represents a CloudFront distribution
+type Distribution struct {
+	ID               string
+	ARN              string
+	Address          string
+	AlternateDomains []string
+	CustomOrigins    []Origin
+	DefaultOrigin    Origin
+	Description      string
+	IPv6Enabled      bool
+	Logging          loggingConfig
+	PriceClass       string
+	Tags             map[string]string
+	TLS              tlsConfig
+	WebACLID         string
+}
+
+type tlsConfig struct {
+	Enabled          bool
+	CertARN          string
+	SecurityPolicyID string
+}
+
+type loggingConfig struct {
+	Enabled       bool
+	BucketAddress string
+	Prefix        string
+}
+
 // DistributionBuilder allows the construction of a Distribution
 type DistributionBuilder struct {
+	id                  string
+	address             string
 	alternateDomains    []string
+	arn                 string
+	customOrigins       []Origin
 	defaultOriginDomain string
 	description         string
 	ipv6Enabled         bool
@@ -41,6 +76,12 @@ func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group 
 		priceClass:          priceClass,
 		group:               group,
 	}
+}
+
+// WithOrigin takes in a slice of Origin that should be part of the Distribution
+func (b DistributionBuilder) WithOrigin(o Origin) DistributionBuilder {
+	b.customOrigins = append(b.customOrigins, o)
+	return b
 }
 
 // WithLogging takes in bucket address and file prefix to enable sending CF logs to S3
@@ -75,9 +116,13 @@ func (b DistributionBuilder) WithIPv6() DistributionBuilder {
 	return b
 }
 
-// WithAlternateDomains takes a slice of domains to be configured as the Distribution's alternate domains
+// WithAlternateDomains takes a slice of domains to be added to the Distribution's alternate domains
 func (b DistributionBuilder) WithAlternateDomains(domains []string) DistributionBuilder {
-	b.alternateDomains = domains
+	for _, domain := range domains {
+		if !strhelper.Contains(b.alternateDomains, domain) {
+			b.alternateDomains = append(b.alternateDomains, domain)
+		}
+	}
 	return b
 }
 
@@ -87,18 +132,30 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 	return b
 }
 
+// WithInfo takes in identifying information from an existing CloudFront to populate the resulting Distribution
+func (b DistributionBuilder) WithInfo(id string, arn string, address string) DistributionBuilder {
+	b.id = id
+	b.arn = arn
+	b.address = address
+	return b
+}
+
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
 func (b DistributionBuilder) Build() Distribution {
 	return Distribution{
-		DefaultOriginDomain: b.defaultOriginDomain,
-		Description:         b.description,
-		PriceClass:          b.priceClass,
-		Tags:                b.generateTags(),
-		Logging:             b.logging,
-		TLS:                 b.tls,
-		IPv6Enabled:         b.ipv6Enabled,
-		AlternateDomains:    b.alternateDomains,
-		WebACLID:            b.webACLID,
+		ID:               b.id,
+		ARN:              b.arn,
+		Address:          b.address,
+		CustomOrigins:    b.customOrigins,
+		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
+		Description:      b.description,
+		PriceClass:       b.priceClass,
+		Tags:             b.generateTags(),
+		Logging:          b.logging,
+		TLS:              b.tls,
+		IPv6Enabled:      b.ipv6Enabled,
+		AlternateDomains: b.alternateDomains,
+		WebACLID:         b.webACLID,
 	}
 }
 
@@ -121,29 +178,4 @@ func (b DistributionBuilder) defaultTags() map[string]string {
 	tags[managedByTagKey] = managedByTagValue
 	tags[groupTagKey] = b.group
 	return tags
-}
-
-// Distribution represents a CloudFront distribution
-type Distribution struct {
-	AlternateDomains    []string
-	DefaultOriginDomain string
-	Description         string
-	IPv6Enabled         bool
-	Logging             loggingConfig
-	PriceClass          string
-	Tags                map[string]string
-	TLS                 tlsConfig
-	WebACLID            string
-}
-
-type tlsConfig struct {
-	Enabled          bool
-	CertARN          string
-	SecurityPolicyID string
-}
-
-type loggingConfig struct {
-	Enabled       bool
-	BucketAddress string
-	Prefix        string
 }

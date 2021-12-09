@@ -20,41 +20,55 @@
 package controllers
 
 import (
+	"reflect"
+
+	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
-type hasCdnAnnotationPredicate struct{}
+type ingressPredicate struct{}
 
-var _ predicate.Predicate = &hasCdnAnnotationPredicate{}
+var _ predicate.Predicate = &ingressPredicate{}
 
-func (p hasCdnAnnotationPredicate) Create(event event.CreateEvent) bool {
-	return hasCdnAnnotation(event.Object) && hasLoadBalancer(event.Object)
+func (p ingressPredicate) Create(event event.CreateEvent) bool {
+	return hasFinalizer(event.Object) || (hasGroupAnnotation(event.Object) && hasLoadBalancer(event.Object))
 }
 
-func (p hasCdnAnnotationPredicate) Delete(event.DeleteEvent) bool {
+func (p ingressPredicate) Delete(event event.DeleteEvent) bool {
+	return hasFinalizer(event.Object) || (hasGroupAnnotation(event.Object) && hasLoadBalancer(event.Object))
+}
+
+func (p ingressPredicate) Update(event event.UpdateEvent) bool {
+	return !reflect.DeepEqual(event.ObjectNew, event.ObjectOld) && (hasFinalizer(event.ObjectNew) || (hasGroupAnnotation(event.ObjectNew) && hasLoadBalancer(event.ObjectNew)))
+}
+
+func (p ingressPredicate) Generic(event.GenericEvent) bool {
 	return false
 }
 
-func (p hasCdnAnnotationPredicate) Update(event event.UpdateEvent) bool {
-	return hasCdnAnnotation(event.ObjectNew) && hasLoadBalancer(event.ObjectNew)
+func hasFinalizer(object client.Object) bool {
+	return strhelper.Contains(object.GetFinalizers(), cdnFinalizer)
 }
 
-func (p hasCdnAnnotationPredicate) Generic(event.GenericEvent) bool {
-	return false
-}
-
-func hasCdnAnnotation(o client.Object) bool {
-	return len(o.GetAnnotations()[cdnIDAnnotation]) > 0
+func hasGroupAnnotation(o client.Object) bool {
+	return len(o.GetAnnotations()[cdnGroupAnnotation]) > 0
 }
 
 func hasLoadBalancer(o client.Object) bool {
-	ing, ok := o.(*networkingv1beta1.Ingress)
+	ingv1beta1, ok := o.(*networkingv1beta1.Ingress)
+	if ok {
+		return len(ingv1beta1.Status.LoadBalancer.Ingress) > 0 && len(ingv1beta1.Status.LoadBalancer.Ingress[0].Hostname) > 0
+	}
+
+	ingv1, ok := o.(*networkingv1.Ingress)
 	if !ok {
 		return false
 	}
 
-	return len(ing.Status.LoadBalancer.Ingress) > 0
+	return len(ingv1.Status.LoadBalancer.Ingress) > 0 && len(ingv1.Status.LoadBalancer.Ingress[0].Hostname) > 0
 }

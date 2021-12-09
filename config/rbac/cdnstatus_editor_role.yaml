@@ -1,0 +1,24 @@
+# permissions for end users to edit cdnstatuses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cdnstatus-editor-role
+rules:
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnstatuses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnstatuses/status
+  verbs:
+  - get
