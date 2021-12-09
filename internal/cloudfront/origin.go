@@ -33,6 +33,7 @@ type Origin struct {
 	ResponseTimeout int64
 }
 
+// HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
 func (o Origin) HasEqualParameters(o2 Origin) bool {
 	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout
 }
