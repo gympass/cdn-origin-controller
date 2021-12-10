@@ -23,7 +23,8 @@ The controller will look for three locations within the Ingress definition in or
 
 The following annotation controls how origins and behaviors are attached to CloudFront distributions:
 
-- `cdn-origin-controller.gympass.com/cdn.group`: a CDN group should be used to bind Ingress resources together under the same distribution. If the group does not exist yet a new distribution will be provisioned. Example: `cdn-origin-controller.gympass.com/cdn.group: customer-portal`
+- `cdn-origin-controller.gympass.com/cdn.group`: a CDN group should be used to bind Ingress resources together under the same distribution. Required. If the group does not exist yet a new distribution will be provisioned. Example: `cdn-origin-controller.gympass.com/cdn.group: customer-portal`
+- `cdn-origin-controller.gympass.com/cdn.class`: the [CDN class](#cdn-classes) this Ingress resource belongs to. Required. Must match the CDN Class configured for the controller deployment that is meant to manage this Ingress.
 - `cdn-origin-controller.gympass.com/cf.alternate-domain-names`: a comma-separated list of alternate domains to be configured on the CloudFront distribution. Duplicates on the same or different Ingress resources from the same group cause no harm. Example: `alias1.foo,alias2.foo`
 - `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3). If set to `"None"` no policy will be associated.  
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
@@ -32,6 +33,38 @@ The following annotation controls how origins and behaviors are attached to Clou
 The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
 
 > **Important**: This sample policy grants the necessary actions for proper functioning of the controller, but it grants them on all CloudFront distributions. Changing this policy to make it more restrictive and secure is encouraged.
+
+## CDN Classes
+
+The controller has several [infrastructure configurations](#configuration). In order to support different controller configurations running in the same cluster it's possible to make each of them responsible for a class. This is done using the `CDN_CLASS` environment variable.
+
+For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need to set different values for the `CF_ROUTE53_HOSTED_ZONE_ID` variable. Additionally, you need each deployment to have a unique CDN class, so you can tell them apart. 
+
+For this example, let's say the first deployment will have:
+```
+CF_ROUTE53_HOSTED_ZONE_ID=<ID of the foo.com zone>
+CDN_CLASS="foo-com"
+```
+
+While the other deployment is defined with:
+```
+CF_ROUTE53_HOSTED_ZONE_ID=<ID of the bar.com zone>
+CDN_CLASS="bar-com"
+```
+
+In order for Ingresses to be part of one class or the other they must have cdn class annotation set the respective value.
+
+Ingresses that serve as origins for the CloudFront at the `foo.com` zone should have the following annotation:
+
+```
+cdn-origin-controller.gympass.com/cdn.class: foo-com
+```
+
+While Ingresses that serve as origins for CloudFronts at the `bar.com` zone should have:
+
+```
+cdn-origin-controller.gympass.com/cdn.class: bar-com
+```
 
 ## User-supplied origin/behavior configuration
 
@@ -59,7 +92,7 @@ metadata:
           - /bar/*
 ```
 
-The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented above](##aws-cloudfront).
+The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront).
 
 ## CDNStatus custom resource
 
@@ -124,6 +157,7 @@ Use the following environment variables to change the controller's behavior:
 
 | Env var key                | Required | Description                                                                                                                                                                                                                                                                                                                                                  | Default                               |
 |----------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| CDN_CLASS                  | No       | The class identifier used to determine if a given Ingress should be managed by this controller instance. See the [dedicated section](#cdn-classes) for more details.                                                                                                                                                                                                                                                      | "default" |
 | CF_AWS_WAF                 | No       | The Web ACL which should be associated with the distributions. Use the ID for WAF v1 and the ARN for WAF v2.                                                                                                                                                                                                                                                 | ""                                    |
 | CF_CUSTOM_SSL_CERT         | No       | The ARN of ACM certificate which should be used by the distributions. <br><br> Must also inform a valid `CF_SECURITY_POLICY` if set.                                                                                                                                                                                                                         | ""                                    |
 | CF_CUSTOM_TAGS             | No       | Comma-separated list of custom tags to be added to distributions. Example: "foo=bar,bar=foo"                                                                                                                                                                                                                                                                 | ""                                    |

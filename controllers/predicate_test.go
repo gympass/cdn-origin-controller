@@ -22,12 +22,15 @@ package controllers
 import (
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunPredicateTestSuite(t *testing.T) {
@@ -45,6 +48,7 @@ var (
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
 		i.Annotations[cdnGroupAnnotation] = "some value"
+		i.Annotations[cdnClassAnnotation] = "default"
 		return i
 	}()
 	provisionedIngress = func() *networkingv1beta1.Ingress {
@@ -59,11 +63,19 @@ var (
 		return i
 	}()
 	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
-		i := baseIngress.DeepCopy()
+		i := annotatedIngress.DeepCopy()
 		i.Finalizers = []string{cdnFinalizer}
 		return i
 	}()
 )
+
+func (s *PredicateSuite) SetupTest() {
+	viper.Set(config.CDNClassKey, "default")
+}
+
+func (s *PredicateSuite) TearDownTest() {
+	viper.Reset()
+}
 
 func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
 	testCases := []struct {
@@ -95,6 +107,11 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
 			name:  "Has finalizer",
 			input: event.CreateEvent{Object: hasFinalizerIngress},
 			want:  true,
+		},
+		{
+			name:  "Not from this CDN class",
+			input: event.CreateEvent{Object: baseIngress},
+			want:  false,
 		},
 	}
 
@@ -140,6 +157,16 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Update() {
 			input: event.UpdateEvent{ObjectNew: hasFinalizerIngress, ObjectOld: hasFinalizerIngress},
 			want:  false,
 		},
+		{
+			name:  "Old not from this CDN class, new is",
+			input: event.UpdateEvent{ObjectOld: baseIngress, ObjectNew: annotatedAndProvisionedIngress},
+			want:  true,
+		},
+		{
+			name:  "New object is not from this CDN class",
+			input: event.UpdateEvent{ObjectOld: annotatedAndProvisionedIngress, ObjectNew: baseIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -178,6 +205,11 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Delete() {
 			name:  "Has finalizer",
 			input: event.DeleteEvent{Object: hasFinalizerIngress},
 			want:  true,
+		},
+		{
+			name:  "Not from this CDN class",
+			input: event.DeleteEvent{Object: baseIngress},
+			want:  false,
 		},
 	}
 
