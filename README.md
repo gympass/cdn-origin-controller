@@ -25,12 +25,41 @@ The following annotation controls how origins and behaviors are attached to Clou
 
 - `cdn-origin-controller.gympass.com/cdn.group`: a CDN group should be used to bind Ingress resources together under the same distribution. If the group does not exist yet a new distribution will be provisioned. Example: `cdn-origin-controller.gympass.com/cdn.group: customer-portal`
 - `cdn-origin-controller.gympass.com/cf.alternate-domain-names`: a comma-separated list of alternate domains to be configured on the CloudFront distribution. Duplicates on the same or different Ingress resources from the same group cause no harm. Example: `alias1.foo,alias2.foo`
+- `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3). If set to `"None"` no policy will be associated.  
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
 - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
 
 The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
 
 > **Important**: This sample policy grants the necessary actions for proper functioning of the controller, but it grants them on all CloudFront distributions. Changing this policy to make it more restrictive and secure is encouraged.
+
+## User-supplied origin/behavior configuration
+
+If you need additional origin/behavior configuration that you can't express via Ingress resources (e.g., pointing to an S3 bucket with static resources of your application) you can do that using the `cdn-origin-controller.gympass.com/cf.user-origins`.
+
+The value for this annotation is a YAML list, with each item representing a single origin with all cache behavior-related configuration associated to that origin. For example:
+
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foobar
+  annotations:
+    cdn-origin-controller.gympass.com/cdn.group: "foobar"
+    cdn-origin-controller.gympass.com/cdn.user-origins: |
+      - host: foo.com
+        responseTimeout: 30
+        paths:
+          - /foo
+      - host: bar.com
+        originRequestPolicy: None
+        viewerFunctionARN: "bar:arn"
+        paths:
+          - /bar
+          - /bar/*
+```
+
+The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented above](##aws-cloudfront).
 
 ## CDNStatus custom resource
 

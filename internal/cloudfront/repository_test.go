@@ -131,7 +131,7 @@ type DistributionRepositoryTestSuite struct {
 	suite.Suite
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Success() {
+func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 	awsClient := &awsClientMock{
 		expectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
 			Distribution: &awscloudfront.Distribution{
@@ -234,7 +234,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Succ
 	var noError error
 	awsClient.On("CreateDistributionWithTags", expectedCreateInput).Return(noError).Once()
 
-	distribution := NewDistributionBuilder(
+	distribution, err := NewDistributionBuilder(
 		"default.origin",
 		"test description",
 		awscloudfront.PriceClassPriceClass100,
@@ -248,6 +248,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Succ
 		WithTLS("test:cert:arn", "test security policy").
 		WithIPv6().
 		Build()
+	s.NoError(err)
 
 	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
 	dist, err := repo.Create(distribution)
@@ -257,7 +258,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Succ
 	s.NoError(err)
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_ErrorWhenCreatingDistribution() {
+func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistribution() {
 	awsClient := &awsClientMock{}
 	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(errors.New("mock err")).Once()
 
@@ -281,7 +282,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Create_Erro
 	s.Error(err)
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantFetchDistribution() {
+func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
 	awsClient := &awsClientMock{}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
@@ -289,7 +290,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantFe
 	s.Error(repo.Sync(Distribution{}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantUpdateDistribution() {
+func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -312,7 +313,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantUp
 	s.Error(repo.Sync(Distribution{}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantSaveTags() {
+func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -336,7 +337,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_CantSa
 	s.Error(repo.Sync(Distribution{}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_OriginDoesNotExistYet() {
+func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -420,7 +421,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 	s.NoError(repo.Sync(distribution))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_OriginAlreadyExists() {
+func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 	someIncorrectOrigin := &awscloudfront.Origin{Id: aws.String("origin"), DomainName: aws.String("incorrect domain name")}
 
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
@@ -505,7 +506,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Origin
 	s.NoError(repo.Sync(distribution))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_BehaviorDoesNotExistYet() {
+func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 
 	lowerPrecedenceExistingBehavior := &awscloudfront.CacheBehavior{
 		AllowedMethods: &awscloudfront.AllowedMethods{
@@ -520,7 +521,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		OriginRequestPolicyId:      aws.String("policy"),
 		PathPattern:                aws.String("/low/precedence/path"),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String("origin"),
@@ -540,7 +541,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		OriginRequestPolicyId:      aws.String("policy"),
 		PathPattern:                aws.String("/very/high/precedence/path/very/lengthy/indeed"),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String("origin"),
@@ -572,7 +573,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		OriginRequestPolicyId:      aws.String("policy"),
 		PathPattern:                aws.String("/mid-sized/path/with/medium/precedence"),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String("origin"),
@@ -645,9 +646,9 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 				Host:            "origin",
 				ResponseTimeout: 30,
 				Behaviors: []Behavior{
-					{PathPattern: "/mid-sized/path/with/medium/precedence"},
-					{PathPattern: "/low/precedence/path"},
-					{PathPattern: "/very/high/precedence/path/very/lengthy/indeed"},
+					{PathPattern: "/mid-sized/path/with/medium/precedence", RequestPolicy: "policy"},
+					{PathPattern: "/low/precedence/path", RequestPolicy: "policy"},
+					{PathPattern: "/very/high/precedence/path/very/lengthy/indeed", RequestPolicy: "policy"},
 				},
 			},
 		},
@@ -661,7 +662,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 	s.NoError(repo.Sync(distribution))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_BehaviorAlreadyExists() {
+func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 	existingOrigins := &awscloudfront.Origins{
 		Items: []*awscloudfront.Origin{
 			defaultOrigin,
@@ -732,7 +733,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 						Compress:                   aws.Bool(true),
 						FieldLevelEncryptionId:     aws.String(""),
 						LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-						OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+						OriginRequestPolicyId:      aws.String("policy"),
 						PathPattern:                aws.String("/*"),
 						SmoothStreaming:            aws.Bool(false),
 						TargetOriginId:             aws.String("origin"),
@@ -764,14 +765,14 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_Behavi
 			{
 				Host:            "origin",
 				ResponseTimeout: 30,
-				Behaviors:       []Behavior{{PathPattern: "/*"}},
+				Behaviors:       []Behavior{{PathPattern: "/*", RequestPolicy: "policy"}},
 			},
 		},
 	}
 	s.NoError(repo.Sync(distribution))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithViewerFunction() {
+func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String("foo"),
 		DistributionConfig: &awscloudfront.DistributionConfig{
@@ -819,7 +820,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithVi
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		OriginRequestPolicyId:      aws.String("policy"),
 		PathPattern:                aws.String("/foo"),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String("origin"),
@@ -916,7 +917,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithVi
 				Host:            "origin",
 				ResponseTimeout: 30,
 				Behaviors: []Behavior{
-					{PathPattern: "/foo", ViewerFnARN: "some-arn"},
+					{PathPattern: "/foo", ViewerFnARN: "some-arn", RequestPolicy: "policy"},
 				},
 			},
 		},
@@ -927,7 +928,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Sync_WithVi
 	s.NoError(repo.Sync(distribution))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Success() {
+func (s *DistributionRepositoryTestSuite) TestDelete_Success() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -974,7 +975,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Succ
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_FailsToGetDistributionConfig() {
+func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfig() {
 	awsClient := &awsClientMock{}
 	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String("id"),
@@ -985,7 +986,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Fail
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_FailsToDisableDistribution() {
+func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1012,7 +1013,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Fail
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_TimesOutWaitingDistributionDeployment() {
+func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistributionDeployment() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1054,7 +1055,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Time
 	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), wait.ErrWaitTimeout)
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_FailsToDeleteDistribution() {
+func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1101,7 +1102,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_Fail
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSuchDistributionGettingConfig() {
+func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingConfig() {
 	awsClient := &awsClientMock{}
 
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
@@ -1111,7 +1112,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSu
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSuchDistributionDisablingDist() {
+func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisablingDist() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1143,7 +1144,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSu
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSuchDistributionWaitingForItToBeDeployed() {
+func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingForItToBeDeployed() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1186,7 +1187,7 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSu
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
-func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSuchDistributionDeletingIt() {
+func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingIt() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
 	awsClient := &awsClientMock{
@@ -1232,4 +1233,14 @@ func (s *DistributionRepositoryTestSuite) TestDistributionRepository_Delete_NoSu
 
 	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
+}
+
+func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
+	cb := baseCacheBehavior("path", "host", "policy")
+	s.Equal("policy", *cb.OriginRequestPolicyId)
+}
+
+func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone() {
+	cb := baseCacheBehavior("path", "host", "None")
+	s.Nil(cb.OriginRequestPolicyId)
 }

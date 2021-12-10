@@ -342,7 +342,7 @@ func newAWSOrigin(o Origin) *awscloudfront.Origin {
 }
 
 func newCacheBehavior(behavior Behavior, host string) *awscloudfront.CacheBehavior {
-	cb := baseCacheBehavior(behavior.PathPattern, host)
+	cb := baseCacheBehavior(behavior.PathPattern, host, behavior.RequestPolicy)
 	if len(behavior.ViewerFnARN) > 0 {
 		addViewerFunctionAssociation(cb, behavior.ViewerFnARN)
 	}
@@ -361,8 +361,8 @@ func addViewerFunctionAssociation(cb *awscloudfront.CacheBehavior, functionARN s
 	}
 }
 
-func baseCacheBehavior(pathPattern, host string) *awscloudfront.CacheBehavior {
-	return &awscloudfront.CacheBehavior{
+func baseCacheBehavior(pathPattern, host, originReqPolicy string) *awscloudfront.CacheBehavior {
+	cb := &awscloudfront.CacheBehavior{
 		AllowedMethods: &awscloudfront.AllowedMethods{
 			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
 			Quantity: aws.Int64(7),
@@ -375,12 +375,18 @@ func baseCacheBehavior(pathPattern, host string) *awscloudfront.CacheBehavior {
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+		OriginRequestPolicyId:      aws.String(originReqPolicy),
 		PathPattern:                aws.String(pathPattern),
 		SmoothStreaming:            aws.Bool(false),
 		TargetOriginId:             aws.String(host),
 		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
 	}
+
+	if originReqPolicy == "None" {
+		cb.OriginRequestPolicyId = nil
+	}
+
+	return cb
 }
 
 func removeDuplicates(origins []*awscloudfront.Origin) []*awscloudfront.Origin {

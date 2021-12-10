@@ -19,7 +19,11 @@
 
 package cloudfront
 
-import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+import (
+	"fmt"
+
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
+)
 
 // Distribution represents a CloudFront distribution
 type Distribution struct {
@@ -78,7 +82,7 @@ func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group 
 	}
 }
 
-// WithOrigin takes in a slice of Origin that should be part of the Distribution
+// WithOrigin takes in an Origin that should be part of the Distribution
 func (b DistributionBuilder) WithOrigin(o Origin) DistributionBuilder {
 	b.customOrigins = append(b.customOrigins, o)
 	return b
@@ -141,8 +145,8 @@ func (b DistributionBuilder) WithInfo(id string, arn string, address string) Dis
 }
 
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
-func (b DistributionBuilder) Build() Distribution {
-	return Distribution{
+func (b DistributionBuilder) Build() (Distribution, error) {
+	d := Distribution{
 		ID:               b.id,
 		ARN:              b.arn,
 		Address:          b.address,
@@ -157,6 +161,11 @@ func (b DistributionBuilder) Build() Distribution {
 		AlternateDomains: b.alternateDomains,
 		WebACLID:         b.webACLID,
 	}
+
+	if err := validate(d); err != nil {
+		return Distribution{}, err
+	}
+	return d, nil
 }
 
 func (b DistributionBuilder) generateTags() map[string]string {
@@ -178,4 +187,21 @@ func (b DistributionBuilder) defaultTags() map[string]string {
 	tags[managedByTagKey] = managedByTagValue
 	tags[groupTagKey] = b.group
 	return tags
+}
+
+func validate(d Distribution) error {
+	var origins []Origin
+	origins = append(origins, d.DefaultOrigin)
+	origins = append(origins, d.CustomOrigins...)
+
+	existingOrigins := make(map[string]Origin)
+	for _, o := range origins {
+		if existing, ok := existingOrigins[o.Host]; ok {
+			if !existing.HasEqualParameters(o) {
+				return fmt.Errorf("same host (%s) specified twice with different parameters for origin configuration", o.Host)
+			}
+		}
+		existingOrigins[o.Host] = o
+	}
+	return nil
 }
