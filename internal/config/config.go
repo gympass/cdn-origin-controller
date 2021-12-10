@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	// CDNClassKey is the env var key that controls class
 	CDNClassKey              = "cdn_class"
 	logLevelKey              = "log_level"
 	devModeKey               = "dev_mode"
