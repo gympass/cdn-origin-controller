@@ -17,45 +17,27 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package strhelper
 
-import (
-	"testing"
-
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
-)
-
-func TestRunConfigTestSuite(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &ConfigTestSuite{})
-}
-
-type ConfigTestSuite struct {
-	suite.Suite
-}
-
-func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
-	expected := map[string]string{
-		"foo":  "bar",
-		"area": "platform",
+// Contains check if string exists in given slice
+func Contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
 	}
-
-	viper.Set("cf_custom_tags", "foo=bar,area=platform")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
+	return false
 }
 
-func (s *ConfigTestSuite) TestConfigNoCustomTags() {
-	expected := map[string]string{}
+// Filter applies a given predicate function to each element of s.
+// If the predicate is satisfied the element gets added to the result slice.
+func Filter(s []string, predicate func(string) bool) []string {
+	var filtered []string
 
-	viper.Set("cf_custom_tags", "")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
+	for _, it := range s {
+		if predicate(it) {
+			filtered = append(filtered, it)
+		}
+	}
+	return filtered
 }

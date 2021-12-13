@@ -24,12 +24,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
+	awsroute53 "github.com/aws/aws-sdk-go/service/route53"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
+	networkingv1 "k8s.io/api/networking/v1"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8sdisc "k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -44,11 +47,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	cdnv1alpha1 "github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/discovery"
+	"github.com/Gympass/cdn-origin-controller/internal/route53"
 )
 
 var (
@@ -59,6 +64,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(cdnv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 	_ = godotenv.Load()
 }
@@ -76,13 +82,14 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	operatorCfg := config.Parse()
+	cfg := config.Parse()
 
 	ctrl.SetLogger(zap.New(
 		zap.UseFlagOptions(&opts),
-		zap.UseDevMode(operatorCfg.DevMode),
-		zap.Level(mustGetLogLevel(operatorCfg.LogLevel)),
+		zap.UseDevMode(cfg.DevMode),
+		zap.Level(mustGetLogLevel(cfg.LogLevel)),
 	))
+	setupLog.V(1).Info("Config parsed.", "config", cfg)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -108,9 +115,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	ingressReconciler := controllers.IngressReconciler{
-		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
-		Repo:     cloudfront.NewOriginRepository(mustGetCloudFrontClient()),
+	s := session.Must(session.NewSession())
+
+	callerRefFn := func() string { return time.Now().String() }
+	waitTimeout := time.Minute * 10
+	ingressReconciler := &controllers.IngressReconciler{
+		Client:    mgr.GetClient(),
+		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
+		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), callerRefFn, waitTimeout),
+		AliasRepo: route53.NewRoute53AliasRepository(awsroute53.New(s), cfg),
+		Config:    cfg,
 	}
 
 	mustSetupControllers(mgr, ingressReconciler)
@@ -122,7 +136,7 @@ func main() {
 	}
 }
 
-func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressReconciler) {
+func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressReconciler) {
 	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
 	v1Available, err := discovery.HasV1Ingress(discClient)
 	if err != nil {
@@ -139,21 +153,27 @@ func mustSetupControllers(mgr manager.Manager, reconciler controllers.IngressRec
 		os.Exit(1)
 	}
 
-	if v1Available {
-		mustSetupV1Controller(mgr, reconciler)
-	}
+	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
 	if v1beta1Available {
+		setupLog.V(1).Info(networkingv1beta1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
 		mustSetupV1beta1Controller(mgr, reconciler)
+		return
+	}
+
+	if v1Available {
+		setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
+		mustSetupV1Controller(mgr, reconciler)
 	}
 }
 
-func mustSetupV1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+func mustSetupV1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
 	v1Reconciler := controllers.V1Reconciler{
 		Client:            mgr.GetClient(),
 		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
+	v1Reconciler.IngressReconciler.BoundIngressParamsFn = v1Reconciler.BoundIngresses
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1 ingress controller")
@@ -161,13 +181,14 @@ func mustSetupV1Controller(mgr manager.Manager, ir controllers.IngressReconciler
 	}
 }
 
-func mustSetupV1beta1Controller(mgr manager.Manager, ir controllers.IngressReconciler) {
+func mustSetupV1beta1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
 	v1beta1Reconciler := controllers.V1beta1Reconciler{
 		Client:            mgr.GetClient(),
 		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
+	v1beta1Reconciler.IngressReconciler.BoundIngressParamsFn = v1beta1Reconciler.BoundIngresses
 
 	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1beta1 ingress controller")
@@ -181,9 +202,4 @@ func mustGetLogLevel(logLvl string) zapcore.Level {
 		panic(fmt.Errorf("invalid log level config: %v", err))
 	}
 	return l
-}
-
-func mustGetCloudFrontClient() cloudfrontiface.CloudFrontAPI {
-	s := session.Must(session.NewSession())
-	return awscloudfront.New(s)
 }

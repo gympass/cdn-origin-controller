@@ -20,44 +20,40 @@
 package controllers
 
 import (
-	"errors"
 	"strconv"
+	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
 
-var errUnsupportedKind = errors.New("unsupported kind")
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
+)
 
 type path struct {
 	pathPattern string
 	pathType    string
 }
 
-type ingressDTO struct {
-	host              string
-	paths             []path
-	viewerFnARN       string
-	originRespTimeout int64
+type ingressParams struct {
+	destinationHost      string
+	group                string
+	paths                []path
+	viewerFnARN          string
+	originReqPolicy      string
+	originRespTimeout    int64
+	alternateDomainNames []string
 }
 
-func newIngressDTO(obj client.Object) (ingressDTO, error) {
-	switch obj := obj.(type) {
-	case *networkingv1beta1.Ingress:
-		return newIngressDTOV1beta1(obj), nil
-	case *networkingv1.Ingress:
-		return newIngressDTOV1(obj), nil
-	}
-	return ingressDTO{}, errUnsupportedKind
-}
-
-func newIngressDTOV1beta1(ing *networkingv1beta1.Ingress) ingressDTO {
-	return ingressDTO{
-		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:             pathsV1beta1(ing.Spec.Rules),
-		viewerFnARN:       viewerFnARN(ing),
-		originRespTimeout: originRespTimeout(ing),
+func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
+	return ingressParams{
+		destinationHost:      ing.Status.LoadBalancer.Ingress[0].Hostname,
+		group:                groupAnnotationValue(ing),
+		paths:                pathsV1beta1(ing.Spec.Rules),
+		viewerFnARN:          viewerFnARN(ing),
+		originReqPolicy:      originReqPolicy(ing),
+		originRespTimeout:    originRespTimeout(ing),
+		alternateDomainNames: alternateDomainNames(ing),
 	}
 }
 
@@ -75,12 +71,15 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []path {
 	return paths
 }
 
-func newIngressDTOV1(ing *networkingv1.Ingress) ingressDTO {
-	return ingressDTO{
-		host:              ing.Status.LoadBalancer.Ingress[0].Hostname,
-		paths:             pathsV1(ing.Spec.Rules),
-		viewerFnARN:       viewerFnARN(ing),
-		originRespTimeout: originRespTimeout(ing),
+func newIngressParamsV1(ing *networkingv1.Ingress) ingressParams {
+	return ingressParams{
+		destinationHost:      ing.Status.LoadBalancer.Ingress[0].Hostname,
+		group:                groupAnnotationValue(ing),
+		paths:                pathsV1(ing.Spec.Rules),
+		viewerFnARN:          viewerFnARN(ing),
+		originReqPolicy:      originReqPolicy(ing),
+		originRespTimeout:    originRespTimeout(ing),
+		alternateDomainNames: alternateDomainNames(ing),
 	}
 }
 
@@ -106,4 +105,26 @@ func originRespTimeout(obj client.Object) int64 {
 	val := obj.GetAnnotations()[cfOrigRespTimeoutAnnotation]
 	respTimeout, _ := strconv.ParseInt(val, 10, 64)
 	return respTimeout
+}
+
+func originReqPolicy(obj client.Object) string {
+	return obj.GetAnnotations()[cfOrigReqPolicyAnnotation]
+}
+
+func groupAnnotationValue(obj client.Object) string {
+	return obj.GetAnnotations()[cdnGroupAnnotation]
+}
+
+func alternateDomainNames(obj client.Object) (domainNames []string) {
+	annValue := obj.GetAnnotations()[cfAlternateDomainNamesAnnotation]
+
+	if len(annValue) > 0 {
+		for _, d := range strings.Split(annValue, ",") {
+			if !strhelper.Contains(domainNames, d) {
+				domainNames = append(domainNames, d)
+			}
+		}
+	}
+
+	return
 }

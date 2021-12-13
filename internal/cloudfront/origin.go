@@ -29,28 +29,36 @@ type Origin struct {
 	Host string
 	// Behaviors is the collection of Behaviors associated with this Origin
 	Behaviors []Behavior
-	// ResponseTimeout
+	// ResponseTimeout is how long CloudFront will wait for a response from the Origin in seconds
 	ResponseTimeout int64
+}
+
+// HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
+func (o Origin) HasEqualParameters(o2 Origin) bool {
+	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout
 }
 
 // Behavior represents a CloudFront Cache Behavior
 type Behavior struct {
 	// PathPattern is the path pattern used when configuring the Behavior
 	PathPattern string
+	// RequestPolicy is the ID of the origin request policy to be associated with this Behavior
+	RequestPolicy string
 	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
 	ViewerFnARN string
 }
 
 // OriginBuilder allows the construction of a Origin
 type OriginBuilder struct {
-	origin      Origin
-	viewerFnARN string
-	respTimeout int64
+	origin        Origin
+	viewerFnARN   string
+	requestPolicy string
+	respTimeout   int64
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(host string) OriginBuilder {
-	return OriginBuilder{origin: Origin{Host: host, ResponseTimeout: defaultResponseTimeout}}
+	return OriginBuilder{origin: Origin{Host: host, ResponseTimeout: defaultResponseTimeout}, requestPolicy: allViewerOriginRequestPolicyID}
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
@@ -62,6 +70,14 @@ func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
 // WithViewerFunction associates a function with all viewer requests of all Behaviors in the Origin being built
 func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
 	b.viewerFnARN = fnARN
+	return b
+}
+
+// WithRequestPolicy associates a given origin request policy ID with all Behaviors in the Origin being built
+func (b OriginBuilder) WithRequestPolicy(policy string) OriginBuilder {
+	if len(policy) > 0 {
+		b.requestPolicy = policy
+	}
 	return b
 }
 
@@ -77,6 +93,8 @@ func (b OriginBuilder) Build() Origin {
 		b.addViewerFnToBehaviors()
 	}
 
+	b.addRequestPolicyToBehaviors()
+
 	if b.respTimeout > 0 {
 		b.origin.ResponseTimeout = b.respTimeout
 	}
@@ -86,5 +104,11 @@ func (b OriginBuilder) Build() Origin {
 func (b OriginBuilder) addViewerFnToBehaviors() {
 	for i := range b.origin.Behaviors {
 		b.origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
+	}
+}
+
+func (b OriginBuilder) addRequestPolicyToBehaviors() {
+	for i := range b.origin.Behaviors {
+		b.origin.Behaviors[i].RequestPolicy = b.requestPolicy
 	}
 }

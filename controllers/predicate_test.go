@@ -22,10 +22,15 @@ package controllers
 import (
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunPredicateTestSuite(t *testing.T) {
@@ -42,7 +47,8 @@ var (
 	annotatedIngress = func() *networkingv1beta1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
-		i.Annotations[cdnIDAnnotation] = "some value"
+		i.Annotations[cdnGroupAnnotation] = "some value"
+		i.Annotations[cdnClassAnnotation] = "default"
 		return i
 	}()
 	provisionedIngress = func() *networkingv1beta1.Ingress {
@@ -56,7 +62,20 @@ var (
 		i.Status = provisionedIngress.Status
 		return i
 	}()
+	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
+		i := annotatedIngress.DeepCopy()
+		i.Finalizers = []string{cdnFinalizer}
+		return i
+	}()
 )
+
+func (s *PredicateSuite) SetupTest() {
+	viper.Set(config.CDNClassKey, "default")
+}
+
+func (s *PredicateSuite) TearDownTest() {
+	viper.Reset()
+}
 
 func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
 	testCases := []struct {
@@ -84,11 +103,21 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Create() {
 			input: event.CreateEvent{Object: annotatedAndProvisionedIngress},
 			want:  true,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.CreateEvent{Object: hasFinalizerIngress},
+			want:  true,
+		},
+		{
+			name:  "Not from this CDN class",
+			input: event.CreateEvent{Object: baseIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Create(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Create(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -118,11 +147,31 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Update() {
 			input: event.UpdateEvent{ObjectNew: annotatedAndProvisionedIngress},
 			want:  true,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.UpdateEvent{ObjectNew: hasFinalizerIngress},
+			want:  true,
+		},
+		{
+			name:  "Old and New are equal",
+			input: event.UpdateEvent{ObjectNew: hasFinalizerIngress, ObjectOld: hasFinalizerIngress},
+			want:  false,
+		},
+		{
+			name:  "Old not from this CDN class, new is",
+			input: event.UpdateEvent{ObjectOld: baseIngress, ObjectNew: annotatedAndProvisionedIngress},
+			want:  true,
+		},
+		{
+			name:  "New object is not from this CDN class",
+			input: event.UpdateEvent{ObjectOld: annotatedAndProvisionedIngress, ObjectNew: baseIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Update(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Update(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -150,13 +199,23 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Delete() {
 		{
 			name:  "Has annotation and has been provisioned",
 			input: event.DeleteEvent{Object: annotatedAndProvisionedIngress},
+			want:  true,
+		},
+		{
+			name:  "Has finalizer",
+			input: event.DeleteEvent{Object: hasFinalizerIngress},
+			want:  true,
+		},
+		{
+			name:  "Not from this CDN class",
+			input: event.DeleteEvent{Object: baseIngress},
 			want:  false,
 		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Delete(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Delete(tc.input), "test: %s", tc.name)
 	}
 }
 
@@ -186,10 +245,25 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Generic() {
 			input: event.GenericEvent{Object: annotatedAndProvisionedIngress},
 			want:  false,
 		},
+		{
+			name:  "Has finalizer",
+			input: event.GenericEvent{Object: hasFinalizerIngress},
+			want:  false,
+		},
 	}
 
 	for _, tc := range testCases {
-		p := &hasCdnAnnotationPredicate{}
-		s.Equal(tc.want, p.Generic(tc.input))
+		p := &ingressPredicate{}
+		s.Equal(tc.want, p.Generic(tc.input), "test: %s", tc.name)
 	}
+}
+
+func (s *PredicateSuite) Test_hasLoadBalancer_v1Ingress() {
+	var ing client.Object = &networkingv1.Ingress{}
+	s.False(hasLoadBalancer(ing))
+}
+
+func (s *PredicateSuite) Test_hasLoadBalancer_notAnIngress() {
+	var ing client.Object = &corev1.Service{}
+	s.False(hasLoadBalancer(ing))
 }
