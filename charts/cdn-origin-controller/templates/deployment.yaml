@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cdn-origin-controller.name" . }}
+  name: {{ include "cdn-origin-controller.name" . }}-{{ .Values.cdnClass }}
   labels:
 {{ include "cdn-origin-controller.labels" . | indent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "cdn-origin-controller.name" . }}
+      app.kubernetes.io/name: {{ include "cdn-origin-controller.name" . }}-{{ .Values.cdnClass }}
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       annotations:
         {{- toYaml .Values.deployment.annotations | nindent 8 }}
       labels:
-        app.kubernetes.io/name: {{ include "cdn-origin-controller.name" . }}
+        app.kubernetes.io/name: {{ include "cdn-origin-controller.name" . }}-{{ .Values.cdnClass }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
     {{- with .Values.imagePullSecrets }}
