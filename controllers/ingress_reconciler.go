@@ -45,6 +45,7 @@ import (
 const (
 	cdnFinalizer                     = "cdn-origin-controller.gympass.com/finalizer"
 	cdnGroupAnnotation               = "cdn-origin-controller.gympass.com/cdn.group"
+	cdnClassAnnotation               = "cdn-origin-controller.gympass.com/cdn.class"
 	cfUserOriginsAnnotation          = "cdn-origin-controller.gympass.com/cf.user-origins"
 	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"

@@ -4,6 +4,7 @@ metadata:
   name: minimal-ingress
   annotations:
     cdn-origin-controller.gympass.com/cdn.group: "foo"
+    cdn-origin-controller.gympass.com/cdn.class: "default"
 spec:
   rules:
   - host: foo.bar

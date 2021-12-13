@@ -6,6 +6,7 @@ metadata:
   name: foo1
   annotations:
     cdn-origin-controller.gympass.com/cdn.group: "foo"
+    cdn-origin-controller.gympass.com/cdn.class: "default"
     cdn-origin-controller.gympass.com/cf.alternate-domain-names: "alias-foo1.bar"
 spec:
   rules:

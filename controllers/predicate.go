@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
@@ -36,19 +37,47 @@ type ingressPredicate struct{}
 var _ predicate.Predicate = &ingressPredicate{}
 
 func (p ingressPredicate) Create(event event.CreateEvent) bool {
-	return hasFinalizer(event.Object) || (hasGroupAnnotation(event.Object) && hasLoadBalancer(event.Object))
+	cdnClassOK := cdnClassMatches(cdnClassAnnotationValue(event.Object))
+	finalizerOK := hasFinalizer(event.Object)
+	groupOK := hasGroupAnnotation(event.Object)
+	lbOK := hasLoadBalancer(event.Object)
+
+	return cdnClassOK &&
+		(finalizerOK || (groupOK && lbOK))
 }
 
 func (p ingressPredicate) Delete(event event.DeleteEvent) bool {
-	return hasFinalizer(event.Object) || (hasGroupAnnotation(event.Object) && hasLoadBalancer(event.Object))
+	cdnClassOK := cdnClassMatches(cdnClassAnnotationValue(event.Object))
+	finalizerOK := hasFinalizer(event.Object)
+	groupOK := hasGroupAnnotation(event.Object)
+	lbOK := hasLoadBalancer(event.Object)
+
+	return cdnClassOK &&
+		(finalizerOK || (groupOK && lbOK))
 }
 
 func (p ingressPredicate) Update(event event.UpdateEvent) bool {
-	return !reflect.DeepEqual(event.ObjectNew, event.ObjectOld) && (hasFinalizer(event.ObjectNew) || (hasGroupAnnotation(event.ObjectNew) && hasLoadBalancer(event.ObjectNew)))
+	cdnClassOK := cdnClassMatches(cdnClassAnnotationValue(event.ObjectNew))
+	objectsAreEqual := reflect.DeepEqual(event.ObjectNew, event.ObjectOld)
+	finalizerOK := hasFinalizer(event.ObjectNew)
+	groupOK := hasGroupAnnotation(event.ObjectNew)
+	lbOK := hasLoadBalancer(event.ObjectNew)
+
+	return cdnClassOK &&
+		!objectsAreEqual &&
+		(finalizerOK || (groupOK && lbOK))
 }
 
 func (p ingressPredicate) Generic(event.GenericEvent) bool {
 	return false
+}
+
+func cdnClassAnnotationValue(object client.Object) string {
+	return object.GetAnnotations()[cdnClassAnnotation]
+}
+
+func cdnClassMatches(candidate string) bool {
+	return candidate == config.CDNClass()
 }
 
 func hasFinalizer(object client.Object) bool {
