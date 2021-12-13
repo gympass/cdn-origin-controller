@@ -1,0 +1,42 @@
+# these ingresses compose a single CloudFront distribution
+# each configures an alias as well, via the cdn-origin-controller.gympass.com/cf.alternate-domain-names annotation
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foo1
+  annotations:
+    cdn-origin-controller.gympass.com/cdn.group: "foo"
+    cdn-origin-controller.gympass.com/cdn.class: "default"
+    cdn-origin-controller.gympass.com/cf.alternate-domain-names: "alias-foo1.bar"
+spec:
+  rules:
+    - host: foo1.bar
+      http:
+        paths:
+          - path: /testpath1
+            pathType: Prefix
+            backend:
+              service:
+                name: test
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foo2
+  annotations:
+    cdn-origin-controller.gympass.com/cdn.group: "foo"
+    cdn-origin-controller.gympass.com/cf.alternate-domain-names: "alias-foo2.bar"
+spec:
+  rules:
+    - host: foo2.bar
+      http:
+        paths:
+          - path: /testpath2
+            pathType: Prefix
+            backend:
+              service:
+                name: test
+                port:
+                  number: 80

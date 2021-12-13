@@ -17,14 +17,12 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package cloudfront_test
+package cloudfront
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 )
 
 func TestRunOriginTestSuite(t *testing.T) {
@@ -36,15 +34,22 @@ type OriginTestSuite struct {
 	suite.Suite
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_SingleBehavior() {
-	o := cloudfront.NewOriginBuilder("origin").WithBehavior("/*").Build()
+func (s *OriginTestSuite) TestNewOriginBuilder_Defaults() {
+	o := NewOriginBuilder("origin").WithBehavior("/*").Build()
+
+	s.Equal(int64(30), o.ResponseTimeout)
+	s.Equal(allViewerOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_SingleBehavior() {
+	o := NewOriginBuilder("origin").WithBehavior("/*").Build()
 	s.Equal("origin", o.Host)
 	s.Len(o.Behaviors, 1)
 	s.Equal("/*", o.Behaviors[0].PathPattern)
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_MultipleBehaviors() {
-	o := cloudfront.NewOriginBuilder("origin").
+func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() {
+	o := NewOriginBuilder("origin").
 		WithBehavior("/*").
 		WithBehavior("/foo").
 		WithBehavior("/bar").
@@ -56,13 +61,26 @@ func (s *OriginTestSuite) TestNewOriginBuilder_MultipleBehaviors() {
 	s.Equal("/bar", o.Behaviors[2].PathPattern)
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_ViewerFunction() {
-	o := cloudfront.NewOriginBuilder("origin").
+func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
+	o := NewOriginBuilder("origin").
 		WithBehavior("/").
+		WithBehavior("/foo").
 		WithViewerFunction("some-arn").
 		Build()
 	s.Equal("origin", o.Host)
-	s.Len(o.Behaviors, 1)
-	s.Equal("/", o.Behaviors[0].PathPattern)
+	s.Len(o.Behaviors, 2)
 	s.Equal("some-arn", o.Behaviors[0].ViewerFnARN)
+	s.Equal("some-arn", o.Behaviors[1].ViewerFnARN)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
+	o := NewOriginBuilder("origin").
+		WithBehavior("/").
+		WithBehavior("/foo").
+		WithRequestPolicy("some-policy").
+		Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 2)
+	s.Equal("some-policy", o.Behaviors[0].RequestPolicy)
+	s.Equal("some-policy", o.Behaviors[1].RequestPolicy)
 }

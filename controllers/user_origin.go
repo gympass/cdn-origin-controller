@@ -17,45 +17,46 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package controllers
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
-func TestRunConfigTestSuite(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &ConfigTestSuite{})
+type userOrigin struct {
+	Host              string   `yaml:"host"`
+	ResponseTimeout   int64    `yaml:"responseTimeout"`
+	Paths             []string `yaml:"paths"`
+	ViewerFunctionARN string   `yaml:"viewerFunctionARN"`
+	RequestPolicy     string   `yaml:"originRequestPolicy"`
 }
 
-type ConfigTestSuite struct {
-	suite.Suite
+func (o userOrigin) paths() []path {
+	var paths []path
+	for _, p := range o.Paths {
+		paths = append(paths, path{pathPattern: p})
+	}
+	return paths
 }
 
-func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
-	expected := map[string]string{
-		"foo":  "bar",
-		"area": "platform",
+func (o userOrigin) isValid() bool {
+	return len(o.Host) > 0 && len(o.Paths) > 0
+}
+
+func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
+	origins := []userOrigin{}
+	err := yaml.Unmarshal(originsData, &origins)
+	if err != nil {
+		return nil, err
 	}
 
-	viper.Set("cf_custom_tags", "foo=bar,area=platform")
+	for _, o := range origins {
+		if !o.isValid() {
+			return nil, fmt.Errorf("user origin invalid. Must have at lease one path and must have a host: has %d paths and the host is %q", len(o.Paths), o.Host)
+		}
+	}
 
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
-}
-
-func (s *ConfigTestSuite) TestConfigNoCustomTags() {
-	expected := map[string]string{}
-
-	viper.Set("cf_custom_tags", "")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
+	return origins, nil
 }

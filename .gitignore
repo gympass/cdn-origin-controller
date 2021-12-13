@@ -21,3 +21,6 @@ bin/
 .idea/
 
 .env
+
+# files for demoing the controller
+demo/

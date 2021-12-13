@@ -17,45 +17,50 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package route53
 
-import (
-	"testing"
+import awsroute53 "github.com/aws/aws-sdk-go/service/route53"
 
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
-)
-
-func TestRunConfigTestSuite(t *testing.T) {
-	t.Parallel()
-	suite.Run(t, &ConfigTestSuite{})
+// Entry represents an alias entry with all desired record types for it
+type Entry struct {
+	Name string
+	Type []string
 }
 
-type ConfigTestSuite struct {
-	suite.Suite
+// Aliases represents all aliases which should be bound to a CF distribution
+type Aliases struct {
+	Target  string
+	Entries []Entry
 }
 
-func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
-	expected := map[string]string{
-		"foo":  "bar",
-		"area": "platform",
+// Domains returns a slice of all domains from an Aliases' Entries
+func (a Aliases) Domains() []string {
+	var domains []string
+
+	for _, e := range a.Entries {
+		domains = append(domains, e.Name)
+	}
+	return domains
+}
+
+// NewAliases builds a new Aliases
+func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
+	aliases := Aliases{
+		Target: target,
 	}
 
-	viper.Set("cf_custom_tags", "foo=bar,area=platform")
+	types := []string{awsroute53.RRTypeA}
+	if ipv6Enabled {
+		types = append(types, awsroute53.RRTypeAaaa)
+	}
 
-	cfg := config.Parse()
+	for _, domain := range domains {
+		entry := Entry{
+			Name: domain,
+			Type: types,
+		}
+		aliases.Entries = append(aliases.Entries, entry)
+	}
 
-	s.Equal(expected, cfg.CloudFrontCustomTags)
-}
-
-func (s *ConfigTestSuite) TestConfigNoCustomTags() {
-	expected := map[string]string{}
-
-	viper.Set("cf_custom_tags", "")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
+	return aliases
 }

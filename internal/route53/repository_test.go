@@ -17,45 +17,19 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package route53_test
 
 import (
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
-func TestRunConfigTestSuite(t *testing.T) {
+func TestRunAliasRepositoryTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &ConfigTestSuite{})
+	suite.Run(t, &AliasRepositoryTestSuite{})
 }
 
-type ConfigTestSuite struct {
+type AliasRepositoryTestSuite struct {
 	suite.Suite
-}
-
-func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
-	expected := map[string]string{
-		"foo":  "bar",
-		"area": "platform",
-	}
-
-	viper.Set("cf_custom_tags", "foo=bar,area=platform")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
-}
-
-func (s *ConfigTestSuite) TestConfigNoCustomTags() {
-	expected := map[string]string{}
-
-	viper.Set("cf_custom_tags", "")
-
-	cfg := config.Parse()
-
-	s.Equal(expected, cfg.CloudFrontCustomTags)
 }
