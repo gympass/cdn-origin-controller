@@ -1,5 +1,7 @@
 replicaCount: 1
 
+cdnClass: default
+
 image:
   repository: ghcr.io/gympass/cdn-origin-controller
   tag: v0.0.8
