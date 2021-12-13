@@ -1,11 +1,11 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "cdn-origin-controller.name" . }}
+  name: {{ include "cdn-origin-controller.name" . }}-{{ .Values.cdnClass }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "cdn-origin-controller.name" . }}
+  name: {{ include "cdn-origin-controller.name" . }}-{{ .Values.cdnClass }}
 subjects:
 - kind: ServiceAccount
   name: {{ template "cdn-origin-controller.serviceAccountName" . }}
