@@ -57,6 +57,7 @@ spec:
               dns:
                 description: DNSStatus provides status regarding the creation of DNS
                   records for aliases
+                nullable: true
                 properties:
                   records:
                     items:
