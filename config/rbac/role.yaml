@@ -14,6 +14,26 @@ rules:
   - create
   - patch
 - apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnstatuses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnstatuses/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
