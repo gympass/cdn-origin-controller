@@ -365,8 +365,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 			Comment:              aws.String(""),
 			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
 			IsIPV6Enabled:        aws.Bool(false),
-			WebACLId:             aws.String(""),
-			PriceClass:           aws.String(""),
+			Logging: &awscloudfront.LoggingConfig{
+				Enabled:        aws.Bool(false),
+				Bucket:         aws.String(""),
+				Prefix:         aws.String(""),
+				IncludeCookies: aws.Bool(false),
+			},
+			WebACLId:   aws.String(""),
+			PriceClass: aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					defaultOrigin,
@@ -450,8 +456,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 			Comment:              aws.String(""),
 			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
 			IsIPV6Enabled:        aws.Bool(false),
-			WebACLId:             aws.String(""),
-			PriceClass:           aws.String(""),
+			Logging: &awscloudfront.LoggingConfig{
+				Enabled:        aws.Bool(false),
+				Bucket:         aws.String(""),
+				Prefix:         aws.String(""),
+				IncludeCookies: aws.Bool(false),
+			},
+			WebACLId:   aws.String(""),
+			PriceClass: aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					defaultOrigin,
@@ -594,8 +606,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 			Comment:              aws.String(""),
 			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
 			IsIPV6Enabled:        aws.Bool(false),
-			WebACLId:             aws.String(""),
-			PriceClass:           aws.String(""),
+			Logging: &awscloudfront.LoggingConfig{
+				Enabled:        aws.Bool(false),
+				Bucket:         aws.String(""),
+				Prefix:         aws.String(""),
+				IncludeCookies: aws.Bool(false),
+			},
+			WebACLId:   aws.String(""),
+			PriceClass: aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					defaultOrigin,
@@ -714,6 +732,12 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 			Comment:              aws.String(""),
 			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
 			IsIPV6Enabled:        aws.Bool(false),
+			Logging: &awscloudfront.LoggingConfig{
+				Enabled:        aws.Bool(false),
+				Bucket:         aws.String(""),
+				Prefix:         aws.String(""),
+				IncludeCookies: aws.Bool(false),
+			},
 			WebACLId:             aws.String(""),
 			PriceClass:           aws.String(""),
 			Origins:              existingOrigins,
@@ -850,8 +874,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 			Comment:              aws.String(""),
 			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
 			IsIPV6Enabled:        aws.Bool(false),
-			WebACLId:             aws.String(""),
-			PriceClass:           aws.String(""),
+			Logging: &awscloudfront.LoggingConfig{
+				Enabled:        aws.Bool(false),
+				Bucket:         aws.String(""),
+				Prefix:         aws.String(""),
+				IncludeCookies: aws.Bool(false),
+			},
+			WebACLId:   aws.String(""),
+			PriceClass: aws.String(""),
 			Origins: &awscloudfront.Origins{
 				Items: []*awscloudfront.Origin{
 					defaultOrigin,
