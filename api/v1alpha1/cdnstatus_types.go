@@ -45,7 +45,7 @@ type CDNStatusStatus struct {
 	Address   string      `json:"address,omitempty"`
 	// +optional
 	// +nullable
-	DNS       *DNSStatus  `json:"dns,omitempty"`
+	DNS *DNSStatus `json:"dns,omitempty"`
 }
 
 //+kubebuilder:object:root=true
