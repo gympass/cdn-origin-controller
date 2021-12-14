@@ -65,9 +65,6 @@ spec:
                     type: array
                   synced:
                     type: boolean
-                required:
-                - records
-                - synced
                 type: object
               id:
                 type: string

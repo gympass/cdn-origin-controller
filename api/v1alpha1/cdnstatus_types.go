@@ -32,8 +32,8 @@ import (
 
 // DNSStatus provides status regarding the creation of DNS records for aliases
 type DNSStatus struct {
-	Records []string `json:"records"`
-	Synced  bool     `json:"synced"`
+	Records []string `json:"records,omitempty"`
+	Synced  bool     `json:"synced,omitempty"`
 }
 
 // CDNStatusStatus defines the observed state of CDNStatus
@@ -80,6 +80,10 @@ func (c *CDNStatus) SetAliases(aliases []string) {
 
 // UpsertDNSRecords inserts the given records at the DNS status section if they're not present already
 func (c *CDNStatus) UpsertDNSRecords(records []string) {
+	if len(records) == 0 {
+		return
+	}
+
 	if c.Status.DNS == nil {
 		c.Status.DNS = &DNSStatus{Records: records}
 		return
