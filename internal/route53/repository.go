@@ -124,7 +124,7 @@ func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceR
 		return nil, err
 	}
 
-	txtRS, err := r.txtRecordSetByEntry(entry)
+	txtRS, err := r.txtResourceRecordSetByEntry(entry)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (r repository) aliasResourceRecordsByEntry(entry Entry) ([]*route53.Resourc
 	return output.ResourceRecordSets, nil
 }
 
-func (r repository) txtRecordSetByEntry(entry Entry) (*route53.ResourceRecordSet, error) {
+func (r repository) txtResourceRecordSetByEntry(entry Entry) (*route53.ResourceRecordSet, error) {
 	input := &route53.ListResourceRecordSetsInput{
 		HostedZoneId:    aws.String(r.hostedZoneID),
 		StartRecordName: aws.String(txtName(entry.Name)),
