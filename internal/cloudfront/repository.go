@@ -287,7 +287,12 @@ func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.Dist
 		Enabled:           aws.Bool(true),
 		HttpVersion:       aws.String(awscloudfront.HttpVersionHttp2),
 		IsIPV6Enabled:     aws.Bool(d.IPv6Enabled),
-		Logging:           nil,
+		Logging: &awscloudfront.LoggingConfig{
+			Enabled:        aws.Bool(false),
+			Bucket:         aws.String(""),
+			Prefix:         aws.String(""),
+			IncludeCookies: aws.Bool(false),
+		},
 		OriginGroups:      nil,
 		PriceClass:        aws.String(d.PriceClass),
 		Restrictions:      nil,
