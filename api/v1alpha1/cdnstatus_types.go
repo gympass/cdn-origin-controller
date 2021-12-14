@@ -43,6 +43,8 @@ type CDNStatusStatus struct {
 	Ingresses IngressRefs `json:"ingresses,omitempty"`
 	Aliases   []string    `json:"aliases,omitempty"`
 	Address   string      `json:"address,omitempty"`
+	// +optional
+	// +nullable
 	DNS       *DNSStatus  `json:"dns,omitempty"`
 }
 
