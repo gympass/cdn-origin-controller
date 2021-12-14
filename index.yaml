@@ -3,6 +3,15 @@ entries:
   cdn-origin-controller:
   - apiVersion: v1
     appVersion: v0.0.8
+    created: "2021-12-14T17:33:14.926382629Z"
+    description: The cdn-origin-controller Helm Chart
+    digest: b665a4dcc60f2a49717eaea17b2c550aa6ea644fa264ef2ea74ddc0477c391fc
+    name: cdn-origin-controller
+    urls:
+    - https://github.com/Gympass/cdn-origin-controller/releases/download/cdn-origin-controller-v0.0.9/cdn-origin-controller-v0.0.9.tgz
+    version: v0.0.9
+  - apiVersion: v1
+    appVersion: v0.0.8
     created: "2021-12-14T16:34:31.342055987Z"
     description: The cdn-origin-controller Helm Chart
     digest: 8b90466d7c000b7a61ce46d853e95d70b4e9b76af48a6c5f49150aca78382885
@@ -82,4 +91,4 @@ entries:
     urls:
     - https://github.com/Gympass/cdn-origin-controller/releases/download/cdn-origin-controller-v0.0.1-rc1/cdn-origin-controller-v0.0.1-rc1.tgz
     version: v0.0.1-rc1
-generated: "2021-12-14T16:34:31.34209909Z"
+generated: "2021-12-14T17:33:14.926442429Z"
