@@ -48,6 +48,8 @@ type V1Reconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cdn.gympass.com,resources=cdnstatuses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=cdn.gympass.com,resources=cdnstatuses/status,verbs=get;update;patch
 
 //Reconcile a v1 Ingress resource
 func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
