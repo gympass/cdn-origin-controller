@@ -35,6 +35,7 @@ const (
 	cfHostedZoneID         = "Z2FDTNDATAQYW2"
 	cfEvaluateTargetHealth = false
 	txtOwnerKey            = "cdn-origin-controller/owner"
+	txtPrefix              = "cdn-origin-controller-"
 	// ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/ResourceRecordTypes.html
 	numberOfSupportedRecordTypes = "13"
 )
@@ -118,6 +119,20 @@ func (r repository) requestChanges(changes []*route53.Change, comment string) er
 }
 
 func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceRecordSet, error) {
+	sets, err := r.aliasResourceRecordsByEntry(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	txtRS, err := r.txtRecordSetByEntry(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(sets, txtRS), nil
+}
+
+func (r repository) aliasResourceRecordsByEntry(entry Entry) ([]*route53.ResourceRecordSet, error) {
 	input := &route53.ListResourceRecordSetsInput{
 		HostedZoneId:    aws.String(r.hostedZoneID),
 		StartRecordName: aws.String(entry.Name),
@@ -125,7 +140,6 @@ func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceR
 	}
 
 	output, err := r.awsClient.ListResourceRecordSets(input)
-
 	if err != nil {
 		return nil, err
 	}
@@ -133,17 +147,35 @@ func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceR
 	return output.ResourceRecordSets, nil
 }
 
+func (r repository) txtRecordSetByEntry(entry Entry) (*route53.ResourceRecordSet, error) {
+	input := &route53.ListResourceRecordSetsInput{
+		HostedZoneId:    aws.String(r.hostedZoneID),
+		StartRecordName: aws.String(txtName(entry.Name)),
+		MaxItems:        aws.String("1"),
+		StartRecordType: aws.String(route53.RRTypeTxt),
+	}
+
+	output, err := r.awsClient.ListResourceRecordSets(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(output.ResourceRecordSets) > 0 {
+		return output.ResourceRecordSets[0], nil
+	}
+
+	return nil, nil
+}
+
 func (r repository) filterRecordSets(entry Entry, recordSets []*route53.ResourceRecordSet) filteredRecordSets {
 	filtered := filteredRecordSets{}
 
 	for _, rs := range recordSets {
-		if entry.Name == *rs.Name {
-			if strhelper.Contains(entry.Type, *rs.Type) {
-				filtered.addressRecords = append(filtered.addressRecords, rs)
-			}
-			if *rs.Type == route53.RRTypeTxt {
-				filtered.ownershipRecord = rs
-			}
+		if entry.Name == *rs.Name && strhelper.Contains(entry.Type, *rs.Type) {
+			filtered.addressRecords = append(filtered.addressRecords, rs)
+		}
+		if *rs.Type == route53.RRTypeTxt && txtName(entry.Name) == *rs.Name {
+			filtered.ownershipRecord = rs
 		}
 	}
 
@@ -193,10 +225,14 @@ func (r repository) newTXTChange(action, name string) *route53.Change {
 	return &route53.Change{
 		Action: aws.String(action),
 		ResourceRecordSet: &route53.ResourceRecordSet{
-			Name:            aws.String(name),
+			Name:            aws.String(txtName(name)),
 			ResourceRecords: []*route53.ResourceRecord{{Value: aws.String(r.ownershipTXTValue)}},
 			TTL:             aws.Int64(300),
 			Type:            aws.String(route53.RRTypeTxt),
 		},
 	}
+}
+
+func txtName(originalName string) string {
+	return txtPrefix + originalName
 }

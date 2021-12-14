@@ -19,7 +19,11 @@
 
 package route53
 
-import awsroute53 "github.com/aws/aws-sdk-go/service/route53"
+import (
+	"strings"
+
+	awsroute53 "github.com/aws/aws-sdk-go/service/route53"
+)
 
 // Entry represents an alias entry with all desired record types for it
 type Entry struct {
@@ -55,10 +59,15 @@ func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
 	}
 
 	for _, domain := range domains {
+		if !strings.HasSuffix(domain, ".") {
+			domain += "."
+		}
+
 		entry := Entry{
 			Name: domain,
 			Type: types,
 		}
+
 		aliases.Entries = append(aliases.Entries, entry)
 	}
 
