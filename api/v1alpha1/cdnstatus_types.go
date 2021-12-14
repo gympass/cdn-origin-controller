@@ -43,7 +43,9 @@ type CDNStatusStatus struct {
 	Ingresses IngressRefs `json:"ingresses,omitempty"`
 	Aliases   []string    `json:"aliases,omitempty"`
 	Address   string      `json:"address,omitempty"`
-	DNS       *DNSStatus  `json:"dns,omitempty"`
+	// +optional
+	// +nullable
+	DNS *DNSStatus `json:"dns,omitempty"`
 }
 
 //+kubebuilder:object:root=true
