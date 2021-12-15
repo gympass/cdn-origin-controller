@@ -2,10 +2,18 @@
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "",
             "Effect": "Allow",
             "Action": [
                 "cloudfront:UpdateDistribution",
-                "cloudfront:GetDistributionConfig"
+                "cloudfront:CreateDistribution",
+                "cloudfront:DeleteDistribution",
+                "cloudfront:TagResource",
+                "cloudfront:GetDistributionConfig",
+                "s3:GetBucketAcl",
+                "s3:PutBucketAcl",
+                "route53:ListResourceRecordSets",
+                "route53:ChangeResourceRecordSets"
             ],
             "Resource": "*"
         }
