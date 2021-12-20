@@ -94,7 +94,7 @@ metadata:
 
 The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront). 
 
-The table below maps remaning available fields of an entry in this list to an annotation:
+The table below maps remaining available fields of an entry in this list to an annotation:
 
 | Entry field          | Annotation                                                   |
 |----------------------|--------------------------------------------------------------|
