@@ -261,10 +261,6 @@ func (r *IngressReconciler) reconcileFinalizer(obj client.Object, shouldHaveFina
 }
 
 func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist cloudfront.Distribution) error {
-	if cdnStatus.Status.DNS == nil {
-		cdnStatus.Status.DNS = &v1alpha1.DNSStatus{Synced: true}
-	}
-
 	upserting, deleting := r.newAliases(dist, cdnStatus)
 
 	errUpsert := r.AliasRepo.Upsert(upserting)
@@ -272,12 +268,12 @@ func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist clou
 		cdnStatus.UpsertDNSRecords(upserting.Domains())
 	}
 	errDelete := r.AliasRepo.Delete(deleting)
-	if errUpsert == nil {
+	if errDelete == nil {
 		cdnStatus.RemoveDNSRecords(deleting.Domains())
 	}
 	var result *multierror.Error
 	if errUpsert != nil || errDelete != nil {
-		cdnStatus.Status.DNS.Synced = false
+		cdnStatus.SetDNSSync(false)
 		result = multierror.Append(result, errUpsert, errDelete)
 	}
 
