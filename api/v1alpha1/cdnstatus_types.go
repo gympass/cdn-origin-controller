@@ -85,7 +85,7 @@ func (c *CDNStatus) UpsertDNSRecords(records []string) {
 	}
 
 	if c.Status.DNS == nil {
-		c.Status.DNS = &DNSStatus{Records: records}
+		c.Status.DNS = &DNSStatus{Records: records, Synced: true}
 		return
 	}
 
@@ -103,6 +103,9 @@ func (c *CDNStatus) RemoveDNSRecords(records []string) {
 			return i != it
 		}
 		c.Status.DNS.Records = strhelper.Filter(c.Status.DNS.Records, predicate)
+	}
+	if len(c.Status.DNS.Records) == 0 {
+		c.Status.DNS = nil
 	}
 }
 
@@ -148,6 +151,13 @@ func (c *CDNStatus) GetIngressKeys() []client.ObjectKey {
 		keys = append(keys, ing.ToNamespacedName())
 	}
 	return keys
+}
+
+// SetDNSSync sets the DNS sync status if there is any DNS status to report
+func (c *CDNStatus) SetDNSSync(synced bool) {
+	if c.Status.DNS != nil {
+		c.Status.DNS.Synced = synced
+	}
 }
 
 //+kubebuilder:object:root=true

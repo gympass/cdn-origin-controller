@@ -261,10 +261,6 @@ func (r *IngressReconciler) reconcileFinalizer(obj client.Object, shouldHaveFina
 }
 
 func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist cloudfront.Distribution) error {
-	if cdnStatus.Status.DNS == nil {
-		cdnStatus.Status.DNS = &v1alpha1.DNSStatus{Synced: true}
-	}
-
 	upserting, deleting := r.newAliases(dist, cdnStatus)
 
 	errUpsert := r.AliasRepo.Upsert(upserting)
@@ -272,12 +268,12 @@ func (r *IngressReconciler) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist clou
 		cdnStatus.UpsertDNSRecords(upserting.Domains())
 	}
 	errDelete := r.AliasRepo.Delete(deleting)
-	if errUpsert == nil {
+	if errDelete == nil {
 		cdnStatus.RemoveDNSRecords(deleting.Domains())
 	}
 	var result *multierror.Error
 	if errUpsert != nil || errDelete != nil {
-		cdnStatus.Status.DNS.Synced = false
+		cdnStatus.SetDNSSync(false)
 		result = multierror.Append(result, errUpsert, errDelete)
 	}
 
@@ -327,7 +323,9 @@ func (r *IngressReconciler) build(distBuilder cloudfront.DistributionBuilder) (c
 func (r *IngressReconciler) newAliases(dist cloudfront.Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
 	var deleting []string
 	if status.Status.DNS != nil {
-		deleting = getDeletions(dist.AlternateDomains, status.Status.DNS.Records)
+		desiredDomains := route53.NormalizeDomains(dist.AlternateDomains)
+		existingDomains := status.Status.DNS.Records
+		deleting = getDeletions(desiredDomains, existingDomains)
 	}
 
 	return route53.NewAliases(dist.Address, dist.AlternateDomains, dist.IPv6Enabled), route53.NewAliases(dist.Address, deleting, dist.IPv6Enabled)
