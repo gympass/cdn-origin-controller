@@ -56,9 +56,19 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() 
 		Build()
 	s.Equal("origin", o.Host)
 	s.Len(o.Behaviors, 3)
-	s.Equal("/*", o.Behaviors[0].PathPattern)
-	s.Equal("/foo", o.Behaviors[1].PathPattern)
-	s.Equal("/bar", o.Behaviors[2].PathPattern)
+
+	gotPaths := []string{
+		o.Behaviors[0].PathPattern,
+		o.Behaviors[1].PathPattern,
+		o.Behaviors[2].PathPattern,
+	}
+	expectedPaths := []string{
+		"/*",
+		"/foo",
+		"/bar",
+	}
+
+	s.ElementsMatch(expectedPaths, gotPaths)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
