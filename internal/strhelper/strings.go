@@ -19,6 +19,31 @@
 
 package strhelper
 
+// Set represents a set of strings
+type Set map[string]bool
+
+// NewSet initializes and returns a new Set
+func NewSet() Set { return make(map[string]bool) }
+
+// Add ensures a given string is part of the Set
+func (ss Set) Add(s string) {
+	ss[s] = true
+}
+
+// Contains returns whether s is part of the Set
+func (ss Set) Contains(s string) bool {
+	return ss[s]
+}
+
+// ToSlice takes all elements of the set and assigns them to a []string
+func (ss Set) ToSlice() []string {
+	var result []string
+	for key := range ss {
+		result = append(result, key)
+	}
+	return result
+}
+
 // Contains check if string exists in given slice
 func Contains(s []string, e string) bool {
 	for _, a := range s {

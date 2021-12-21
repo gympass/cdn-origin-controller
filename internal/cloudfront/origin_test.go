@@ -61,6 +61,17 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() 
 	s.Equal("/bar", o.Behaviors[2].PathPattern)
 }
 
+func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
+	o := NewOriginBuilder("origin").
+		WithBehavior("/").
+		WithBehavior("/").
+		Build()
+
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 1)
+	s.Equal("/", o.Behaviors[0].PathPattern)
+}
+
 func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
 	o := NewOriginBuilder("origin").
 		WithBehavior("/").
