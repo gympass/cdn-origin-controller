@@ -59,12 +59,8 @@ func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
 	}
 
 	for _, domain := range domains {
-		if !strings.HasSuffix(domain, ".") {
-			domain += "."
-		}
-
 		entry := Entry{
-			Name: domain,
+			Name: normalizeDomain(domain),
 			Type: types,
 		}
 
@@ -72,4 +68,20 @@ func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
 	}
 
 	return aliases
+}
+
+// NormalizeDomains adds a "." at the end of each domain in the domains slice if not present already.
+func NormalizeDomains(domains []string) []string {
+	var result []string
+	for _, d := range domains {
+		result = append(result, normalizeDomain(d))
+	}
+	return result
+}
+
+func normalizeDomain(domain string) string {
+	if !strings.HasSuffix(domain, ".") {
+		return domain + "."
+	}
+	return domain
 }

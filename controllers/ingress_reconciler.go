@@ -327,7 +327,9 @@ func (r *IngressReconciler) build(distBuilder cloudfront.DistributionBuilder) (c
 func (r *IngressReconciler) newAliases(dist cloudfront.Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
 	var deleting []string
 	if status.Status.DNS != nil {
-		deleting = getDeletions(dist.AlternateDomains, status.Status.DNS.Records)
+		desiredDomains := route53.NormalizeDomains(dist.AlternateDomains)
+		existingDomains := status.Status.DNS.Records
+		deleting = getDeletions(desiredDomains, existingDomains)
 	}
 
 	return route53.NewAliases(dist.Address, dist.AlternateDomains, dist.IPv6Enabled), route53.NewAliases(dist.Address, deleting, dist.IPv6Enabled)
