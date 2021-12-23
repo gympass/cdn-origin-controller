@@ -138,8 +138,17 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo", origin.Behaviors[1].PathPattern)
+
+	gotPaths := []string{
+		origin.Behaviors[0].PathPattern,
+		origin.Behaviors[1].PathPattern,
+	}
+	expectedPaths := []string{
+		"/",
+		"/foo",
+	}
+
+	s.ElementsMatch(expectedPaths, gotPaths)
 }
 func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 	ip := ingressParams{
@@ -167,10 +176,21 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
-	s.Equal("/", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo", origin.Behaviors[1].PathPattern)
-	s.Equal("/foo/bar", origin.Behaviors[2].PathPattern)
-	s.Equal("/bar", origin.Behaviors[3].PathPattern)
+
+	gotPaths := []string{
+		origin.Behaviors[0].PathPattern,
+		origin.Behaviors[1].PathPattern,
+		origin.Behaviors[2].PathPattern,
+		origin.Behaviors[3].PathPattern,
+	}
+	expectedPaths := []string{
+		"/",
+		"/foo",
+		"/foo/bar",
+		"/bar",
+	}
+
+	s.ElementsMatch(expectedPaths, gotPaths)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -206,8 +226,17 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash
 	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/foo", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
+
+	gotPaths := []string{
+		origin.Behaviors[0].PathPattern,
+		origin.Behaviors[1].PathPattern,
+	}
+	expectedPaths := []string{
+		"/foo",
+		"/foo/*",
+	}
+
+	s.ElementsMatch(expectedPaths, gotPaths)
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
@@ -225,6 +254,15 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWit
 	origin := newOrigin(ip)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
-	s.Equal("/foo", origin.Behaviors[0].PathPattern)
-	s.Equal("/foo/*", origin.Behaviors[1].PathPattern)
+
+	gotPaths := []string{
+		origin.Behaviors[0].PathPattern,
+		origin.Behaviors[1].PathPattern,
+	}
+	expectedPaths := []string{
+		"/foo",
+		"/foo/*",
+	}
+
+	s.ElementsMatch(expectedPaths, gotPaths)
 }

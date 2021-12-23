@@ -98,6 +98,10 @@ func (c *CDNStatus) UpsertDNSRecords(records []string) {
 
 // RemoveDNSRecords deletes the given records from the DNS status section
 func (c *CDNStatus) RemoveDNSRecords(records []string) {
+	if c.Status.DNS == nil {
+		return
+	}
+
 	for _, it := range records {
 		predicate := func(i string) bool {
 			return i != it

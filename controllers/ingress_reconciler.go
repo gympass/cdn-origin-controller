@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -222,11 +223,11 @@ func (r *IngressReconciler) discoverCDNStatusForIngress(ing client.Object) (*v1a
 }
 
 func (r *IngressReconciler) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, shouldHaveFinalizer bool, errs *multierror.Error) error {
-	err := r.reconcileStatus(cdnStatus)
-	if err != nil {
+	if err := r.reconcileStatus(cdnStatus); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("reconciling CDNStatus: %v", err))
 	}
-	err = r.reconcileFinalizer(obj, shouldHaveFinalizer)
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, r.retryableReconcileFinalizer(obj, shouldHaveFinalizer))
 	if err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("reconciling finalizer: %v", err))
 	}
@@ -239,24 +240,45 @@ func (r *IngressReconciler) handleResult(obj client.Object, cdnStatus *v1alpha1.
 
 func (r *IngressReconciler) reconcileStatus(cdnStatus *v1alpha1.CDNStatus) error {
 	if len(cdnStatus.Status.Ingresses) == 0 {
-		if err := r.Delete(context.Background(), cdnStatus); err != nil {
-			r.log.Error(err, "Could not delete CDNStatus resource", "cdnStatus", cdnStatus)
-			return err
-		}
+		return r.deleteCDNStatus(cdnStatus)
 	}
-	if err := r.updateCDNStatus(cdnStatus); err != nil {
-		r.log.Error(err, "Could not persist CDNStatus resource", "cdnStatus", cdnStatus)
+	return r.updateCDNStatus(cdnStatus)
+}
+
+func (r *IngressReconciler) deleteCDNStatus(cdnStatus *v1alpha1.CDNStatus) error {
+	if err := r.Delete(context.Background(), cdnStatus); err != nil {
+		r.log.Error(err, "Could not delete CDNStatus resource", "cdnStatus", cdnStatus)
 		return err
 	}
 	return nil
 }
 
+func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus) error {
+	if err := r.Status().Update(context.Background(), status); err != nil {
+		r.log.Error(err, "Could not persist CDNStatus resource", "cdnStatus", status)
+		return err
+	}
+	return nil
+}
+
+func (r *IngressReconciler) retryableReconcileFinalizer(obj client.Object, shouldHaveFinalizer bool) func() error {
+	return func() error {
+		return r.reconcileFinalizer(obj, shouldHaveFinalizer)
+	}
+}
+
 func (r *IngressReconciler) reconcileFinalizer(obj client.Object, shouldHaveFinalizer bool) error {
+	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+	if err := r.Get(context.Background(), key, obj); err != nil {
+		return fmt.Errorf("fetching current Ingress: %v", err)
+	}
+
 	if shouldHaveFinalizer {
 		controllerutil.AddFinalizer(obj, cdnFinalizer)
 	} else {
 		controllerutil.RemoveFinalizer(obj, cdnFinalizer)
 	}
+
 	return r.Client.Update(context.Background(), obj)
 }
 
@@ -308,6 +330,8 @@ func (r *IngressReconciler) deleteDistribution(cdnStatus *v1alpha1.CDNStatus, bu
 	if err != nil {
 		return cloudfront.Distribution{}, fmt.Errorf("building desired distribution: %v", err)
 	}
+
+	r.log.V(1).Info("Disabling and deleting distribution on AWS, this may take a few minutes.")
 	return dist, r.DistRepo.Delete(dist)
 }
 
@@ -359,10 +383,6 @@ func (r *IngressReconciler) createCDNStatus(dist cloudfront.Distribution, group 
 		return nil, err
 	}
 	return cdnStatus, nil
-}
-
-func (r *IngressReconciler) updateCDNStatus(status *v1alpha1.CDNStatus) error {
-	return r.Status().Update(context.Background(), status)
 }
 
 func (r *IngressReconciler) handleFailure(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
