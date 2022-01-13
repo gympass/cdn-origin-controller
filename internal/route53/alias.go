@@ -27,24 +27,14 @@ import (
 
 // Entry represents an alias entry with all desired record types for it
 type Entry struct {
-	Name string
-	Type []string
+	Name  string
+	Types []string
 }
 
 // Aliases represents all aliases which should be bound to a CF distribution
 type Aliases struct {
 	Target  string
 	Entries []Entry
-}
-
-// Domains returns a slice of all domains from an Aliases' Entries
-func (a Aliases) Domains() []string {
-	var domains []string
-
-	for _, e := range a.Entries {
-		domains = append(domains, e.Name)
-	}
-	return domains
 }
 
 // NewAliases builds a new Aliases
@@ -60,14 +50,24 @@ func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
 
 	for _, domain := range domains {
 		entry := Entry{
-			Name: normalizeDomain(domain),
-			Type: types,
+			Name:  normalizeDomain(domain),
+			Types: types,
 		}
 
 		aliases.Entries = append(aliases.Entries, entry)
 	}
 
 	return aliases
+}
+
+// Domains returns a slice of all domains from an Aliases' Entries
+func (a Aliases) Domains() []string {
+	var domains []string
+
+	for _, e := range a.Entries {
+		domains = append(domains, e.Name)
+	}
+	return domains
 }
 
 // NormalizeDomains adds a "." at the end of each domain in the domains slice if not present already.

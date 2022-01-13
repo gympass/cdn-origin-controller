@@ -59,8 +59,8 @@ type repository struct {
 	ownershipTXTValue string
 }
 
-// NewRoute53AliasRepository builds a new AliasRepository
-func NewRoute53AliasRepository(awsClient route53iface.Route53API, config config.Config) AliasRepository {
+// NewAliasRepository builds a new AliasRepository
+func NewAliasRepository(awsClient route53iface.Route53API, config config.Config) AliasRepository {
 	txtValue := fmt.Sprintf(`"%s=%s"`, txtOwnerKey, config.CloudFrontRoute53TxtOwnerValue)
 	return &repository{awsClient: awsClient, hostedZoneID: config.CloudFrontRoute53HostedZoneID, ownershipTXTValue: txtValue}
 }
@@ -72,31 +72,31 @@ func (r repository) Upsert(aliases Aliases) error {
 
 	var changes []*route53.Change
 	for _, e := range aliases.Entries {
-		recordSets, err := r.recordSets(e)
+		existingRS, err := r.existingRecordSets(e)
 		if err != nil {
 			return fmt.Errorf("generating filtered record sets: %v", err)
 		}
 
-		var existingRecords []*route53.ResourceRecord
-		if recordSets.txtRecord != nil {
-			existingRecords = recordSets.txtRecord.ResourceRecords
+		var existingTXTRecords []*route53.ResourceRecord
+		if existingRS.txtRecord != nil {
+			existingTXTRecords = existingRS.txtRecord.ResourceRecords
 		}
 
 		changes = append(changes, r.newAliasChanges(aliases.Target, route53.ChangeActionUpsert, e)...)
-		changes = append(changes, r.newTXTChangeForUpsert(e.Name, existingRecords...))
+		changes = append(changes, r.newTXTChangeForUpsert(e.Name, existingTXTRecords...))
 	}
 
-	return r.requestChanges(changes, "CloudFront distribution managed by cdn-origin-controller")
+	return r.requestChanges(changes, "Upserting Alias for CloudFront distribution managed by cdn-origin-controller")
 }
 
 func (r repository) Delete(aliases Aliases) error {
 	if len(aliases.Entries) == 0 {
 		return nil
 	}
-	var changes []*route53.Change
 
+	var changes []*route53.Change
 	for _, e := range aliases.Entries {
-		recordSets, err := r.recordSets(e)
+		recordSets, err := r.existingRecordSets(e)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,11 @@ func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceR
 		return nil, err
 	}
 
-	return append(sets, txtRS), nil
+	if txtRS != nil {
+		return append(sets, txtRS), nil
+	}
+
+	return sets, nil
 }
 
 func (r repository) aliasResourceRecordsByEntry(entry Entry) ([]*route53.ResourceRecordSet, error) {
@@ -179,7 +183,7 @@ func (r repository) filterRecordSets(entry Entry, recordSets []*route53.Resource
 
 	for _, rs := range recordSets {
 		if entry.Name == *rs.Name {
-			if strhelper.Contains(entry.Type, *rs.Type) {
+			if strhelper.Contains(entry.Types, *rs.Type) {
 				filtered.addressRecords = append(filtered.addressRecords, rs)
 			}
 			if *rs.Type == route53.RRTypeTxt {
@@ -191,7 +195,7 @@ func (r repository) filterRecordSets(entry Entry, recordSets []*route53.Resource
 	return filtered
 }
 
-func (r repository) recordSets(e Entry) (filteredRecordSets, error) {
+func (r repository) existingRecordSets(e Entry) (filteredRecordSets, error) {
 	allRecordSets, err := r.resourceRecordSetsByEntry(e)
 	if err != nil {
 		return filteredRecordSets{}, err
@@ -222,18 +226,13 @@ func (r repository) validateRecordSets(filteredRs filteredRecordSets) error {
 }
 
 func (r repository) validateOwnership(rs route53.ResourceRecordSet) error {
-	var found bool
 	for _, rec := range rs.ResourceRecords {
 		if r.isOwnedByThisClass(rec) {
-			found = true
+			return nil
 		}
 		if r.isOwnedByDifferentClass(rec) {
 			return fmt.Errorf("TXT record (%s) is managed by another CDN class (ownership value: %s)", *rs.Name, *rec.Value)
 		}
-	}
-
-	if !found {
-		return fmt.Errorf("TXT record (%s) is not managed by this CDN class", *rs.Name)
 	}
 
 	return nil
@@ -262,7 +261,7 @@ func (r repository) isOwnershipRecord(record *route53.ResourceRecord) bool {
 
 func (r repository) newAliasChanges(target, action string, entry Entry) []*route53.Change {
 	var changes []*route53.Change
-	for _, rType := range entry.Type {
+	for _, rType := range entry.Types {
 		changes = append(changes, r.newAliasChange(target, action, entry.Name, rType))
 	}
 	return changes
