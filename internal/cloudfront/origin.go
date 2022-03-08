@@ -19,6 +19,8 @@
 
 package cloudfront
 
+import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+
 const (
 	defaultResponseTimeout = 30
 )
@@ -52,28 +54,28 @@ type Behavior struct {
 
 // OriginBuilder allows the construction of a Origin
 type OriginBuilder struct {
-	origin        Origin
+	host          string
 	viewerFnARN   string
 	requestPolicy string
 	cachePolicy   string
 	respTimeout   int64
+	paths         strhelper.Set
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(host string) OriginBuilder {
 	return OriginBuilder{
-		origin: Origin{
-			Host:            host,
-			ResponseTimeout: defaultResponseTimeout,
-		},
+		host:          host,
+		respTimeout:   defaultResponseTimeout,
 		requestPolicy: allViewerOriginRequestPolicyID,
 		cachePolicy:   cachingDisabledPolicyID,
+		paths:         strhelper.NewSet(),
 	}
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
 func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
-	b.origin.Behaviors = append(b.origin.Behaviors, Behavior{PathPattern: pathPattern})
+	b.paths.Add(pathPattern)
 	return b
 }
 
@@ -101,39 +103,55 @@ func (b OriginBuilder) WithCachePolicy(policy string) OriginBuilder {
 
 // WithResponseTimeout associates a custom response timeout to custom origin
 func (b OriginBuilder) WithResponseTimeout(rpTimeout int64) OriginBuilder {
-	b.respTimeout = rpTimeout
+	if rpTimeout > 0 {
+		b.respTimeout = rpTimeout
+	}
 	return b
 }
 
 // Build creates an Origin based on configuration made so far
 func (b OriginBuilder) Build() Origin {
+	origin := Origin{
+		Host:            b.host,
+		ResponseTimeout: b.respTimeout,
+	}
+
+	origin = b.addBehaviors(origin)
+
 	if len(b.viewerFnARN) > 0 {
-		b.addViewerFnToBehaviors()
+		origin = b.addViewerFnToBehaviors(origin)
 	}
 
-	b.addCachePolicyBehaviors()
-	b.addRequestPolicyToBehaviors()
+	origin = b.addCachePolicyBehaviors(origin)
+	origin = b.addRequestPolicyToBehaviors(origin)
 
-	if b.respTimeout > 0 {
-		b.origin.ResponseTimeout = b.respTimeout
-	}
-	return b.origin
+	return origin
 }
 
-func (b OriginBuilder) addViewerFnToBehaviors() {
-	for i := range b.origin.Behaviors {
-		b.origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
+func (b OriginBuilder) addBehaviors(origin Origin) Origin {
+	for _, p := range b.paths.ToSlice() {
+		origin.Behaviors = append(origin.Behaviors, Behavior{PathPattern: p})
 	}
+	return origin
 }
 
-func (b OriginBuilder) addRequestPolicyToBehaviors() {
-	for i := range b.origin.Behaviors {
-		b.origin.Behaviors[i].RequestPolicy = b.requestPolicy
+func (b OriginBuilder) addViewerFnToBehaviors(origin Origin) Origin {
+	for i := range origin.Behaviors {
+		origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
 	}
+	return origin
 }
 
-func (b OriginBuilder) addCachePolicyBehaviors() {
-	for i := range b.origin.Behaviors {
-		b.origin.Behaviors[i].CachePolicy = b.cachePolicy
+func (b OriginBuilder) addRequestPolicyToBehaviors(origin Origin) Origin {
+	for i := range origin.Behaviors {
+		origin.Behaviors[i].RequestPolicy = b.requestPolicy
 	}
+	return origin
+}
+
+func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
+	for i := range origin.Behaviors {
+		origin.Behaviors[i].CachePolicy = b.cachePolicy
+	}
+	return origin
 }

@@ -123,7 +123,7 @@ func main() {
 		Client:    mgr.GetClient(),
 		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
 		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), callerRefFn, waitTimeout),
-		AliasRepo: route53.NewRoute53AliasRepository(awsroute53.New(s), cfg),
+		AliasRepo: route53.NewAliasRepository(awsroute53.New(s), cfg),
 		Config:    cfg,
 	}
 
