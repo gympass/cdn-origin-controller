@@ -46,6 +46,8 @@ type Behavior struct {
 	PathPattern string
 	// RequestPolicy is the ID of the origin request policy to be associated with this Behavior
 	RequestPolicy string
+	// CachePolicy is the ID of the cache policy to be associated with this Behavior
+	CachePolicy string
 	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
 	ViewerFnARN string
 }
@@ -55,6 +57,7 @@ type OriginBuilder struct {
 	host          string
 	viewerFnARN   string
 	requestPolicy string
+	cachePolicy   string
 	respTimeout   int64
 	paths         strhelper.Set
 }
@@ -65,6 +68,7 @@ func NewOriginBuilder(host string) OriginBuilder {
 		host:          host,
 		respTimeout:   defaultResponseTimeout,
 		requestPolicy: allViewerOriginRequestPolicyID,
+		cachePolicy:   cachingDisabledPolicyID,
 		paths:         strhelper.NewSet(),
 	}
 }
@@ -85,6 +89,14 @@ func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
 func (b OriginBuilder) WithRequestPolicy(policy string) OriginBuilder {
 	if len(policy) > 0 {
 		b.requestPolicy = policy
+	}
+	return b
+}
+
+// WithCachePolicy associates a given cache policy ID with all Behaviors in the Origin being built
+func (b OriginBuilder) WithCachePolicy(policy string) OriginBuilder {
+	if len(policy) > 0 {
+		b.cachePolicy = policy
 	}
 	return b
 }
@@ -110,6 +122,7 @@ func (b OriginBuilder) Build() Origin {
 		origin = b.addViewerFnToBehaviors(origin)
 	}
 
+	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
 	return origin
@@ -132,6 +145,13 @@ func (b OriginBuilder) addViewerFnToBehaviors(origin Origin) Origin {
 func (b OriginBuilder) addRequestPolicyToBehaviors(origin Origin) Origin {
 	for i := range origin.Behaviors {
 		origin.Behaviors[i].RequestPolicy = b.requestPolicy
+	}
+	return origin
+}
+
+func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
+	for i := range origin.Behaviors {
+		origin.Behaviors[i].CachePolicy = b.cachePolicy
 	}
 	return origin
 }

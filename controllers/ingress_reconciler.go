@@ -50,6 +50,7 @@ const (
 	cfUserOriginsAnnotation          = "cdn-origin-controller.gympass.com/cf.user-origins"
 	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"
+	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 )
@@ -188,6 +189,7 @@ func (r *IngressReconciler) ingressParamsForUserOrigins(group string, obj client
 			paths:             o.paths(),
 			viewerFnARN:       o.ViewerFunctionARN,
 			originReqPolicy:   o.RequestPolicy,
+			cachePolicy:       o.CachePolicy,
 			originRespTimeout: o.ResponseTimeout,
 		}
 		result = append(result, ip)
