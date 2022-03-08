@@ -44,6 +44,8 @@ type Behavior struct {
 	PathPattern string
 	// RequestPolicy is the ID of the origin request policy to be associated with this Behavior
 	RequestPolicy string
+	// CachePolicy is the ID of the cache policy to be associated with this Behavior
+	CachePolicy string
 	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
 	ViewerFnARN string
 }
@@ -53,12 +55,20 @@ type OriginBuilder struct {
 	origin        Origin
 	viewerFnARN   string
 	requestPolicy string
+	cachePolicy   string
 	respTimeout   int64
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(host string) OriginBuilder {
-	return OriginBuilder{origin: Origin{Host: host, ResponseTimeout: defaultResponseTimeout}, requestPolicy: allViewerOriginRequestPolicyID}
+	return OriginBuilder{
+		origin: Origin{
+			Host:            host,
+			ResponseTimeout: defaultResponseTimeout,
+		},
+		requestPolicy: allViewerOriginRequestPolicyID,
+		cachePolicy:   cachingDisabledPolicyID,
+	}
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
@@ -81,6 +91,14 @@ func (b OriginBuilder) WithRequestPolicy(policy string) OriginBuilder {
 	return b
 }
 
+// WithCachePolicy associates a given cache policy ID with all Behaviors in the Origin being built
+func (b OriginBuilder) WithCachePolicy(policy string) OriginBuilder {
+	if len(policy) > 0 {
+		b.cachePolicy = policy
+	}
+	return b
+}
+
 // WithResponseTimeout associates a custom response timeout to custom origin
 func (b OriginBuilder) WithResponseTimeout(rpTimeout int64) OriginBuilder {
 	b.respTimeout = rpTimeout
@@ -93,6 +111,7 @@ func (b OriginBuilder) Build() Origin {
 		b.addViewerFnToBehaviors()
 	}
 
+	b.addCachePolicyBehaviors()
 	b.addRequestPolicyToBehaviors()
 
 	if b.respTimeout > 0 {
@@ -110,5 +129,11 @@ func (b OriginBuilder) addViewerFnToBehaviors() {
 func (b OriginBuilder) addRequestPolicyToBehaviors() {
 	for i := range b.origin.Behaviors {
 		b.origin.Behaviors[i].RequestPolicy = b.requestPolicy
+	}
+}
+
+func (b OriginBuilder) addCachePolicyBehaviors() {
+	for i := range b.origin.Behaviors {
+		b.origin.Behaviors[i].CachePolicy = b.cachePolicy
 	}
 }

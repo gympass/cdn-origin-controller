@@ -529,7 +529,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 				Quantity: aws.Int64(2),
 			},
 		},
-		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		CachePolicyId:              aws.String("cache-policy"),
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
@@ -549,7 +549,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 				Quantity: aws.Int64(2),
 			},
 		},
-		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		CachePolicyId:              aws.String("cache-policy"),
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
@@ -563,8 +563,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 	expectedDistributionConfigOutput := &awscloudfront.GetDistributionConfigOutput{
 		ETag: aws.String(""),
 		DistributionConfig: &awscloudfront.DistributionConfig{
-			Origins:              &awscloudfront.Origins{Quantity: aws.Int64(0)},
-			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(2), Items: []*awscloudfront.CacheBehavior{higherPrecedenceExistingBehavior, lowerPrecedenceExistingBehavior}},
+			Origins: &awscloudfront.Origins{Quantity: aws.Int64(0)},
+			CacheBehaviors: &awscloudfront.CacheBehaviors{
+				Quantity: aws.Int64(2),
+				Items: []*awscloudfront.CacheBehavior{
+					higherPrecedenceExistingBehavior,
+					lowerPrecedenceExistingBehavior,
+				},
+			},
 			CallerReference:      aws.String(testCallerRefFn()),
 			DefaultRootObject:    aws.String("/"),
 			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
@@ -581,7 +587,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 				Quantity: aws.Int64(2),
 			},
 		},
-		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		CachePolicyId:              aws.String("cache-policy"),
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
@@ -664,9 +670,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 				Host:            "origin",
 				ResponseTimeout: 30,
 				Behaviors: []Behavior{
-					{PathPattern: "/mid-sized/path/with/medium/precedence", RequestPolicy: "policy"},
-					{PathPattern: "/low/precedence/path", RequestPolicy: "policy"},
-					{PathPattern: "/very/high/precedence/path/very/lengthy/indeed", RequestPolicy: "policy"},
+					{PathPattern: "/mid-sized/path/with/medium/precedence", RequestPolicy: "policy", CachePolicy: "cache-policy"},
+					{PathPattern: "/low/precedence/path", RequestPolicy: "policy", CachePolicy: "cache-policy"},
+					{PathPattern: "/very/high/precedence/path/very/lengthy/indeed", RequestPolicy: "policy", CachePolicy: "cache-policy"},
 				},
 			},
 		},
@@ -753,7 +759,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 								Quantity: aws.Int64(2),
 							},
 						},
-						CachePolicyId:              aws.String(cachingDisabledPolicyID),
+						CachePolicyId:              aws.String("cache-policy"),
 						Compress:                   aws.Bool(true),
 						FieldLevelEncryptionId:     aws.String(""),
 						LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
@@ -789,7 +795,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 			{
 				Host:            "origin",
 				ResponseTimeout: 30,
-				Behaviors:       []Behavior{{PathPattern: "/*", RequestPolicy: "policy"}},
+				Behaviors:       []Behavior{{PathPattern: "/*", RequestPolicy: "policy", CachePolicy: "cache-policy"}},
 			},
 		},
 	}
@@ -840,7 +846,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 				Quantity: aws.Int64(2),
 			},
 		},
-		CachePolicyId:              aws.String(cachingDisabledPolicyID),
+		CachePolicyId:              aws.String("cache-policy"),
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
@@ -947,7 +953,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 				Host:            "origin",
 				ResponseTimeout: 30,
 				Behaviors: []Behavior{
-					{PathPattern: "/foo", ViewerFnARN: "some-arn", RequestPolicy: "policy"},
+					{PathPattern: "/foo", ViewerFnARN: "some-arn", RequestPolicy: "policy", CachePolicy: "cache-policy"},
 				},
 			},
 		},
@@ -1266,11 +1272,23 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingI
 }
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
-	cb := baseCacheBehavior("path", "host", "policy")
-	s.Equal("policy", *cb.OriginRequestPolicyId)
+	cb := baseCacheBehavior(
+		"host",
+		Behavior{
+			PathPattern:   "path",
+			RequestPolicy: "b2884449-e4de-46a7-ac36-70bc7f1ddd6d",
+		},
+	)
+	s.Equal("b2884449-e4de-46a7-ac36-70bc7f1ddd6d", *cb.OriginRequestPolicyId)
 }
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone() {
-	cb := baseCacheBehavior("path", "host", "None")
+	cb := baseCacheBehavior(
+		"host",
+		Behavior{
+			PathPattern:   "path",
+			RequestPolicy: "None",
+		},
+	)
 	s.Nil(cb.OriginRequestPolicyId)
 }
