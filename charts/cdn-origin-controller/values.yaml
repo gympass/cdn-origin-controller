@@ -11,6 +11,9 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+extraArgs:
+  #- --leader-elect
+
 deployment:
   annotations: {}
 
