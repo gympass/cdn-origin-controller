@@ -97,7 +97,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "19e16908.gympass.com",
+		LeaderElectionID:       leaderElectionID(cfg.CDNClass),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -134,6 +134,10 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func leaderElectionID(cdnClass string) string {
+	return fmt.Sprintf("%s.cdn-origin.gympass.com", cdnClass)
 }
 
 func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressReconciler) {
