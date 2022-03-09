@@ -74,7 +74,8 @@ func newOrigin(ing ingressParams) cloudfront.Origin {
 	builder := cloudfront.NewOriginBuilder(ing.destinationHost).
 		WithViewerFunction(ing.viewerFnARN).
 		WithResponseTimeout(ing.originRespTimeout).
-		WithRequestPolicy(ing.originReqPolicy)
+		WithRequestPolicy(ing.originReqPolicy).
+		WithCachePolicy(ing.cachePolicy)
 
 	patterns := pathPatterns(ing.paths)
 	for _, p := range patterns {

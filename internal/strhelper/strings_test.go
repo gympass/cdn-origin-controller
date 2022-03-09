@@ -19,50 +19,44 @@
 
 package strhelper
 
-// Set represents a set of strings
-type Set map[string]bool
+import (
+	"testing"
 
-// NewSet initializes and returns a new Set
-func NewSet() Set { return make(map[string]bool) }
+	"github.com/stretchr/testify/suite"
+)
 
-// Add ensures a given string is part of the Set
-func (ss Set) Add(s string) {
-	ss[s] = true
+func TestStringHelpersTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &StringHelpersTestSuite{})
 }
 
-// Contains returns whether s is part of the Set
-func (ss Set) Contains(s string) bool {
-	return ss[s]
+type StringHelpersTestSuite struct {
+	suite.Suite
 }
 
-// ToSlice takes all elements of the set and assigns them to a []string
-func (ss Set) ToSlice() []string {
-	var result []string
-	for key := range ss {
-		result = append(result, key)
-	}
-	return result
+func (s *StringHelpersTestSuite) TestSet_Add() {
+	ss := NewSet()
+	ss.Add("test-1")
+	ss.Add("test-2")
+
+	s.True(ss["test-1"])
+	s.True(ss["test-2"])
 }
 
-// Contains check if string exists in given slice
-func Contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
+func (s *StringHelpersTestSuite) TestSet_Contains() {
+	ss := NewSet()
+	ss.Add("test-1")
+	ss.Add("test-2")
+
+	s.True(ss.Contains("test-1"))
+	s.True(ss.Contains("test-2"))
+	s.False(ss.Contains("some other string"))
 }
 
-// Filter applies a given predicate function to each element of s.
-// If the predicate is satisfied the element gets added to the result slice.
-func Filter(s []string, predicate func(string) bool) []string {
-	var filtered []string
+func (s *StringHelpersTestSuite) TestSet_ToSlice() {
+	ss := NewSet()
+	ss.Add("test-1")
+	ss.Add("test-2")
 
-	for _, it := range s {
-		if predicate(it) {
-			filtered = append(filtered, it)
-		}
-	}
-	return filtered
+	s.ElementsMatch([]string{"test-1", "test-2"}, ss.ToSlice())
 }

@@ -41,6 +41,7 @@ type ingressParams struct {
 	paths                []path
 	viewerFnARN          string
 	originReqPolicy      string
+	cachePolicy          string
 	originRespTimeout    int64
 	alternateDomainNames []string
 }
@@ -52,6 +53,7 @@ func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
 		paths:                pathsV1beta1(ing.Spec.Rules),
 		viewerFnARN:          viewerFnARN(ing),
 		originReqPolicy:      originReqPolicy(ing),
+		cachePolicy:          cachePolicy(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
 	}
@@ -78,6 +80,7 @@ func newIngressParamsV1(ing *networkingv1.Ingress) ingressParams {
 		paths:                pathsV1(ing.Spec.Rules),
 		viewerFnARN:          viewerFnARN(ing),
 		originReqPolicy:      originReqPolicy(ing),
+		cachePolicy:          cachePolicy(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
 	}
@@ -109,6 +112,10 @@ func originRespTimeout(obj client.Object) int64 {
 
 func originReqPolicy(obj client.Object) string {
 	return obj.GetAnnotations()[cfOrigReqPolicyAnnotation]
+}
+
+func cachePolicy(obj client.Object) string {
+	return obj.GetAnnotations()[cfCachePolicyAnnotation]
 }
 
 func groupAnnotationValue(obj client.Object) string {

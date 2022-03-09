@@ -31,6 +31,7 @@ type userOrigin struct {
 	Paths             []string `yaml:"paths"`
 	ViewerFunctionARN string   `yaml:"viewerFunctionARN"`
 	RequestPolicy     string   `yaml:"originRequestPolicy"`
+	CachePolicy       string   `yaml:"cachePolicy"`
 }
 
 func (o userOrigin) paths() []path {
