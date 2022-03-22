@@ -38,7 +38,7 @@ type CloudFrontSuite struct {
 }
 
 func (s *CloudFrontSuite) Test_newDistributionBuilder_EmptyIngresses() {
-	dist, err := newDistributionBuilder(nil, "group", config.Config{}).Build()
+	dist, err := newDistributionBuilder(nil, "group", "", config.Config{}).Build()
 	s.NoError(err)
 	s.Len(dist.CustomOrigins, 0)
 }
@@ -48,14 +48,14 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
 		{destinationHost: "lb", alternateDomainNames: []string{"origin1"}},
 		{destinationHost: "lb", alternateDomainNames: []string{"origin2", "origin3"}},
 	}
-	dist, err := newDistributionBuilder(ingresses, "group", config.Config{}).Build()
+	dist, err := newDistributionBuilder(ingresses, "group", "", config.Config{}).Build()
 	s.NoError(err)
 	s.Len(dist.CustomOrigins, 2)
 	s.Equal([]string{"origin1", "origin2", "origin3"}, dist.AlternateDomains)
 }
 
 func (s *CloudFrontSuite) Test_newDistributionBuilder_WithIPv6() {
-	dist, err := newDistributionBuilder(nil, "group", config.Config{CloudFrontEnableIPV6: true}).Build()
+	dist, err := newDistributionBuilder(nil, "group", "", config.Config{CloudFrontEnableIPV6: true}).Build()
 	s.NoError(err)
 	s.True(dist.IPv6Enabled)
 }
@@ -65,7 +65,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithTLS() {
 		CloudFrontCustomSSLCertARN: "arn",
 		CloudFrontSecurityPolicy:   "policy",
 	}
-	dist, err := newDistributionBuilder(nil, "group", cfg).Build()
+	dist, err := newDistributionBuilder(nil, "group", "", cfg).Build()
 	s.NoError(err)
 	s.True(dist.TLS.Enabled)
 	s.Equal("arn", dist.TLS.CertARN)
@@ -77,7 +77,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithLogging() {
 		CloudFrontEnableLogging: true,
 		CloudFrontS3BucketLog:   "bucket",
 	}
-	dist, err := newDistributionBuilder(nil, "group", cfg).Build()
+	dist, err := newDistributionBuilder(nil, "group", "", cfg).Build()
 	s.NoError(err)
 	s.True(dist.Logging.Enabled)
 	s.Equal("group", dist.Logging.Prefix)
@@ -91,16 +91,22 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomTags() {
 			"bar": "foo",
 		},
 	}
-	dist, err := newDistributionBuilder(nil, "group", cfg).Build()
+	dist, err := newDistributionBuilder(nil, "group", "", cfg).Build()
 	s.NoError(err)
 	s.Equal("bar", dist.Tags["foo"])
 	s.Equal("foo", dist.Tags["bar"])
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithWAF() {
-	dist, err := newDistributionBuilder(nil, "group", config.Config{CloudFrontWAFARN: "waf"}).Build()
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithDefaultWAF() {
+	dist, err := newDistributionBuilder(nil, "group", "", config.Config{CloudFrontWAFARN: "default-waf"}).Build()
 	s.NoError(err)
-	s.Equal("waf", dist.WebACLID)
+	s.Equal("default-waf", dist.WebACLID)
+}
+
+func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomWAF() {
+	dist, err := newDistributionBuilder(nil, "group", "custom-web-acl", config.Config{CloudFrontWAFARN: "default-waf"}).Build()
+	s.NoError(err)
+	s.Equal("custom-web-acl", dist.WebACLID)
 }
 
 func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {

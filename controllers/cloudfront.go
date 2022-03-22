@@ -30,12 +30,13 @@ import (
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newDistributionBuilder(ingresses []ingressParams, group string, cfg config.Config) cloudfront.DistributionBuilder {
+func newDistributionBuilder(ingresses []ingressParams, group, webACLARN string, cfg config.Config) cloudfront.DistributionBuilder {
 	b := cloudfront.NewDistributionBuilder(
 		cfg.DefaultOriginDomain,
 		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
 		cfg.CloudFrontPriceClass,
 		group,
+		cfg.CloudFrontWAFARN,
 	)
 
 	for _, ing := range ingresses {
@@ -59,8 +60,8 @@ func newDistributionBuilder(ingresses []ingressParams, group string, cfg config.
 		b = b.WithTags(cfg.CloudFrontCustomTags)
 	}
 
-	if len(cfg.CloudFrontWAFARN) > 0 {
-		b = b.WithWebACL(cfg.CloudFrontWAFARN)
+	if len(webACLARN) > 0 {
+		b = b.WithWebACL(webACLARN)
 	}
 
 	return b

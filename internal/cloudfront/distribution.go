@@ -73,12 +73,13 @@ type DistributionBuilder struct {
 }
 
 // NewDistributionBuilder takes required arguments for a distribution and returns a DistributionBuilder
-func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group string) DistributionBuilder {
+func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACLID string) DistributionBuilder {
 	return DistributionBuilder{
 		description:         description,
 		defaultOriginDomain: defaultOriginDomain,
 		priceClass:          priceClass,
 		group:               group,
+		webACLID:            defaultWebACLID,
 	}
 }
 

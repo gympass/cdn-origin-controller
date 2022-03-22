@@ -20,6 +20,7 @@
 package controllers
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 type path struct {
@@ -44,6 +46,27 @@ type ingressParams struct {
 	cachePolicy          string
 	originRespTimeout    int64
 	alternateDomainNames []string
+	webACLARN            string
+}
+
+type sharedIngressParams struct {
+	webACLARN string
+}
+
+func newSharedIngressParams(ingresses []ingressParams) (sharedIngressParams, error) {
+	webACLARNs := sets.NewString()
+	for _, ing := range ingresses {
+		if len(ing.webACLARN) > 0 {
+			webACLARNs.Insert(ing.webACLARN)
+		}
+	}
+
+	if len(webACLARNs) > 1 {
+		return sharedIngressParams{}, fmt.Errorf("conflicting WAF WebACL ARNs: %v", webACLARNs.List())
+	}
+
+	validARN, _ := webACLARNs.PopAny()
+	return sharedIngressParams{webACLARN: validARN}, nil
 }
 
 func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
@@ -56,6 +79,7 @@ func newIngressParamsV1beta1(ing *networkingv1beta1.Ingress) ingressParams {
 		cachePolicy:          cachePolicy(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
+		webACLARN:            webACLARN(ing),
 	}
 }
 
@@ -83,6 +107,7 @@ func newIngressParamsV1(ing *networkingv1.Ingress) ingressParams {
 		cachePolicy:          cachePolicy(ing),
 		originRespTimeout:    originRespTimeout(ing),
 		alternateDomainNames: alternateDomainNames(ing),
+		webACLARN:            webACLARN(ing),
 	}
 }
 
@@ -134,4 +159,8 @@ func alternateDomainNames(obj client.Object) (domainNames []string) {
 	}
 
 	return
+}
+
+func webACLARN(obj client.Object) string {
+	return obj.GetAnnotations()[webACLARNAnnotation]
 }

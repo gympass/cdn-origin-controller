@@ -59,3 +59,42 @@ func (s *IngressParamsSuite) Test_ingressParams_V1_With_AlternativeDomainNames()
 	ip := newIngressParamsV1(ing)
 	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.alternateDomainNames)
 }
+
+func (s *IngressParamsSuite) Test_sharedIngressParams_Valid() {
+	params := []ingressParams{
+		{
+			group:     "foo",
+			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+		},
+		{
+			group: "foo",
+		},
+	}
+
+	shared, err := newSharedIngressParams(params)
+
+	expected := sharedIngressParams{
+		webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+	}
+
+	s.Equal(expected, shared)
+	s.NoError(err)
+}
+
+func (s *IngressParamsSuite) Test_sharedIngressParams_ConflictingWebACLs() {
+	params := []ingressParams{
+		{
+			group:     "foo",
+			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+		},
+		{
+			group:     "foo",
+			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/8ab0c8f8-5c43-4ea0-8424-56dd8ab8c",
+		},
+	}
+
+	shared, err := newSharedIngressParams(params)
+
+	s.Equal(sharedIngressParams{}, shared)
+	s.Error(err)
+}

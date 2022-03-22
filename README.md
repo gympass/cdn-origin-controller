@@ -30,6 +30,7 @@ The following annotation controls how origins and behaviors are attached to Clou
 - `cdn-origin-controller.gympass.com/cf.cache-policy`: the ID of the cache policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "CachingDisabled" (ID: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad). More details about managed cache policies [see](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
 - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
+- `cdn-origin-controller.gympass.com/cf.web-acl-arn`: A unique identifier that specifies the AWS WAF web ACL, if any, to associate with this distribution. To specify a web ACL created using the latest version of AWS WAF, use the ACL ARN, for example `arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a`. To specify a web ACL created using AWS WAF Classic, use the ACL ID, for example `473e64fd-f30b-4765-81a0-62ad96dd167a`.
 
 The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
 
@@ -88,12 +89,13 @@ metadata:
       - host: bar.com
         originRequestPolicy: None
         viewerFunctionARN: "bar:arn"
+        webACLARN: "arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a"
         paths:
           - /bar
           - /bar/*
 ```
 
-The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront). 
+The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront).
 
 The table below maps remaining available fields of an entry in this list to an annotation:
 
@@ -102,6 +104,8 @@ The table below maps remaining available fields of an entry in this list to an a
 | .originRequestPolicy | cdn-origin-controller.gympass.com/cf.origin-request-policy   |
 | .responseTimeout     | cdn-origin-controller.gympass.com/cf.origin-response-timeout |
 | .viewerFunctionARN   | cdn-origin-controller.gympass.com/cf.viewer-function-arn     |
+| .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            |
+| .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             |
 
 ## CDNStatus custom resource
 
