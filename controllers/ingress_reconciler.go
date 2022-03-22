@@ -53,6 +53,7 @@ const (
 	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
+	webACLARNAnnotation              = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
 )
 
 const (
@@ -117,9 +118,15 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 		group = reconciling.group
 	}
 
+	sharedParams, err := newSharedIngressParams(ingresses)
+
+	if err != nil {
+		return fmt.Errorf("shared ingress params: %v", err)
+	}
+
 	var distErr error
 	var dist cloudfront.Distribution
-	distBuilder := newDistributionBuilder(ingresses, group, r.Config)
+	distBuilder := newDistributionBuilder(ingresses, group, sharedParams.webACLARN, r.Config)
 
 	shouldCreateDist := k8serrors.IsNotFound(fetchStatusErr)
 	shouldDeleteDist := len(ingresses) == 0
@@ -191,6 +198,7 @@ func (r *IngressReconciler) ingressParamsForUserOrigins(group string, obj client
 			originReqPolicy:   o.RequestPolicy,
 			cachePolicy:       o.CachePolicy,
 			originRespTimeout: o.ResponseTimeout,
+			webACLARN:         o.WebACLARN,
 		}
 		result = append(result, ip)
 		r.log.V(1).Info("Added user origin to desired state.", "parameters", ip)
