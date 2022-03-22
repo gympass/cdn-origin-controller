@@ -4,7 +4,7 @@ cdnClass: default
 
 image:
   repository: ghcr.io/gympass/cdn-origin-controller
-  tag: v0.0.11
+  tag: v0.0.12
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
