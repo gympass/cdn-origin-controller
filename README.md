@@ -89,6 +89,7 @@ metadata:
       - host: bar.com
         originRequestPolicy: None
         viewerFunctionARN: "bar:arn"
+        webACLARN: "arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a"
         paths:
           - /bar
           - /bar/*
