@@ -239,6 +239,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		"test description",
 		awscloudfront.PriceClassPriceClass100,
 		"test group",
+		"default-web-acl",
 	).
 		WithOrigin(Origin{Host: "origin", ResponseTimeout: 30}).
 		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
