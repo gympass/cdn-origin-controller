@@ -31,6 +31,7 @@ const (
 	CDNClassKey              = "cdn_class"
 	logLevelKey              = "log_level"
 	devModeKey               = "dev_mode"
+	enableDeletionKey        = "enable_deletion"
 	cfDefaultOriginDomainKey = "cf_default_origin_domain"
 	cfPriceClassKey          = "cf_price_class"
 	cfWafArnKey              = "cf_aws_waf"
@@ -49,6 +50,7 @@ const (
 func init() {
 	viper.SetDefault(logLevelKey, "info")
 	viper.SetDefault(devModeKey, "false")
+	viper.SetDefault(enableDeletionKey, "false")
 	viper.SetDefault(CDNClassKey, "default")
 	viper.SetDefault(cfDefaultOriginDomainKey, "")
 	viper.SetDefault(cfPriceClassKey, awscloudfront.PriceClassPriceClassAll)
@@ -72,6 +74,8 @@ type Config struct {
 	LogLevel string
 	// DevMode when set to "true" logs in unstructured text instead of JSON.
 	DevMode bool
+	// DeletionEnabled represent whether external components should be deleted based on K8s resources deletion
+	DeletionEnabled bool
 	// DefaultOriginDomain represents a valid domain to define in default origin.
 	DefaultOriginDomain string
 	// CDNClass represents the set of resources managed by this deployment of the controller
@@ -117,6 +121,7 @@ func Parse() Config {
 		DevMode:                        devMode,
 		DefaultOriginDomain:            viper.GetString(cfDefaultOriginDomainKey),
 		CDNClass:                       viper.GetString(CDNClassKey),
+		DeletionEnabled:                viper.GetBool(enableDeletionKey),
 		CloudFrontPriceClass:           viper.GetString(cfPriceClassKey),
 		CloudFrontWAFARN:               viper.GetString(cfWafArnKey),
 		CloudFrontCustomSSLCertARN:     viper.GetString(cfCustomSSLCertArnKey),

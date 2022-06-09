@@ -341,6 +341,11 @@ func (r *IngressReconciler) deleteDistribution(cdnStatus *v1alpha1.CDNStatus, bu
 		return cloudfront.Distribution{}, fmt.Errorf("building desired distribution: %v", err)
 	}
 
+	if !r.Config.DeletionEnabled {
+		r.log.V(1).Info("In a deletion operation, but configured not to delete Distributions. Will not delete.")
+		return dist, nil
+	}
+
 	r.log.V(1).Info("Disabling and deleting distribution on AWS, this may take a few minutes.")
 	return dist, r.DistRepo.Delete(dist)
 }
@@ -360,6 +365,10 @@ func (r *IngressReconciler) newAliases(dist cloudfront.Distribution, status *v1a
 		desiredDomains := route53.NormalizeDomains(dist.AlternateDomains)
 		existingDomains := status.Status.DNS.Records
 		deleting = getDeletions(desiredDomains, existingDomains)
+	}
+
+	if !r.Config.DeletionEnabled {
+		deleting = []string{}
 	}
 
 	return route53.NewAliases(dist.Address, dist.AlternateDomains, dist.IPv6Enabled), route53.NewAliases(dist.Address, deleting, dist.IPv6Enabled)
