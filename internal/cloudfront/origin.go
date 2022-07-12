@@ -50,6 +50,8 @@ type Behavior struct {
 	CachePolicy string
 	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
 	ViewerFnARN string
+	// OriginHost the origin's host this behavior belongs to
+	OriginHost string
 }
 
 // OriginBuilder allows the construction of a Origin
@@ -130,7 +132,7 @@ func (b OriginBuilder) Build() Origin {
 
 func (b OriginBuilder) addBehaviors(origin Origin) Origin {
 	for _, p := range b.paths.ToSlice() {
-		origin.Behaviors = append(origin.Behaviors, Behavior{PathPattern: p})
+		origin.Behaviors = append(origin.Behaviors, Behavior{PathPattern: p, OriginHost: b.host})
 	}
 	return origin
 }

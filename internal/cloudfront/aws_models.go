@@ -20,8 +20,6 @@
 package cloudfront
 
 import (
-	"sort"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudfront"
 )
@@ -37,12 +35,11 @@ func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn) *cloudfront
 
 	for _, o := range d.CustomOrigins {
 		allOrigins = append(allOrigins, newAWSOrigin(o))
-		for _, b := range o.Behaviors {
-			allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b, o.Host))
-		}
 	}
 
-	sort.Sort(byDescendingPathLength(allCacheBehaviors))
+	for _, b := range d.CustomBehaviors() {
+		allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b))
+	}
 
 	allOrigins = removeDuplicates(allOrigins)
 
@@ -146,10 +143,10 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 	}
 }
 
-func newCacheBehavior(behavior Behavior, host string) *cloudfront.CacheBehavior {
-	cb := baseCacheBehavior(host, behavior)
-	if len(behavior.ViewerFnARN) > 0 {
-		addViewerFunctionAssociation(cb, behavior.ViewerFnARN)
+func newCacheBehavior(b Behavior) *cloudfront.CacheBehavior {
+	cb := baseCacheBehavior(b)
+	if len(b.ViewerFnARN) > 0 {
+		addViewerFunctionAssociation(cb, b.ViewerFnARN)
 	}
 	return cb
 }
@@ -166,7 +163,7 @@ func addViewerFunctionAssociation(cb *cloudfront.CacheBehavior, functionARN stri
 	}
 }
 
-func baseCacheBehavior(host string, behavior Behavior) *cloudfront.CacheBehavior {
+func baseCacheBehavior(b Behavior) *cloudfront.CacheBehavior {
 	cb := &cloudfront.CacheBehavior{
 		AllowedMethods: &cloudfront.AllowedMethods{
 			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
@@ -176,18 +173,18 @@ func baseCacheBehavior(host string, behavior Behavior) *cloudfront.CacheBehavior
 				Quantity: aws.Int64(2),
 			},
 		},
-		CachePolicyId:              aws.String(behavior.CachePolicy),
+		CachePolicyId:              aws.String(b.CachePolicy),
 		Compress:                   aws.Bool(true),
 		FieldLevelEncryptionId:     aws.String(""),
 		LambdaFunctionAssociations: &cloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(behavior.RequestPolicy),
-		PathPattern:                aws.String(behavior.PathPattern),
+		OriginRequestPolicyId:      aws.String(b.RequestPolicy),
+		PathPattern:                aws.String(b.PathPattern),
 		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String(host),
+		TargetOriginId:             aws.String(b.OriginHost),
 		ViewerProtocolPolicy:       aws.String(cloudfront.ViewerProtocolPolicyRedirectToHttps),
 	}
 
-	if behavior.RequestPolicy == "None" {
+	if b.RequestPolicy == "None" {
 		cb.OriginRequestPolicyId = nil
 	}
 

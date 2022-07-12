@@ -21,6 +21,7 @@ package cloudfront
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -52,6 +53,17 @@ type loggingConfig struct {
 	Enabled       bool
 	BucketAddress string
 	Prefix        string
+}
+
+// CustomBehaviors returns a slice of all custom Behavior sorted by descending path length
+func (d Distribution) CustomBehaviors() []Behavior {
+	var result []Behavior
+	for _, o := range d.CustomOrigins {
+		result = append(result, o.Behaviors...)
+	}
+
+	sort.Sort(byDescendingPathLength(result))
+	return result
 }
 
 // DistributionBuilder allows the construction of a Distribution

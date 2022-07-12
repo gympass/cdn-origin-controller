@@ -725,8 +725,8 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingI
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
 	cb := baseCacheBehavior(
-		"host",
 		Behavior{
+			OriginHost:    "host",
 			PathPattern:   "path",
 			RequestPolicy: "b2884449-e4de-46a7-ac36-70bc7f1ddd6d",
 		},
@@ -736,8 +736,8 @@ func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone() {
 	cb := baseCacheBehavior(
-		"host",
 		Behavior{
+			OriginHost:    "host",
 			PathPattern:   "path",
 			RequestPolicy: "None",
 		},

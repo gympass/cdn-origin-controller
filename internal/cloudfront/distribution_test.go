@@ -36,6 +36,29 @@ type DistributionTestSuite struct {
 	suite.Suite
 }
 
+func (s *DistributionTestSuite) TestDistribution_CustomBehaviors() {
+	defaultOriginDomain := "test.default.origin"
+	defaultWebACL := "default-web-acl"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+
+	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/short").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/longest").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/longer").Build()).
+		Build()
+	s.NoError(err)
+
+	expected := []cloudfront.Behavior{
+		cloudfront.NewOriginBuilder("host").WithBehavior("/longest").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("host").WithBehavior("/longer").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("host").WithBehavior("/short").Build().Behaviors[0],
+	}
+	got := dist.CustomBehaviors()
+	s.Equal(expected, got)
+}
+
 func (s *DistributionTestSuite) TestDistributionBuilder_New() {
 	defaultOriginDomain := "test.default.origin"
 	defaultWebACL := "default-web-acl"
