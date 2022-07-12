@@ -97,6 +97,43 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 	s.Equal(origin, dist.CustomOrigins[0])
 }
 
+func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
+	defaultOriginDomain := "test.default.origin"
+	defaultWebACL := "default-web-acl"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+
+	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path1").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path2").WithBehavior("/path3").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path4").Build()).
+		Build()
+
+	s.NoError(err)
+	s.Len(dist.CustomOrigins, 1)
+	s.Len(dist.CustomOrigins[0].Behaviors, 4)
+
+	newBehavior := func(path string) cloudfront.Behavior {
+		return cloudfront.Behavior{
+			PathPattern:   path,
+			RequestPolicy: "216adef6-5c7f-47e4-b989-5492eafa07d3",
+			CachePolicy:   "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+			ViewerFnARN:   "",
+			OriginHost:    "host",
+		}
+	}
+
+	expectedBehaviors := []cloudfront.Behavior{
+		newBehavior("/path1"),
+		newBehavior("/path2"),
+		newBehavior("/path3"),
+		newBehavior("/path4"),
+	}
+
+	s.ElementsMatch(expectedBehaviors, dist.CustomOrigins[0].Behaviors)
+}
+
 func (s *DistributionTestSuite) TestDistributionBuilder_WithLogging() {
 	bucketAddr := "test.bucket.address"
 	prefix := "test prefix"

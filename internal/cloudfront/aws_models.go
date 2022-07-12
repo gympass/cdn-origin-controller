@@ -41,8 +41,6 @@ func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn) *cloudfront
 		allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b))
 	}
 
-	allOrigins = removeDuplicates(allOrigins)
-
 	config := &cloudfront.DistributionConfig{
 		Aliases: &cloudfront.Aliases{
 			Items:    aws.StringSlice(d.AlternateDomains),
@@ -189,16 +187,4 @@ func baseCacheBehavior(b Behavior) *cloudfront.CacheBehavior {
 	}
 
 	return cb
-}
-
-func removeDuplicates(origins []*cloudfront.Origin) []*cloudfront.Origin {
-	var result []*cloudfront.Origin
-	foundSet := make(map[string]bool)
-	for _, origin := range origins {
-		if !foundSet[*origin.DomainName] {
-			foundSet[*origin.DomainName] = true
-			result = append(result, origin)
-		}
-	}
-	return result
 }

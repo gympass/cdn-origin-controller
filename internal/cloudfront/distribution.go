@@ -178,7 +178,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 	if err := validate(d); err != nil {
 		return Distribution{}, err
 	}
-	return d, nil
+	return normalizeCustomOrigins(d), nil
 }
 
 func (b DistributionBuilder) generateTags() map[string]string {
@@ -217,4 +217,32 @@ func validate(d Distribution) error {
 		existingOrigins[o.Host] = o
 	}
 	return nil
+}
+
+// normalizeCustomOrigins ensures duplicate origins are merged into a single one.
+// It expects a valid Distribution as input.
+func normalizeCustomOrigins(d Distribution) Distribution {
+	merged := mergedOriginMap(d)
+
+	var normalized []Origin
+	for _, origin := range merged {
+		normalized = append(normalized, origin)
+	}
+
+	d.CustomOrigins = normalized
+	return d
+}
+
+func mergedOriginMap(d Distribution) map[string]Origin {
+	existingOrigins := make(map[string]Origin) // map[host]origin
+	for _, candidateO := range d.CustomOrigins {
+		existingO, ok := existingOrigins[candidateO.Host]
+		if !ok {
+			existingOrigins[candidateO.Host] = candidateO
+		} else {
+			existingO.Behaviors = append(existingO.Behaviors, candidateO.Behaviors...)
+			existingOrigins[existingO.Host] = existingO
+		}
+	}
+	return existingOrigins
 }

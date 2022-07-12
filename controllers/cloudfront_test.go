@@ -50,7 +50,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
 	}
 	dist, err := newDistributionBuilder(ingresses, "group", "", config.Config{}).Build()
 	s.NoError(err)
-	s.Len(dist.CustomOrigins, 2)
+	s.Len(dist.CustomOrigins, 1)
 	s.Equal([]string{"origin1", "origin2", "origin3"}, dist.AlternateDomains)
 }
 
