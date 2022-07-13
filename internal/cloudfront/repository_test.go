@@ -27,10 +27,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
 var (
@@ -60,45 +61,6 @@ var (
 	testCallerRefFn = func() string { return "test caller ref" }
 )
 
-type awsClientMock struct {
-	mock.Mock
-	cloudfrontiface.CloudFrontAPI
-	expectedGetDistributionConfigOutput      *awscloudfront.GetDistributionConfigOutput
-	expectedUpdateDistributionOutput         *awscloudfront.UpdateDistributionOutput
-	expectedCreateDistributionWithTagsOutput *awscloudfront.CreateDistributionWithTagsOutput
-	expectedTagResourceOutput                *awscloudfront.TagResourceOutput
-	expectedGetDistributionOutput            *awscloudfront.GetDistributionOutput
-}
-
-func (c *awsClientMock) GetDistributionConfig(in *awscloudfront.GetDistributionConfigInput) (*awscloudfront.GetDistributionConfigOutput, error) {
-	args := c.Called(in)
-	return c.expectedGetDistributionConfigOutput, args.Error(0)
-}
-
-func (c *awsClientMock) UpdateDistribution(in *awscloudfront.UpdateDistributionInput) (*awscloudfront.UpdateDistributionOutput, error) {
-	args := c.Called(in)
-	return c.expectedUpdateDistributionOutput, args.Error(0)
-}
-func (c *awsClientMock) GetDistribution(in *awscloudfront.GetDistributionInput) (*awscloudfront.GetDistributionOutput, error) {
-	args := c.Called(in)
-	return c.expectedGetDistributionOutput, args.Error(0)
-}
-
-func (c *awsClientMock) CreateDistributionWithTags(in *awscloudfront.CreateDistributionWithTagsInput) (*awscloudfront.CreateDistributionWithTagsOutput, error) {
-	args := c.Called(in)
-	return c.expectedCreateDistributionWithTagsOutput, args.Error(0)
-}
-
-func (c *awsClientMock) TagResource(in *awscloudfront.TagResourceInput) (*awscloudfront.TagResourceOutput, error) {
-	args := c.Called(in)
-	return c.expectedTagResourceOutput, args.Error(0)
-}
-
-func (c *awsClientMock) DeleteDistribution(in *awscloudfront.DeleteDistributionInput) (*awscloudfront.DeleteDistributionOutput, error) {
-	args := c.Called(in)
-	return nil, args.Error(0)
-}
-
 func TestRunDistributionRepositoryTestSuite(t *testing.T) {
 	t.Parallel()
 	suite.Run(t, &DistributionRepositoryTestSuite{})
@@ -109,8 +71,8 @@ type DistributionRepositoryTestSuite struct {
 }
 
 func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
-	awsClient := &awsClientMock{
-		expectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
 			Distribution: &awscloudfront.Distribution{
 				Id:         aws.String("L2FB5NP10VU7KL"),
 				ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
@@ -148,7 +110,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 }
 
 func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistribution() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(errors.New("mock err")).Once()
 
 	distribution := Distribution{
@@ -172,7 +134,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistributi
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
 	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
@@ -194,7 +156,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
@@ -217,7 +179,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(errors.New("mock err")).Once()
@@ -241,7 +203,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -280,7 +242,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -364,7 +326,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -431,7 +393,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -469,7 +431,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -500,16 +462,16 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 func (s *DistributionRepositoryTestSuite) TestDelete_Success() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -529,7 +491,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_Success() {
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfig() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String("id"),
 	}
@@ -542,8 +504,8 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfi
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
@@ -569,16 +531,16 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution(
 func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistributionDeployment() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -599,16 +561,16 @@ func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistribution
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -628,7 +590,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution()
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingConfig() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(awsErr).Once()
@@ -640,12 +602,12 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingCo
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisablingDist() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
@@ -663,16 +625,16 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisabling
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingForItToBeDeployed() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -694,16 +656,16 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingFo
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingIt() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
