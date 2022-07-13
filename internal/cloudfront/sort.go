@@ -21,7 +21,7 @@ package cloudfront
 
 import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 
-type byDescendingPathLength []*awscloudfront.CacheBehavior
+type byDescendingPathLength []Behavior
 
 func (s byDescendingPathLength) Len() int {
 	return len(s)
@@ -30,7 +30,7 @@ func (s byDescendingPathLength) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 func (s byDescendingPathLength) Less(i, j int) bool {
-	return len(*s[i].PathPattern) > len(*s[j].PathPattern)
+	return len(s[i].PathPattern) > len(s[j].PathPattern)
 }
 
 type byKey []*awscloudfront.Tag

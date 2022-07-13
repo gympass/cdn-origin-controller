@@ -56,11 +56,6 @@ type DistributionRepository interface {
 	Delete(distribution Distribution) error
 }
 
-// CallerRefFn is the function that should be called when setting the request's caller reference.
-// It should be a unique identifier to prevent the request from being replayed.
-// https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_CreateDistribution.html
-type CallerRefFn func() string
-
 type repository struct {
 	awsClient   cloudfrontiface.CloudFrontAPI
 	callerRef   CallerRefFn
@@ -73,7 +68,7 @@ func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRe
 }
 
 func (r repository) Create(d Distribution) (Distribution, error) {
-	config := r.newAWSDistributionConfig(d)
+	config := newAWSDistributionConfig(d, r.callerRef)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
 			DistributionConfig: config,
@@ -92,7 +87,7 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 }
 
 func (r repository) Sync(d Distribution) error {
-	config := r.newAWSDistributionConfig(d)
+	config := newAWSDistributionConfig(d, r.callerRef)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return fmt.Errorf("getting distribution config: %v", err)
@@ -229,181 +224,6 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 		Id: aws.String(id),
 	}
 	return r.awsClient.GetDistribution(input)
-}
-
-func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.DistributionConfig {
-	var allCacheBehaviors []*awscloudfront.CacheBehavior
-	allOrigins := []*awscloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
-
-	for _, o := range d.CustomOrigins {
-		allOrigins = append(allOrigins, newAWSOrigin(o))
-		for _, b := range o.Behaviors {
-			allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b, o.Host))
-		}
-	}
-
-	sort.Sort(byDescendingPathLength(allCacheBehaviors))
-
-	allOrigins = removeDuplicates(allOrigins)
-
-	config := &awscloudfront.DistributionConfig{
-		Aliases: &awscloudfront.Aliases{
-			Items:    aws.StringSlice(d.AlternateDomains),
-			Quantity: aws.Int64(int64(len(d.AlternateDomains))),
-		},
-		CacheBehaviors: &awscloudfront.CacheBehaviors{
-			Items:    allCacheBehaviors,
-			Quantity: aws.Int64(int64(len(allCacheBehaviors))),
-		},
-		CallerReference:      aws.String(r.callerRef()),
-		Comment:              aws.String(d.Description),
-		CustomErrorResponses: nil,
-		DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
-			AllowedMethods: &awscloudfront.AllowedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-				Quantity: aws.Int64(7),
-				CachedMethods: &awscloudfront.CachedMethods{
-					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-					Quantity: aws.Int64(2),
-				},
-			}, CachePolicyId: aws.String(cachingDisabledPolicyID),
-			Compress:                   aws.Bool(true),
-			FieldLevelEncryptionId:     aws.String(""),
-			FunctionAssociations:       nil,
-			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-			LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-			RealtimeLogConfigArn:       nil,
-			SmoothStreaming:            aws.Bool(false),
-			TargetOriginId:             aws.String(d.DefaultOrigin.Host),
-			TrustedKeyGroups:           nil,
-			TrustedSigners:             nil,
-			ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-		},
-		Origins: &awscloudfront.Origins{
-			Items:    allOrigins,
-			Quantity: aws.Int64(int64(len(allOrigins))),
-		},
-		DefaultRootObject: nil,
-		Enabled:           aws.Bool(true),
-		HttpVersion:       aws.String(awscloudfront.HttpVersionHttp2),
-		IsIPV6Enabled:     aws.Bool(d.IPv6Enabled),
-		Logging: &awscloudfront.LoggingConfig{
-			Enabled:        aws.Bool(false),
-			Bucket:         aws.String(""),
-			Prefix:         aws.String(""),
-			IncludeCookies: aws.Bool(false),
-		},
-		OriginGroups:      nil,
-		PriceClass:        aws.String(d.PriceClass),
-		Restrictions:      nil,
-		ViewerCertificate: nil,
-		WebACLId:          aws.String(d.WebACLID),
-	}
-
-	if d.TLS.Enabled {
-		config.ViewerCertificate = &awscloudfront.ViewerCertificate{
-			ACMCertificateArn:      aws.String(d.TLS.CertARN),
-			MinimumProtocolVersion: aws.String(d.TLS.SecurityPolicyID),
-			SSLSupportMethod:       aws.String(awscloudfront.SSLSupportMethodSniOnly),
-		}
-	}
-	if d.Logging.Enabled {
-		config.Logging = &awscloudfront.LoggingConfig{
-			Enabled:        aws.Bool(true),
-			Bucket:         aws.String(d.Logging.BucketAddress),
-			Prefix:         aws.String(d.Logging.Prefix),
-			IncludeCookies: aws.Bool(false),
-		}
-	}
-
-	return config
-}
-
-func newAWSOrigin(o Origin) *awscloudfront.Origin {
-	SSLProtocols := []*string{
-		aws.String(originSSLProtocolSSLv3),
-		aws.String(originSSLProtocolTLSv1),
-		aws.String(originSSLProtocolTLSv11),
-		aws.String(originSSLProtocolTLSv12),
-	}
-
-	return &awscloudfront.Origin{
-		CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-		CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-			HTTPPort:               aws.Int64(80),
-			HTTPSPort:              aws.Int64(443),
-			OriginKeepaliveTimeout: aws.Int64(5),
-			OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-			OriginReadTimeout:      aws.Int64(o.ResponseTimeout),
-			OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-				Items:    SSLProtocols,
-				Quantity: aws.Int64(int64(len(SSLProtocols))),
-			},
-		},
-		DomainName: aws.String(o.Host),
-		Id:         aws.String(o.Host),
-		OriginPath: aws.String(""),
-	}
-}
-
-func newCacheBehavior(behavior Behavior, host string) *awscloudfront.CacheBehavior {
-	cb := baseCacheBehavior(host, behavior)
-	if len(behavior.ViewerFnARN) > 0 {
-		addViewerFunctionAssociation(cb, behavior.ViewerFnARN)
-	}
-	return cb
-}
-
-func addViewerFunctionAssociation(cb *awscloudfront.CacheBehavior, functionARN string) {
-	cb.FunctionAssociations = &awscloudfront.FunctionAssociations{
-		Items: []*awscloudfront.FunctionAssociation{
-			{
-				FunctionARN: aws.String(functionARN),
-				EventType:   aws.String(awscloudfront.EventTypeViewerRequest),
-			},
-		},
-		Quantity: aws.Int64(1),
-	}
-}
-
-func baseCacheBehavior(host string, behavior Behavior) *awscloudfront.CacheBehavior {
-	cb := &awscloudfront.CacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
-		},
-		CachePolicyId:              aws.String(behavior.CachePolicy),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(behavior.RequestPolicy),
-		PathPattern:                aws.String(behavior.PathPattern),
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String(host),
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-	}
-
-	if behavior.RequestPolicy == "None" {
-		cb.OriginRequestPolicyId = nil
-	}
-
-	return cb
-}
-
-func removeDuplicates(origins []*awscloudfront.Origin) []*awscloudfront.Origin {
-	var result []*awscloudfront.Origin
-	foundSet := make(map[string]bool)
-	for _, origin := range origins {
-		if !foundSet[*origin.DomainName] {
-			foundSet[*origin.DomainName] = true
-			result = append(result, origin)
-		}
-	}
-	return result
 }
 
 func isNoSuchDistributionErr(err error) bool {
