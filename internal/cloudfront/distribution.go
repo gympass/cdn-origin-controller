@@ -190,14 +190,14 @@ func (b DistributionBuilder) generateTags() map[string]string {
 }
 
 const (
-	managedByTagKey   = "cdn-origin-controller.gympass.com/owned"
-	managedByTagValue = "true"
+	ownershipTagKey   = "cdn-origin-controller.gympass.com/owned"
+	ownershipTagValue = "true"
 	groupTagKey       = "cdn-origin-controller.gympass.com/cdn.group"
 )
 
 func (b DistributionBuilder) defaultTags() map[string]string {
 	tags := make(map[string]string)
-	tags[managedByTagKey] = managedByTagValue
+	tags[ownershipTagKey] = ownershipTagValue
 	tags[groupTagKey] = b.group
 	return tags
 }
