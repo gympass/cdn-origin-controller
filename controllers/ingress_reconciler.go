@@ -39,21 +39,15 @@ import (
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/route53"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 const (
-	cdnFinalizer                     = "cdn-origin-controller.gympass.com/finalizer"
-	cdnGroupAnnotation               = "cdn-origin-controller.gympass.com/cdn.group"
-	cdnClassAnnotation               = "cdn-origin-controller.gympass.com/cdn.class"
-	cfUserOriginsAnnotation          = "cdn-origin-controller.gympass.com/cf.user-origins"
-	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
-	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"
-	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
-	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
-	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
-	webACLARNAnnotation              = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
+	cdnFinalizer            = "cdn-origin-controller.gympass.com/finalizer"
+	cdnClassAnnotation      = "cdn-origin-controller.gympass.com/cdn.class"
+	cfUserOriginsAnnotation = "cdn-origin-controller.gympass.com/cf.user-origins"
 )
 
 const (
@@ -63,31 +57,31 @@ const (
 
 var errNoCDNStatusForIng = errors.New("could not find a CDNStatus that referenced the ingress")
 
-type boundIngressesFunc func(v1alpha1.CDNStatus) ([]ingressParams, error)
+type boundIngressesFunc func(v1alpha1.CDNStatus) ([]k8s.CDNIngress, error)
 
 // IngressReconciler reconciles Ingress resources of any version
 type IngressReconciler struct {
 	client.Client
 
-	BoundIngressParamsFn boundIngressesFunc
-	Config               config.Config
-	Recorder             record.EventRecorder
-	AliasRepo            route53.AliasRepository
-	DistRepo             cloudfront.DistributionRepository
+	CDNIngressFn boundIngressesFunc
+	Config       config.Config
+	Recorder     record.EventRecorder
+	AliasRepo    route53.AliasRepository
+	DistRepo     cloudfront.DistributionRepository
 
 	log logr.Logger
 }
 
 // Reconcile an Ingress resource of any version
-func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Object) error {
-	var ingresses []ingressParams
+func (r *IngressReconciler) Reconcile(reconciling k8s.CDNIngress, obj client.Object) error {
+	var ingresses []k8s.CDNIngress
 	errs := &multierror.Error{}
 
 	isRemovingReconciling := isRemoving(obj)
 	if !isRemovingReconciling {
 		ingresses = append(ingresses, reconciling)
 
-		userOriginParams, err := r.ingressParamsForUserOrigins(reconciling.group, obj)
+		userOriginParams, err := r.cdnIngressesForUserOrigins(reconciling.Group, obj)
 		errs = multierror.Append(errs, err)
 		ingresses = append(ingresses, userOriginParams...)
 	}
@@ -102,7 +96,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	foundStatus := fetchStatusErr == nil
 	if foundStatus {
 		r.log.V(1).Info("CDNStatus resource found.", "cdnStatusName", cdnStatus.Name)
-		boundIngresses, err := r.BoundIngressParamsFn(filterIngressRef(cdnStatus, obj))
+		boundIngresses, err := r.CDNIngressFn(filterIngressRef(cdnStatus, obj))
 		if err != nil {
 			return err
 		}
@@ -115,10 +109,10 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	group := cdnStatus.Name
 	if !foundStatus {
-		group = reconciling.group
+		group = reconciling.Group
 	}
 
-	sharedParams, err := newSharedIngressParams(ingresses)
+	sharedParams, err := k8s.NewSharedIngressParams(ingresses)
 
 	if err != nil {
 		return fmt.Errorf("shared ingress params: %v", err)
@@ -126,7 +120,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 
 	var distErr error
 	var dist cloudfront.Distribution
-	distBuilder := newDistributionBuilder(ingresses, group, sharedParams.webACLARN, r.Config)
+	distBuilder := newDistributionBuilder(ingresses, group, sharedParams.WebACLARN, r.Config)
 
 	shouldCreateDist := k8serrors.IsNotFound(fetchStatusErr)
 	shouldDeleteDist := len(ingresses) == 0
@@ -138,7 +132,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 			return fmt.Errorf("creating distribution: %v", distErr)
 		}
 
-		cdnStatus, distErr = r.createCDNStatus(dist, reconciling.group)
+		cdnStatus, distErr = r.createCDNStatus(dist, reconciling.Group)
 		if distErr != nil {
 			return fmt.Errorf("creating CDNStatus: %v", distErr)
 		}
@@ -175,7 +169,7 @@ func (r *IngressReconciler) Reconcile(reconciling ingressParams, obj client.Obje
 	return r.handleResult(obj, cdnStatus, shouldHaveFinalizer, errs)
 }
 
-func (r *IngressReconciler) ingressParamsForUserOrigins(group string, obj client.Object) ([]ingressParams, error) {
+func (r *IngressReconciler) cdnIngressesForUserOrigins(group string, obj client.Object) ([]k8s.CDNIngress, error) {
 	userOriginsMarkup, ok := obj.GetAnnotations()[cfUserOriginsAnnotation]
 	if !ok {
 		return nil, nil
@@ -188,20 +182,20 @@ func (r *IngressReconciler) ingressParamsForUserOrigins(group string, obj client
 	}
 	r.log.V(1).Info("Parsed user origins annotation.", "origins", origins)
 
-	var result []ingressParams
+	var result []k8s.CDNIngress
 	for _, o := range origins {
-		ip := ingressParams{
-			destinationHost:   o.Host,
-			group:             group,
-			paths:             o.paths(),
-			viewerFnARN:       o.ViewerFunctionARN,
-			originReqPolicy:   o.RequestPolicy,
-			cachePolicy:       o.CachePolicy,
-			originRespTimeout: o.ResponseTimeout,
-			webACLARN:         o.WebACLARN,
+		ing := k8s.CDNIngress{
+			LoadBalancerHost:  o.Host,
+			Group:             group,
+			Paths:             o.paths(),
+			ViewerFnARN:       o.ViewerFunctionARN,
+			OriginReqPolicy:   o.RequestPolicy,
+			CachePolicy:       o.CachePolicy,
+			OriginRespTimeout: o.ResponseTimeout,
+			WebACLARN:         o.WebACLARN,
 		}
-		result = append(result, ip)
-		r.log.V(1).Info("Added user origin to desired state.", "parameters", ip)
+		result = append(result, ing)
+		r.log.V(1).Info("Added user origin to desired state.", "parameters", ing)
 	}
 
 	return result, nil
@@ -212,7 +206,7 @@ func (r *IngressReconciler) fetchCDNStatus(ing client.Object) (*v1alpha1.CDNStat
 		return r.discoverCDNStatusForIngress(ing)
 	}
 
-	nsName := types.NamespacedName{Name: ing.GetAnnotations()[cdnGroupAnnotation]}
+	nsName := types.NamespacedName{Name: ing.GetAnnotations()[k8s.CDNGroupAnnotation]}
 	cdnStatus := &v1alpha1.CDNStatus{}
 	fetchStatusErr := r.Get(context.Background(), nsName, cdnStatus)
 	return cdnStatus, fetchStatusErr

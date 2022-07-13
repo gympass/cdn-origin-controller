@@ -17,22 +17,14 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package test
+package k8s
 
 import (
-	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
-	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi/resourcegroupstaggingapiiface"
-	"github.com/stretchr/testify/mock"
+	"context"
 )
 
-// MockResourceTaggingAPI is a mocked resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI to be used during testing
-type MockResourceTaggingAPI struct {
-	mock.Mock
-	resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
-	ExpectedGetResourcesOutput *resourcegroupstaggingapi.GetResourcesOutput
-}
-
-func (m *MockResourceTaggingAPI) GetResources(in *resourcegroupstaggingapi.GetResourcesInput) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
-	args := m.Called(in)
-	return m.ExpectedGetResourcesOutput, args.Error(0)
+// IngressFetcher interacts with Kubernetes to fetch networking.k8s.io Ingress resources
+type IngressFetcher interface {
+	Fetch(ctx context.Context, name, namespace string) (CDNIngress, error)
+	FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error)
 }

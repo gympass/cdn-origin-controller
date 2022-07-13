@@ -178,7 +178,7 @@ func mustSetupV1Controller(mgr manager.Manager, ir *controllers.IngressReconcile
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
-	v1Reconciler.IngressReconciler.BoundIngressParamsFn = v1Reconciler.BoundIngresses
+	v1Reconciler.IngressReconciler.CDNIngressFn = v1Reconciler.BoundIngresses
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1 ingress controller")
@@ -193,7 +193,7 @@ func mustSetupV1beta1Controller(mgr manager.Manager, ir *controllers.IngressReco
 		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
-	v1beta1Reconciler.IngressReconciler.BoundIngressParamsFn = v1beta1Reconciler.BoundIngresses
+	v1beta1Reconciler.IngressReconciler.CDNIngressFn = v1beta1Reconciler.BoundIngresses
 
 	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1beta1 ingress controller")

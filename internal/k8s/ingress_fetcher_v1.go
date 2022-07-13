@@ -17,22 +17,48 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package test
+package k8s
 
 import (
-	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
-	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi/resourcegroupstaggingapiiface"
-	"github.com/stretchr/testify/mock"
+	"context"
+	"fmt"
+
+	networkingv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// MockResourceTaggingAPI is a mocked resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI to be used during testing
-type MockResourceTaggingAPI struct {
-	mock.Mock
-	resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
-	ExpectedGetResourcesOutput *resourcegroupstaggingapi.GetResourcesOutput
+type ingFetcherV1 struct {
+	k8sClient client.Client
 }
 
-func (m *MockResourceTaggingAPI) GetResources(in *resourcegroupstaggingapi.GetResourcesInput) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
-	args := m.Called(in)
-	return m.ExpectedGetResourcesOutput, args.Error(0)
+// NewIngressFetcherV1 creates an IngressFetcher that works with v1 Ingreses
+func NewIngressFetcherV1(k8sClient client.Client) IngressFetcher {
+	return ingFetcherV1{k8sClient: k8sClient}
+}
+
+func (i ingFetcherV1) Fetch(ctx context.Context, name, namespace string) (CDNIngress, error) {
+	ing := &networkingv1.Ingress{}
+	key := client.ObjectKey{Name: name, Namespace: namespace}
+
+	if err := i.k8sClient.Get(ctx, key, ing); err != nil {
+		return CDNIngress{}, err
+	}
+
+	return NewCDNIngressFromV1(ing), nil
+}
+
+func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
+	list := &networkingv1.IngressList{}
+	if err := i.k8sClient.List(ctx, list); err != nil {
+		return nil, fmt.Errorf("listing Ingresses: %v", err)
+	}
+
+	var result []CDNIngress
+	for _, k8sIng := range list.Items {
+		ing := NewCDNIngressFromV1(&k8sIng)
+		if predicate(ing) {
+			result = append(result, ing)
+		}
+	}
+	return result, nil
 }

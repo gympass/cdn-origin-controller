@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package k8s
 
 import (
 	"testing"
@@ -28,16 +28,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRunIngressParamsTestSuite(t *testing.T) {
+func TestRunCDNIngressTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &IngressParamsSuite{})
+	suite.Run(t, &CDNIngressSuite{})
 }
 
-type IngressParamsSuite struct {
+type CDNIngressSuite struct {
 	suite.Suite
 }
 
-func (s *IngressParamsSuite) Test_ingressParams_V1_With_AlternativeDomainNames() {
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithAlternativeDomainNames() {
 	ing := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
@@ -56,45 +56,45 @@ func (s *IngressParamsSuite) Test_ingressParams_V1_With_AlternativeDomainNames()
 			},
 		},
 	}
-	ip := newIngressParamsV1(ing)
-	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.alternateDomainNames)
+	ip := NewCDNIngressFromV1(ing)
+	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.AlternateDomainNames)
 }
 
-func (s *IngressParamsSuite) Test_sharedIngressParams_Valid() {
-	params := []ingressParams{
+func (s *CDNIngressSuite) Test_sharedIngressParams_Valid() {
+	params := []CDNIngress{
 		{
-			group:     "foo",
-			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+			Group:     "foo",
+			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 		},
 		{
-			group: "foo",
+			Group: "foo",
 		},
 	}
 
-	shared, err := newSharedIngressParams(params)
+	shared, err := NewSharedIngressParams(params)
 
-	expected := sharedIngressParams{
-		webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+	expected := SharedIngressParams{
+		WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 	}
 
 	s.Equal(expected, shared)
 	s.NoError(err)
 }
 
-func (s *IngressParamsSuite) Test_sharedIngressParams_ConflictingWebACLs() {
-	params := []ingressParams{
+func (s *CDNIngressSuite) Test_sharedIngressParams_ConflictingWebACLs() {
+	params := []CDNIngress{
 		{
-			group:     "foo",
-			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+			Group:     "foo",
+			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 		},
 		{
-			group:     "foo",
-			webACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/8ab0c8f8-5c43-4ea0-8424-56dd8ab8c",
+			Group:     "foo",
+			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/8ab0c8f8-5c43-4ea0-8424-56dd8ab8c",
 		},
 	}
 
-	shared, err := newSharedIngressParams(params)
+	shared, err := NewSharedIngressParams(params)
 
-	s.Equal(sharedIngressParams{}, shared)
+	s.Equal(SharedIngressParams{}, shared)
 	s.Error(err)
 }

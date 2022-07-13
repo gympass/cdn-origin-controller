@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
@@ -85,7 +86,7 @@ func hasFinalizer(object client.Object) bool {
 }
 
 func hasGroupAnnotation(o client.Object) bool {
-	return len(o.GetAnnotations()[cdnGroupAnnotation]) > 0
+	return len(o.GetAnnotations()[k8s.CDNGroupAnnotation]) > 0
 }
 
 func hasLoadBalancer(o client.Object) bool {

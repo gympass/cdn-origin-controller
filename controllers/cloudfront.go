@@ -26,11 +26,12 @@ import (
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newDistributionBuilder(ingresses []ingressParams, group, webACLARN string, cfg config.Config) cloudfront.DistributionBuilder {
+func newDistributionBuilder(ingresses []k8s.CDNIngress, group, webACLARN string, cfg config.Config) cloudfront.DistributionBuilder {
 	b := cloudfront.NewDistributionBuilder(
 		cfg.DefaultOriginDomain,
 		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
@@ -41,7 +42,7 @@ func newDistributionBuilder(ingresses []ingressParams, group, webACLARN string, 
 
 	for _, ing := range ingresses {
 		b = b.WithOrigin(newOrigin(ing))
-		b = b.WithAlternateDomains(ing.alternateDomainNames)
+		b = b.WithAlternateDomains(ing.AlternateDomainNames)
 	}
 
 	if cfg.CloudFrontEnableIPV6 {
@@ -71,14 +72,14 @@ func renderDescription(template, group string) string {
 	return strings.ReplaceAll(template, "{{group}}", group)
 }
 
-func newOrigin(ing ingressParams) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(ing.destinationHost).
-		WithViewerFunction(ing.viewerFnARN).
-		WithResponseTimeout(ing.originRespTimeout).
-		WithRequestPolicy(ing.originReqPolicy).
-		WithCachePolicy(ing.cachePolicy)
+func newOrigin(ing k8s.CDNIngress) cloudfront.Origin {
+	builder := cloudfront.NewOriginBuilder(ing.LoadBalancerHost).
+		WithViewerFunction(ing.ViewerFnARN).
+		WithResponseTimeout(ing.OriginRespTimeout).
+		WithRequestPolicy(ing.OriginReqPolicy).
+		WithCachePolicy(ing.CachePolicy)
 
-	patterns := pathPatterns(ing.paths)
+	patterns := pathPatterns(ing.Paths)
 	for _, p := range patterns {
 		builder = builder.WithBehavior(p)
 	}
@@ -86,7 +87,7 @@ func newOrigin(ing ingressParams) cloudfront.Origin {
 	return builder.Build()
 }
 
-func pathPatterns(paths []path) []string {
+func pathPatterns(paths []k8s.Path) []string {
 	var patterns []string
 	for _, p := range paths {
 		patterns = append(patterns, pathPatternsForPath(p)...)
@@ -94,11 +95,11 @@ func pathPatterns(paths []path) []string {
 	return patterns
 }
 
-func pathPatternsForPath(p path) []string {
-	if p.pathType == prefixPathType {
-		return buildPatternsForPrefix(p.pathPattern)
+func pathPatternsForPath(p k8s.Path) []string {
+	if p.PathType == prefixPathType {
+		return buildPatternsForPrefix(p.PathPattern)
 	}
-	return []string{p.pathPattern}
+	return []string{p.PathPattern}
 }
 
 // https://github.com/kubernetes-sigs/aws-load-balancer-controller/pull/1772/files#diff-ab931de004b4ee78d1a27f20f37cc9acaf851ab150094ec8baa1fdbcf5ca67f1R163-R174

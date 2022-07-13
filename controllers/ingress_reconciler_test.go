@@ -27,6 +27,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 func TestRunIngressReconcilerTestSuite(t *testing.T) {
@@ -38,16 +39,16 @@ type IngressReconcilerSuite struct {
 	suite.Suite
 }
 
-func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_Success() {
+func (s IngressReconcilerSuite) Test_cdnIngressesForUserOrigins_Success() {
 	testCases := []struct {
 		name            string
 		annotationValue string
-		expectedParams  []ingressParams
+		expectedIngs    []k8s.CDNIngress
 	}{
 		{
 			name:            "Has no annotation",
 			annotationValue: "",
-			expectedParams:  nil,
+			expectedIngs:    nil,
 		},
 		{
 			name: "Has a single user origin",
@@ -59,14 +60,14 @@ func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_Success() {
                                     - /foo/*
                                   viewerFunctionARN: foo
                                   originRequestPolicy: None`,
-			expectedParams: []ingressParams{
+			expectedIngs: []k8s.CDNIngress{
 				{
-					group:             "group",
-					destinationHost:   "foo.com",
-					paths:             []path{{pathPattern: "/foo"}, {pathPattern: "/foo/*"}},
-					originRespTimeout: int64(35),
-					viewerFnARN:       "foo",
-					originReqPolicy:   "None",
+					Group:             "group",
+					LoadBalancerHost:  "foo.com",
+					Paths:             []k8s.Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginRespTimeout: int64(35),
+					ViewerFnARN:       "foo",
+					OriginReqPolicy:   "None",
 				},
 			},
 		},
@@ -82,19 +83,19 @@ func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_Success() {
                                   responseTimeout: 35
                                   paths:
                                     - /bar`,
-			expectedParams: []ingressParams{
+			expectedIngs: []k8s.CDNIngress{
 				{
-					group:           "group",
-					destinationHost: "foo.com",
-					paths:           []path{{pathPattern: "/foo"}},
-					originReqPolicy: "None",
-					viewerFnARN:     "foo",
+					Group:            "group",
+					LoadBalancerHost: "foo.com",
+					Paths:            []k8s.Path{{PathPattern: "/foo"}},
+					OriginReqPolicy:  "None",
+					ViewerFnARN:      "foo",
 				},
 				{
-					group:             "group",
-					destinationHost:   "bar.com",
-					paths:             []path{{pathPattern: "/bar"}},
-					originRespTimeout: int64(35),
+					Group:             "group",
+					LoadBalancerHost:  "bar.com",
+					Paths:             []k8s.Path{{PathPattern: "/bar"}},
+					OriginRespTimeout: int64(35),
 				},
 			},
 		},
@@ -107,13 +108,13 @@ func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_Success() {
 			ing.Annotations = map[string]string{cfUserOriginsAnnotation: tc.annotationValue}
 		}
 
-		got, err := r.ingressParamsForUserOrigins("group", ing)
+		got, err := r.cdnIngressesForUserOrigins("group", ing)
 		s.NoError(err, "test: %s", tc.name)
-		s.Equal(tc.expectedParams, got, "test: %s", tc.name)
+		s.Equal(tc.expectedIngs, got, "test: %s", tc.name)
 	}
 }
 
-func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_InvalidAnnotationValue() {
+func (s IngressReconcilerSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue() {
 	testCases := []struct {
 		name            string
 		annotationValue string
@@ -137,7 +138,7 @@ func (s IngressReconcilerSuite) Test_ingressParamsForUserOrigins_InvalidAnnotati
 		ing := &networkingv1.Ingress{}
 		ing.Annotations = map[string]string{cfUserOriginsAnnotation: tc.annotationValue}
 
-		got, err := r.ingressParamsForUserOrigins("group", ing)
+		got, err := r.cdnIngressesForUserOrigins("group", ing)
 		s.Error(err, "test: %s", tc.name)
 		s.Nil(got, "test: %s", tc.name)
 	}
