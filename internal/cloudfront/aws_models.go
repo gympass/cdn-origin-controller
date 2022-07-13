@@ -37,7 +37,7 @@ func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn) *cloudfront
 		allOrigins = append(allOrigins, newAWSOrigin(o))
 	}
 
-	for _, b := range d.CustomBehaviors() {
+	for _, b := range d.SortedCustomBehaviors() {
 		allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b))
 	}
 

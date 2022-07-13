@@ -55,7 +55,7 @@ func (s *DistributionTestSuite) TestDistribution_CustomBehaviors() {
 		cloudfront.NewOriginBuilder("host").WithBehavior("/longer").Build().Behaviors[0],
 		cloudfront.NewOriginBuilder("host").WithBehavior("/short").Build().Behaviors[0],
 	}
-	got := dist.CustomBehaviors()
+	got := dist.SortedCustomBehaviors()
 	s.Equal(expected, got)
 }
 

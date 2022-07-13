@@ -55,8 +55,8 @@ type loggingConfig struct {
 	Prefix        string
 }
 
-// CustomBehaviors returns a slice of all custom Behavior sorted by descending path length
-func (d Distribution) CustomBehaviors() []Behavior {
+// SortedCustomBehaviors returns a slice of all custom Behavior sorted by descending path length
+func (d Distribution) SortedCustomBehaviors() []Behavior {
 	var result []Behavior
 	for _, o := range d.CustomOrigins {
 		result = append(result, o.Behaviors...)
