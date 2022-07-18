@@ -94,11 +94,11 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]k8s.CDNIngre
 		reconcilingCDNIngress := k8s.NewCDNIngressFromV1(ing)
 		paramsList = append(paramsList, reconcilingCDNIngress)
 
-		userOriginParamsList, err := r.IngressReconciler.cdnIngressesForUserOrigins(reconcilingCDNIngress.Group, ing)
-		if err != nil {
-			return nil, fmt.Errorf("creating user origins desired state: %v", err)
-		}
-		paramsList = append(paramsList, userOriginParamsList...)
+		//userOriginParamsList, err := r.IngressReconciler.cdnIngressesForUserOrigins(reconcilingCDNIngress.Group, ing)
+		//if err != nil {
+		//	return nil, fmt.Errorf("creating user origins desired state: %v", err)
+		//}
+		//paramsList = append(paramsList, userOriginParamsList...)
 	}
 	return paramsList, nil
 }

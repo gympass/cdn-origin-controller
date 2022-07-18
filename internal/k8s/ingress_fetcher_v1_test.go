@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/Gympass/cdn-origin-controller/internal/test"
@@ -45,16 +46,7 @@ type IngressFetcherV1TestSuite struct {
 
 func (s *IngressFetcherV1TestSuite) TestFetch_Success() {
 	client := fake.NewClientBuilder().
-		WithObjects(&networkingv1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{Name: "name", Namespace: "namespace"},
-			Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
-				Ingress: []corev1.LoadBalancerIngress{
-					{
-						Hostname: "host",
-					},
-				},
-			}},
-		}).
+		WithObjects(newIngressV1WithLB("namespace", "name", nil)).
 		Build()
 
 	fetcher := NewIngressFetcherV1(client)
@@ -74,43 +66,19 @@ func (s *IngressFetcherV1TestSuite) TestFetch_Failure() {
 	s.Equal(CDNIngress{}, gotIng)
 }
 
-func (s *IngressFetcherV1TestSuite) TestFetchBy_Success() {
+func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
 	client := fake.NewClientBuilder().
 		WithLists(&networkingv1.IngressList{
 			Items: []networkingv1.Ingress{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        "ingress-matching-annotation",
-						Namespace:   "namespace",
-						Annotations: map[string]string{CDNGroupAnnotation: "group"},
-					},
-					Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
-						Ingress: []corev1.LoadBalancerIngress{
-							{
-								Hostname: "host",
-							},
-						},
-					}},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "ingress-with-no-annotation",
-						Namespace: "namespace",
-					},
-					Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
-						Ingress: []corev1.LoadBalancerIngress{
-							{
-								Hostname: "host",
-							},
-						},
-					}},
-				},
+				*newIngressV1WithLB("namespace", "ingress-matching-annotation",
+					map[string]string{CDNGroupAnnotation: "group"}),
+				*newIngressV1WithLB("namespace", "ingress-with-no-annotation",
+					nil),
 			},
 		}).
 		Build()
 
 	fetcher := NewIngressFetcherV1(client)
-
 	predicate := func(ing CDNIngress) bool {
 		return ing.Group == "group"
 	}
@@ -121,15 +89,148 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_Success() {
 	s.Equal("ingress-matching-annotation", gotIngs[0].Name)
 }
 
-func (s *IngressFetcherV1TestSuite) TestFetchBy_Failure() {
+func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithoutUserOrigins() {
 	client := &test.MockK8sClient{}
 	client.On("List", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err"))
 
 	fetcher := NewIngressFetcherV1(client)
-
 	predicate := func(CDNIngress) bool { return false }
 
 	gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
 	s.Error(err)
 	s.Nil(gotIngs)
+}
+
+func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
+	testCases := []struct {
+		name            string
+		annotationValue string
+		expectedIngs    []CDNIngress
+	}{
+		{
+			name: "Has a single user origin",
+			annotationValue: `
+                                - host: host
+                                  responseTimeout: 35
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  viewerFunctionARN: foo
+                                  originRequestPolicy: None`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:             "group",
+					LoadBalancerHost:  "host",
+					Paths:             []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginRespTimeout: int64(35),
+					ViewerFnARN:       "foo",
+					OriginReqPolicy:   "None",
+				},
+			},
+		},
+		{
+			name: "Has multiple user origins",
+			annotationValue: `
+                                - host: host
+                                  paths:
+                                    - /foo
+                                  viewerFunctionARN: foo
+                                  originRequestPolicy: None
+                                - host: host
+                                  responseTimeout: 35
+                                  paths:
+                                    - /bar`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:            "group",
+					LoadBalancerHost: "host",
+					Paths:            []Path{{PathPattern: "/foo"}},
+					OriginReqPolicy:  "None",
+					ViewerFnARN:      "foo",
+				},
+				{
+					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:             "group",
+					LoadBalancerHost:  "host",
+					Paths:             []Path{{PathPattern: "/bar"}},
+					OriginRespTimeout: int64(35),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		parentIng := newIngressV1WithLB("namespace", "name", map[string]string{
+			cfUserOriginsAnnotation: tc.annotationValue,
+			CDNGroupAnnotation:      "group",
+		})
+
+		client := fake.NewClientBuilder().
+			WithLists(&networkingv1.IngressList{
+				Items: []networkingv1.Ingress{*parentIng},
+			}).
+			Build()
+
+		fetcher := NewIngressFetcherV1(client)
+		predicate := func(ing CDNIngress) bool {
+			return ing.Group == "group"
+		}
+
+		expectedParentCDNIng := NewCDNIngressFromV1(parentIng)
+		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)
+
+		gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
+		s.NoError(err, "test: %s", tc.name)
+		s.ElementsMatch(expectedIngs, gotIngs, "test: %s", tc.name)
+	}
+}
+
+func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
+	testCases := []struct {
+		name            string
+		annotationValue string
+	}{
+		{
+			name:            "No path",
+			annotationValue: "- host: foo.com",
+		},
+		{
+			name:            "No host",
+			annotationValue: "- paths: [/bar]",
+		},
+		{
+			name:            "Invalid YAML",
+			annotationValue: "*",
+		},
+	}
+
+	for _, tc := range testCases {
+		ing := newIngressV1WithLB("namespace", "name", map[string]string{
+			cfUserOriginsAnnotation: tc.annotationValue,
+			CDNGroupAnnotation:      "group",
+		})
+
+		got, err := cdnIngressesForUserOrigins(ing)
+		s.Error(err, "test: %s", tc.name)
+		s.Nil(got, "test: %s", tc.name)
+	}
+}
+
+func newIngressV1WithLB(namespace, name string, annotations map[string]string) *networkingv1.Ingress {
+	return &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+		Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
+			Ingress: []corev1.LoadBalancerIngress{
+				{
+					Hostname: "host",
+				},
+			},
+		}},
+	}
 }

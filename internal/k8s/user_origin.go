@@ -17,15 +17,48 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package k8s
 
 import (
 	"fmt"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/Gympass/cdn-origin-controller/internal/k8s"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const cfUserOriginsAnnotation = "cdn-origin-controller.gympass.com/cf.user-origins"
+
+func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
+	userOriginsMarkup, ok := obj.GetAnnotations()[cfUserOriginsAnnotation]
+	if !ok {
+		return nil, nil
+	}
+
+	origins, err := userOriginsFromYAML([]byte(userOriginsMarkup))
+	if err != nil {
+		return nil, fmt.Errorf("ingress %s/%s: parsing user origins data from the %s annotation: %v",
+			obj.GetNamespace(), obj.GetName(), cfUserOriginsAnnotation, err)
+	}
+
+	var result []CDNIngress
+	for _, o := range origins {
+		ing := CDNIngress{
+			NamespacedName:    types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()},
+			LoadBalancerHost:  o.Host,
+			Group:             groupAnnotationValue(obj),
+			Paths:             o.paths(),
+			ViewerFnARN:       o.ViewerFunctionARN,
+			OriginReqPolicy:   o.RequestPolicy,
+			CachePolicy:       o.CachePolicy,
+			OriginRespTimeout: o.ResponseTimeout,
+			WebACLARN:         o.WebACLARN,
+		}
+		result = append(result, ing)
+	}
+
+	return result, nil
+}
 
 type userOrigin struct {
 	Host              string   `yaml:"host"`
@@ -37,10 +70,10 @@ type userOrigin struct {
 	WebACLARN         string   `yaml:"webACLARN"`
 }
 
-func (o userOrigin) paths() []k8s.Path {
-	var paths []k8s.Path
+func (o userOrigin) paths() []Path {
+	var paths []Path
 	for _, p := range o.Paths {
-		paths = append(paths, k8s.Path{PathPattern: p})
+		paths = append(paths, Path{PathPattern: p})
 	}
 	return paths
 }

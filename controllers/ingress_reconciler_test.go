@@ -22,12 +22,10 @@ package controllers
 import (
 	"testing"
 
-	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/suite"
 	networkingv1 "k8s.io/api/networking/v1"
 
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
-	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 func TestRunIngressReconcilerTestSuite(t *testing.T) {
@@ -37,111 +35,6 @@ func TestRunIngressReconcilerTestSuite(t *testing.T) {
 
 type IngressReconcilerSuite struct {
 	suite.Suite
-}
-
-func (s IngressReconcilerSuite) Test_cdnIngressesForUserOrigins_Success() {
-	testCases := []struct {
-		name            string
-		annotationValue string
-		expectedIngs    []k8s.CDNIngress
-	}{
-		{
-			name:            "Has no annotation",
-			annotationValue: "",
-			expectedIngs:    nil,
-		},
-		{
-			name: "Has a single user origin",
-			annotationValue: `
-                                - host: foo.com
-                                  responseTimeout: 35
-                                  paths:
-                                    - /foo
-                                    - /foo/*
-                                  viewerFunctionARN: foo
-                                  originRequestPolicy: None`,
-			expectedIngs: []k8s.CDNIngress{
-				{
-					Group:             "group",
-					LoadBalancerHost:  "foo.com",
-					Paths:             []k8s.Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
-					OriginRespTimeout: int64(35),
-					ViewerFnARN:       "foo",
-					OriginReqPolicy:   "None",
-				},
-			},
-		},
-		{
-			name: "Has multiple user origins",
-			annotationValue: `
-                                - host: foo.com
-                                  paths:
-                                    - /foo
-                                  viewerFunctionARN: foo
-                                  originRequestPolicy: None
-                                - host: bar.com
-                                  responseTimeout: 35
-                                  paths:
-                                    - /bar`,
-			expectedIngs: []k8s.CDNIngress{
-				{
-					Group:            "group",
-					LoadBalancerHost: "foo.com",
-					Paths:            []k8s.Path{{PathPattern: "/foo"}},
-					OriginReqPolicy:  "None",
-					ViewerFnARN:      "foo",
-				},
-				{
-					Group:             "group",
-					LoadBalancerHost:  "bar.com",
-					Paths:             []k8s.Path{{PathPattern: "/bar"}},
-					OriginRespTimeout: int64(35),
-				},
-			},
-		},
-	}
-
-	r := &IngressReconciler{log: logr.DiscardLogger{}}
-	for _, tc := range testCases {
-		ing := &networkingv1.Ingress{}
-		if len(tc.annotationValue) > 0 {
-			ing.Annotations = map[string]string{cfUserOriginsAnnotation: tc.annotationValue}
-		}
-
-		got, err := r.cdnIngressesForUserOrigins("group", ing)
-		s.NoError(err, "test: %s", tc.name)
-		s.Equal(tc.expectedIngs, got, "test: %s", tc.name)
-	}
-}
-
-func (s IngressReconcilerSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue() {
-	testCases := []struct {
-		name            string
-		annotationValue string
-	}{
-		{
-			name:            "No path",
-			annotationValue: "foo.com:",
-		},
-		{
-			name:            "No host",
-			annotationValue: ":/bar",
-		},
-		{
-			name:            "':' used instead of comma",
-			annotationValue: "foo.com:/bar:another-foo.com:/another-bar",
-		},
-	}
-
-	r := &IngressReconciler{log: logr.DiscardLogger{}}
-	for _, tc := range testCases {
-		ing := &networkingv1.Ingress{}
-		ing.Annotations = map[string]string{cfUserOriginsAnnotation: tc.annotationValue}
-
-		got, err := r.cdnIngressesForUserOrigins("group", ing)
-		s.Error(err, "test: %s", tc.name)
-		s.Nil(got, "test: %s", tc.name)
-	}
 }
 
 func (s IngressReconcilerSuite) Test_getDeletions() {

@@ -58,6 +58,11 @@ func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bo
 		ing := NewCDNIngressFromV1(&k8sIng)
 		if predicate(ing) {
 			result = append(result, ing)
+			userOriginsCDNIngresses, err := cdnIngressesForUserOrigins(&k8sIng)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, userOriginsCDNIngresses...)
 		}
 	}
 	return result, nil

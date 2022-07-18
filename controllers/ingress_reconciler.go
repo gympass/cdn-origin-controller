@@ -45,9 +45,8 @@ import (
 )
 
 const (
-	cdnFinalizer            = "cdn-origin-controller.gympass.com/finalizer"
-	cdnClassAnnotation      = "cdn-origin-controller.gympass.com/cdn.class"
-	cfUserOriginsAnnotation = "cdn-origin-controller.gympass.com/cf.user-origins"
+	cdnFinalizer       = "cdn-origin-controller.gympass.com/finalizer"
+	cdnClassAnnotation = "cdn-origin-controller.gympass.com/cdn.class"
 )
 
 const (
@@ -78,13 +77,13 @@ func (r *IngressReconciler) Reconcile(reconciling k8s.CDNIngress, obj client.Obj
 	errs := &multierror.Error{}
 
 	isRemovingReconciling := isRemoving(obj)
-	if !isRemovingReconciling {
-		ingresses = append(ingresses, reconciling)
-
-		userOriginParams, err := r.cdnIngressesForUserOrigins(reconciling.Group, obj)
-		errs = multierror.Append(errs, err)
-		ingresses = append(ingresses, userOriginParams...)
-	}
+	//if !isRemovingReconciling {
+	//	ingresses = append(ingresses, reconciling)
+	//
+	//	userOriginParams, err := r.cdnIngressesForUserOrigins(reconciling.Group, obj)
+	//	errs = multierror.Append(errs, err)
+	//	ingresses = append(ingresses, userOriginParams...)
+	//}
 
 	cdnStatus, fetchStatusErr := r.fetchCDNStatus(obj)
 	if errors.Is(fetchStatusErr, errNoCDNStatusForIng) {
@@ -167,38 +166,6 @@ func (r *IngressReconciler) Reconcile(reconciling k8s.CDNIngress, obj client.Obj
 		shouldHaveFinalizer = errs.Len() > 0
 	}
 	return r.handleResult(obj, cdnStatus, shouldHaveFinalizer, errs)
-}
-
-func (r *IngressReconciler) cdnIngressesForUserOrigins(group string, obj client.Object) ([]k8s.CDNIngress, error) {
-	userOriginsMarkup, ok := obj.GetAnnotations()[cfUserOriginsAnnotation]
-	if !ok {
-		return nil, nil
-	}
-	r.log.V(1).Info("Found user origins annotation.", "value", userOriginsMarkup)
-
-	origins, err := userOriginsFromYAML([]byte(userOriginsMarkup))
-	if err != nil {
-		return nil, fmt.Errorf("parsing user origins data from the %s annotation: %v", cfUserOriginsAnnotation, err)
-	}
-	r.log.V(1).Info("Parsed user origins annotation.", "origins", origins)
-
-	var result []k8s.CDNIngress
-	for _, o := range origins {
-		ing := k8s.CDNIngress{
-			LoadBalancerHost:  o.Host,
-			Group:             group,
-			Paths:             o.paths(),
-			ViewerFnARN:       o.ViewerFunctionARN,
-			OriginReqPolicy:   o.RequestPolicy,
-			CachePolicy:       o.CachePolicy,
-			OriginRespTimeout: o.ResponseTimeout,
-			WebACLARN:         o.WebACLARN,
-		}
-		result = append(result, ing)
-		r.log.V(1).Info("Added user origin to desired state.", "parameters", ing)
-	}
-
-	return result, nil
 }
 
 func (r *IngressReconciler) fetchCDNStatus(ing client.Object) (*v1alpha1.CDNStatus, error) {
