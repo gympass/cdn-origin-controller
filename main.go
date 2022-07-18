@@ -120,7 +120,7 @@ func main() {
 
 	callerRefFn := func() string { return time.Now().String() }
 	waitTimeout := time.Minute * 10
-	ingressReconciler := &controllers.IngressReconciler{
+	ingressReconciler := &cloudfront.Service{
 		Client:    mgr.GetClient(),
 		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
 		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), resourcegroupstaggingapi.New(s), callerRefFn, waitTimeout),
@@ -141,7 +141,7 @@ func leaderElectionID(cdnClass string) string {
 	return fmt.Sprintf("%s.cdn-origin.gympass.com", cdnClass)
 }
 
-func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressReconciler) {
+func mustSetupControllers(mgr manager.Manager, reconciler *cloudfront.Service) {
 	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
 	v1Available, err := discovery.HasV1Ingress(discClient)
 	if err != nil {
@@ -171,11 +171,9 @@ func mustSetupControllers(mgr manager.Manager, reconciler *controllers.IngressRe
 	}
 }
 
-func mustSetupV1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
+func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 	v1Reconciler := controllers.V1Reconciler{
 		Client:            mgr.GetClient(),
-		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1"),
-		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
 	v1Reconciler.IngressReconciler.CDNIngressFn = v1Reconciler.BoundIngresses
@@ -186,11 +184,9 @@ func mustSetupV1Controller(mgr manager.Manager, ir *controllers.IngressReconcile
 	}
 }
 
-func mustSetupV1beta1Controller(mgr manager.Manager, ir *controllers.IngressReconciler) {
+func mustSetupV1beta1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 	v1beta1Reconciler := controllers.V1beta1Reconciler{
 		Client:            mgr.GetClient(),
-		OriginalLog:       ctrl.Log.WithName("controllers").WithName("ingressv1beta1"),
-		Scheme:            mgr.GetScheme(),
 		IngressReconciler: ir,
 	}
 	v1beta1Reconciler.IngressReconciler.CDNIngressFn = v1beta1Reconciler.BoundIngresses

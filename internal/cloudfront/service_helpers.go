@@ -17,22 +17,21 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package cloudfront
 
 import (
 	"strings"
 
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 
-	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newDistributionBuilder(ingresses []k8s.CDNIngress, group, webACLARN string, cfg config.Config) cloudfront.DistributionBuilder {
-	b := cloudfront.NewDistributionBuilder(
+func newDistributionBuilder(ingresses []k8s.CDNIngress, group, webACLARN string, cfg config.Config) DistributionBuilder {
+	b := NewDistributionBuilder(
 		cfg.DefaultOriginDomain,
 		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
 		cfg.CloudFrontPriceClass,
@@ -72,8 +71,8 @@ func renderDescription(template, group string) string {
 	return strings.ReplaceAll(template, "{{group}}", group)
 }
 
-func newOrigin(ing k8s.CDNIngress) cloudfront.Origin {
-	builder := cloudfront.NewOriginBuilder(ing.LoadBalancerHost).
+func newOrigin(ing k8s.CDNIngress) Origin {
+	builder := NewOriginBuilder(ing.LoadBalancerHost).
 		WithViewerFunction(ing.ViewerFnARN).
 		WithResponseTimeout(ing.OriginRespTimeout).
 		WithRequestPolicy(ing.OriginReqPolicy).

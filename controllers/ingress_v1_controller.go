@@ -26,12 +26,12 @@ import (
 	"github.com/go-logr/logr"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
@@ -39,11 +39,7 @@ import (
 type V1Reconciler struct {
 	client.Client
 
-	OriginalLog       logr.Logger
-	Scheme            *runtime.Scheme
-	IngressReconciler *IngressReconciler
-
-	log logr.Logger
+	IngressReconciler *cloudfront.Service
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -54,15 +50,14 @@ type V1Reconciler struct {
 
 //Reconcile a v1 Ingress resource
 func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
-	r.IngressReconciler.log = r.log
-	r.log.Info("Starting reconciliation.")
+	log := logr.FromContext(ctx)
+	log.Info("Starting reconciliation.")
 
 	ingress := &networkingv1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.log.Info("Ignoring not found Ingress.")
+			log.Info("Ignoring not found Ingress.")
 			return reconcile.Result{}, nil
 		}
 
@@ -72,7 +67,7 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 	reconcilingIP := k8s.NewCDNIngressFromV1(ingress)
 	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
 	if err == nil {
-		r.log.Info("Reconciliation successful.")
+		log.Info("Reconciliation successful.")
 	}
 	return ctrl.Result{}, err
 }
@@ -89,12 +84,12 @@ func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]k8s.CDNIngre
 			// and should no longer be part of the status or distribution.
 			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
 		}
-		r.log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
+		//log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
 
 		reconcilingCDNIngress := k8s.NewCDNIngressFromV1(ing)
 		paramsList = append(paramsList, reconcilingCDNIngress)
 
-		//userOriginParamsList, err := r.IngressReconciler.cdnIngressesForUserOrigins(reconcilingCDNIngress.Group, ing)
+		//userOriginParamsList, err := r.Service.cdnIngressesForUserOrigins(reconcilingCDNIngress.Group, ing)
 		//if err != nil {
 		//	return nil, fmt.Errorf("creating user origins desired state: %v", err)
 		//}

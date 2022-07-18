@@ -37,13 +37,17 @@ import (
 const (
 	// CDNGroupAnnotation is the annotation key that represents a group of Ingresses composing a single Distribution
 	CDNGroupAnnotation = "cdn-origin-controller.gympass.com/cdn.group"
+	// CDNClassAnnotation is the annotation key that represents a class
+	CDNClassAnnotation = "cdn-origin-controller.gympass.com/cdn.class"
+	// CDNFinalizer is the finalizer to be used in Ingresses managed by the operator
+	CDNFinalizer = "cdn-origin-controller.gympass.com/finalizer"
 
 	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"
 	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
-	webACLARNAnnotation              = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
+	cfWebACLARNAnnotation            = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
 )
 
 // Path represents a path item within an Ingress
@@ -191,5 +195,5 @@ func alternateDomainNames(obj client.Object) (domainNames []string) {
 }
 
 func webACLARN(obj client.Object) string {
-	return obj.GetAnnotations()[webACLARNAnnotation]
+	return obj.GetAnnotations()[cfWebACLARNAnnotation]
 }

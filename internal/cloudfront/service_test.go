@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package cloudfront
 
 import (
 	"testing"
@@ -28,16 +28,16 @@ import (
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 )
 
-func TestRunIngressReconcilerTestSuite(t *testing.T) {
+func TestRunCloudFrontServiceTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &IngressReconcilerSuite{})
+	suite.Run(t, &CloudFrontServiceTestSuite{})
 }
 
-type IngressReconcilerSuite struct {
+type CloudFrontServiceTestSuite struct {
 	suite.Suite
 }
 
-func (s IngressReconcilerSuite) Test_getDeletions() {
+func (s CloudFrontServiceTestSuite) Test_getDeletions() {
 	testCases := []struct {
 		name             string
 		desired, current []string
@@ -78,7 +78,7 @@ type nsName struct {
 	namespace, name string
 }
 
-func (s IngressReconcilerSuite) Test_filterIngressRef() {
+func (s CloudFrontServiceTestSuite) Test_filterIngressRef() {
 	testCases := []struct {
 		name     string
 		toFilter nsName

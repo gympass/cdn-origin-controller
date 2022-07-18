@@ -49,7 +49,7 @@ var (
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
 		i.Annotations[k8s.CDNGroupAnnotation] = "some value"
-		i.Annotations[cdnClassAnnotation] = "default"
+		i.Annotations[k8s.CDNClassAnnotation] = "default"
 		return i
 	}()
 	provisionedIngress = func() *networkingv1beta1.Ingress {
@@ -65,7 +65,7 @@ var (
 	}()
 	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
 		i := annotatedIngress.DeepCopy()
-		i.Finalizers = []string{cdnFinalizer}
+		i.Finalizers = []string{k8s.CDNFinalizer}
 		return i
 	}()
 )
@@ -261,10 +261,10 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Generic() {
 
 func (s *PredicateSuite) Test_hasLoadBalancer_v1Ingress() {
 	var ing client.Object = &networkingv1.Ingress{}
-	s.False(hasLoadBalancer(ing))
+	s.False(k8s.HasLoadBalancer(ing))
 }
 
 func (s *PredicateSuite) Test_hasLoadBalancer_notAnIngress() {
 	var ing client.Object = &corev1.Service{}
-	s.False(hasLoadBalancer(ing))
+	s.False(k8s.HasLoadBalancer(ing))
 }

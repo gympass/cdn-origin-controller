@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package cloudfront
 
 import (
 	"testing"
@@ -29,22 +29,22 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
-func TestRunCloudFrontTestSuite(t *testing.T) {
+func TestRunServiceHelpersTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &CloudFrontSuite{})
+	suite.Run(t, &ServiceHelpersSuite{})
 }
 
-type CloudFrontSuite struct {
+type ServiceHelpersSuite struct {
 	suite.Suite
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_EmptyIngresses() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_EmptyIngresses() {
 	dist, err := newDistributionBuilder(nil, "group", "", config.Config{}).Build()
 	s.NoError(err)
 	s.Len(dist.CustomOrigins, 0)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
 	ingresses := []k8s.CDNIngress{
 		{LoadBalancerHost: "lb", AlternateDomainNames: []string{"origin1"}},
 		{LoadBalancerHost: "lb", AlternateDomainNames: []string{"origin2", "origin3"}},
@@ -55,13 +55,13 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
 	s.Equal([]string{"origin1", "origin2", "origin3"}, dist.AlternateDomains)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithIPv6() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithIPv6() {
 	dist, err := newDistributionBuilder(nil, "group", "", config.Config{CloudFrontEnableIPV6: true}).Build()
 	s.NoError(err)
 	s.True(dist.IPv6Enabled)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithTLS() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithTLS() {
 	cfg := config.Config{
 		CloudFrontCustomSSLCertARN: "arn",
 		CloudFrontSecurityPolicy:   "policy",
@@ -73,7 +73,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithTLS() {
 	s.Equal("policy", dist.TLS.SecurityPolicyID)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithLogging() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithLogging() {
 	cfg := config.Config{
 		CloudFrontEnableLogging: true,
 		CloudFrontS3BucketLog:   "bucket",
@@ -85,7 +85,7 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithLogging() {
 	s.Equal("bucket", dist.Logging.BucketAddress)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomTags() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithCustomTags() {
 	cfg := config.Config{
 		CloudFrontCustomTags: map[string]string{
 			"foo": "bar",
@@ -98,19 +98,19 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomTags() {
 	s.Equal("foo", dist.Tags["bar"])
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithDefaultWAF() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithDefaultWAF() {
 	dist, err := newDistributionBuilder(nil, "group", "", config.Config{CloudFrontWAFARN: "default-waf"}).Build()
 	s.NoError(err)
 	s.Equal("default-waf", dist.WebACLID)
 }
 
-func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomWAF() {
+func (s *ServiceHelpersSuite) Test_newDistributionBuilder_WithCustomWAF() {
 	dist, err := newDistributionBuilder(nil, "group", "custom-web-acl", config.Config{CloudFrontWAFARN: "default-waf"}).Build()
 	s.NoError(err)
 	s.Equal("custom-web-acl", dist.WebACLID)
 }
 
-func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
+func (s *ServiceHelpersSuite) Test_newOrigin_SingleBehaviorAndRule() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
@@ -127,7 +127,7 @@ func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
-func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
+func (s *ServiceHelpersSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
@@ -157,7 +157,7 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 
 	s.ElementsMatch(expectedPaths, gotPaths)
 }
-func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
+func (s *ServiceHelpersSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
@@ -201,7 +201,7 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
+func (s *ServiceHelpersSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
@@ -219,7 +219,7 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSp
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
+func (s *ServiceHelpersSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
@@ -247,7 +247,7 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash
 }
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
-func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
+func (s *ServiceHelpersSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
 	ing := k8s.CDNIngress{
 		LoadBalancerHost: "origin1",
 		Paths: []k8s.Path{
