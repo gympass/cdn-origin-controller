@@ -26,6 +26,7 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 func TestRunCloudFrontTestSuite(t *testing.T) {
@@ -44,9 +45,9 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_EmptyIngresses() {
 }
 
 func (s *CloudFrontSuite) Test_newDistributionBuilder_NonEmptyIngresses() {
-	ingresses := []ingressParams{
-		{destinationHost: "lb", alternateDomainNames: []string{"origin1"}},
-		{destinationHost: "lb", alternateDomainNames: []string{"origin2", "origin3"}},
+	ingresses := []k8s.CDNIngress{
+		{LoadBalancerHost: "lb", AlternateDomainNames: []string{"origin1"}},
+		{LoadBalancerHost: "lb", AlternateDomainNames: []string{"origin2", "origin3"}},
 	}
 	dist, err := newDistributionBuilder(ingresses, "group", "", config.Config{}).Build()
 	s.NoError(err)
@@ -110,38 +111,38 @@ func (s *CloudFrontSuite) Test_newDistributionBuilder_WithCustomWAF() {
 }
 
 func (s *CloudFrontSuite) Test_newOrigin_SingleBehaviorAndRule() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/", origin.Behaviors[0].PathPattern)
 }
 
 func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 			{
-				pathPattern: "/foo",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/foo",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 
@@ -157,29 +158,29 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsSingleRule() {
 	s.ElementsMatch(expectedPaths, gotPaths)
 }
 func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 			{
-				pathPattern: "/foo",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/foo",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 			{
-				pathPattern: "/foo/bar",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/foo/bar",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 			{
-				pathPattern: "/bar",
-				pathType:    string(networkingv1beta1.PathTypeExact),
+				PathPattern: "/bar",
+				PathType:    string(networkingv1beta1.PathTypeExact),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 4)
 
@@ -201,17 +202,17 @@ func (s *CloudFrontSuite) Test_newOrigin_MultipleBehaviorsMultipleRules() {
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSpecialCase() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/",
-				pathType:    string(networkingv1beta1.PathTypePrefix),
+				PathPattern: "/",
+				PathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 1)
 	s.Equal("/*", origin.Behaviors[0].PathPattern)
@@ -219,17 +220,17 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_SingleSlashSp
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/foo/",
-				pathType:    string(networkingv1beta1.PathTypePrefix),
+				PathPattern: "/foo/",
+				PathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 
@@ -247,17 +248,17 @@ func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_EndsWithSlash
 
 // https://kubernetes.io/docs/concepts/services-networking/ingress/#examples
 func (s *CloudFrontSuite) Test_newCloudFrontOrigins_PrefixPathType_DoesNotEndWithSlash() {
-	ip := ingressParams{
-		destinationHost: "origin1",
-		paths: []path{
+	ing := k8s.CDNIngress{
+		LoadBalancerHost: "origin1",
+		Paths: []k8s.Path{
 			{
-				pathPattern: "/foo",
-				pathType:    string(networkingv1beta1.PathTypePrefix),
+				PathPattern: "/foo",
+				PathType:    string(networkingv1beta1.PathTypePrefix),
 			},
 		},
 	}
 
-	origin := newOrigin(ip)
+	origin := newOrigin(ing)
 	s.Equal("origin1", origin.Host)
 	s.Len(origin.Behaviors, 2)
 

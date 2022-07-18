@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 func TestRunPredicateTestSuite(t *testing.T) {
@@ -47,7 +48,7 @@ var (
 	annotatedIngress = func() *networkingv1beta1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
-		i.Annotations[cdnGroupAnnotation] = "some value"
+		i.Annotations[k8s.CDNGroupAnnotation] = "some value"
 		i.Annotations[cdnClassAnnotation] = "default"
 		return i
 	}()

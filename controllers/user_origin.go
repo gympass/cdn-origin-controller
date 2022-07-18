@@ -23,6 +23,8 @@ import (
 	"fmt"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 type userOrigin struct {
@@ -35,10 +37,10 @@ type userOrigin struct {
 	WebACLARN         string   `yaml:"webACLARN"`
 }
 
-func (o userOrigin) paths() []path {
-	var paths []path
+func (o userOrigin) paths() []k8s.Path {
+	var paths []k8s.Path
 	for _, p := range o.Paths {
-		paths = append(paths, path{pathPattern: p})
+		paths = append(paths, k8s.Path{PathPattern: p})
 	}
 	return paths
 }
