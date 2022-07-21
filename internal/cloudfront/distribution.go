@@ -22,6 +22,7 @@ package cloudfront
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -35,6 +36,7 @@ type Distribution struct {
 	CustomOrigins    []Origin
 	DefaultOrigin    Origin
 	Description      string
+	Group            string
 	IPv6Enabled      bool
 	Logging          loggingConfig
 	PriceClass       string
@@ -64,6 +66,16 @@ func (d Distribution) SortedCustomBehaviors() []Behavior {
 
 	sort.Sort(byDescendingPathLength(result))
 	return result
+}
+
+// Exists returns whether this Distribution exists on AWS or not
+func (d Distribution) Exists() bool {
+	return len(d.ID) > 0
+}
+
+// IsEmpty return whether this Distribution has custom origins/behaviors
+func (d Distribution) IsEmpty() bool {
+	return len(d.CustomOrigins) == 0
 }
 
 // DistributionBuilder allows the construction of a Distribution
@@ -149,12 +161,17 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 	return b
 }
 
-// WithInfo takes in identifying information from an existing CloudFront to populate the resulting Distribution
-func (b DistributionBuilder) WithInfo(id string, arn string, address string) DistributionBuilder {
-	b.id = id
+// WithARN takes in identifying information from an existing CloudFront to populate the resulting Distribution
+func (b DistributionBuilder) WithARN(arn string) DistributionBuilder {
+	b.id = b.extractID(arn)
 	b.arn = arn
-	b.address = address
 	return b
+}
+
+// extractID assumes a valid ARN is given
+// arn:aws:cloudfront::<account>:distribution/<ID>
+func (b DistributionBuilder) extractID(arn string) string {
+	return strings.Split(arn, "/")[1]
 }
 
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
@@ -166,6 +183,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 		CustomOrigins:    b.customOrigins,
 		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
 		Description:      b.description,
+		Group:            b.group,
 		PriceClass:       b.priceClass,
 		Tags:             b.generateTags(),
 		Logging:          b.logging,

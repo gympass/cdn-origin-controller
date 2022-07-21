@@ -49,6 +49,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	cdnv1alpha1 "github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
+
 	//+kubebuilder:scaffold:imports
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
@@ -116,19 +118,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := session.Must(session.NewSession())
-
-	callerRefFn := func() string { return time.Now().String() }
-	waitTimeout := time.Minute * 10
-	ingressReconciler := &cloudfront.Service{
-		Client:    mgr.GetClient(),
-		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
-		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), resourcegroupstaggingapi.New(s), callerRefFn, waitTimeout),
-		AliasRepo: route53.NewAliasRepository(awsroute53.New(s), cfg),
-		Config:    cfg,
-	}
-
-	mustSetupControllers(mgr, ingressReconciler)
+	mustSetupControllers(mgr, cfg)
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
@@ -141,7 +131,7 @@ func leaderElectionID(cdnClass string) string {
 	return fmt.Sprintf("%s.cdn-origin.gympass.com", cdnClass)
 }
 
-func mustSetupControllers(mgr manager.Manager, reconciler *cloudfront.Service) {
+func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
 	v1Available, err := discovery.HasV1Ingress(discClient)
 	if err != nil {
@@ -158,25 +148,38 @@ func mustSetupControllers(mgr manager.Manager, reconciler *cloudfront.Service) {
 		os.Exit(1)
 	}
 
+	s := session.Must(session.NewSession())
+
+	callerRefFn := func() string { return time.Now().String() }
+	waitTimeout := time.Minute * 10
+	cfService := &cloudfront.Service{
+		Client:    mgr.GetClient(),
+		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
+		DistRepo:  cloudfront.NewDistributionRepository(awscloudfront.New(s), resourcegroupstaggingapi.New(s), callerRefFn, waitTimeout),
+		AliasRepo: route53.NewAliasRepository(awsroute53.New(s), cfg),
+		Config:    cfg,
+	}
+
 	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
 	if v1beta1Available {
 		setupLog.V(1).Info(networkingv1beta1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-		mustSetupV1beta1Controller(mgr, reconciler)
+		cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
+		mustSetupV1beta1Controller(mgr, cfService)
 		return
 	}
 
 	if v1Available {
 		setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-		mustSetupV1Controller(mgr, reconciler)
+		cfService.Fetcher = k8s.NewIngressFetcherV1Beta1(mgr.GetClient())
+		mustSetupV1Controller(mgr, cfService)
 	}
 }
 
 func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 	v1Reconciler := controllers.V1Reconciler{
 		Client:            mgr.GetClient(),
-		IngressReconciler: ir,
+		CloudFrontService: ir,
 	}
-	v1Reconciler.IngressReconciler.CDNIngressFn = v1Reconciler.BoundIngresses
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1 ingress controller")
@@ -187,9 +190,8 @@ func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 func mustSetupV1beta1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 	v1beta1Reconciler := controllers.V1beta1Reconciler{
 		Client:            mgr.GetClient(),
-		IngressReconciler: ir,
+		CloudFrontService: ir,
 	}
-	v1beta1Reconciler.IngressReconciler.CDNIngressFn = v1beta1Reconciler.BoundIngresses
 
 	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1beta1 ingress controller")

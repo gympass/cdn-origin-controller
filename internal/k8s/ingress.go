@@ -68,6 +68,17 @@ type CDNIngress struct {
 	OriginRespTimeout    int64
 	AlternateDomainNames []string
 	WebACLARN            string
+	IsBeingRemoved       bool
+}
+
+// GetNamespace returns the CDNIngress namespace
+func (c CDNIngress) GetNamespace() string {
+	return c.Namespace
+}
+
+// GetName returns the CDNIngress name
+func (c CDNIngress) GetName() string {
+	return c.Name
 }
 
 // SharedIngressParams represents parameters which might be specified in multiple Ingresses
@@ -94,12 +105,11 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 
 // NewCDNIngressFromV1beta1 creates a CDNIngress from a v1beta1 Ingress
 func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
-	return CDNIngress{
+	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
 		},
-		LoadBalancerHost:     ing.Status.LoadBalancer.Ingress[0].Hostname,
 		Group:                groupAnnotationValue(ing),
 		Paths:                pathsV1beta1(ing.Spec.Rules),
 		ViewerFnARN:          viewerFnARN(ing),
@@ -108,7 +118,14 @@ func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
+		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 	}
+
+	if len(ing.Status.LoadBalancer.Ingress) > 0 {
+		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
+	}
+
+	return result
 }
 
 func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
@@ -127,12 +144,11 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
 
 // NewCDNIngressFromV1 creates a new CDNIngress from a v1 Ingress
 func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
-	return CDNIngress{
+	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
 		},
-		LoadBalancerHost:     ing.Status.LoadBalancer.Ingress[0].Hostname,
 		Group:                groupAnnotationValue(ing),
 		Paths:                pathsV1(ing.Spec.Rules),
 		ViewerFnARN:          viewerFnARN(ing),
@@ -141,7 +157,14 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
+		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 	}
+
+	if len(ing.Status.LoadBalancer.Ingress) > 0 {
+		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
+	}
+
+	return result
 }
 
 func pathsV1(rules []networkingv1.IngressRule) []Path {

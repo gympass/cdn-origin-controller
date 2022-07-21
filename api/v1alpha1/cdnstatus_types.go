@@ -68,11 +68,6 @@ const (
 	syncedIngressStatus = "Synced"
 )
 
-type namespacedName interface {
-	GetNamespace() string
-	GetName() string
-}
-
 // SetAliases sets the CDN's aliases
 func (c *CDNStatus) SetAliases(aliases []string) {
 	c.Status.Aliases = aliases
@@ -111,6 +106,11 @@ func (c *CDNStatus) RemoveDNSRecords(records []string) {
 	if len(c.Status.DNS.Records) == 0 {
 		c.Status.DNS = nil
 	}
+}
+
+type namespacedName interface {
+	GetNamespace() string
+	GetName() string
 }
 
 // SetIngressRef set IngressRef to the status based on Ingress obj
@@ -162,6 +162,17 @@ func (c *CDNStatus) SetDNSSync(synced bool) {
 	if c.Status.DNS != nil {
 		c.Status.DNS.Synced = synced
 	}
+}
+
+// SetInfo sets Distribution basic info
+func (c *CDNStatus) SetInfo(id, arn, address string) {
+	c.Status.ID = id
+	c.Status.ARN = arn
+	c.Status.Address = address
+}
+
+func (in *CDNStatus) Exists() bool {
+	return in.ObjectMeta.ResourceVersion != ""
 }
 
 //+kubebuilder:object:root=true

@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
@@ -39,7 +38,7 @@ import (
 type V1Reconciler struct {
 	client.Client
 
-	IngressReconciler *cloudfront.Service
+	CloudFrontService *cloudfront.Service
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -64,38 +63,13 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	reconcilingIP := k8s.NewCDNIngressFromV1(ingress)
-	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
+	reconcilingCDNIngress := k8s.NewCDNIngressFromV1(ingress)
+	err = r.CloudFrontService.Reconcile(ctx, reconcilingCDNIngress, ingress)
+
 	if err == nil {
 		log.Info("Reconciliation successful.")
 	}
 	return ctrl.Result{}, err
-}
-
-// BoundIngresses returns a slice of k8s.CDNIngress for each Ingress associated with a particular v1alpha1.CDNStatus
-//revive:disable-next-line:unexported-return
-func (r *V1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]k8s.CDNIngress, error) {
-	var paramsList []k8s.CDNIngress
-	for _, key := range status.GetIngressKeys() {
-		ing := &networkingv1.Ingress{}
-		err := r.Client.Get(context.Background(), key, ing)
-		if err != nil {
-			// @TODO: handle not found, implying the Ingress has been deleted
-			// and should no longer be part of the status or distribution.
-			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
-		}
-		//log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
-
-		reconcilingCDNIngress := k8s.NewCDNIngressFromV1(ing)
-		paramsList = append(paramsList, reconcilingCDNIngress)
-
-		//userOriginParamsList, err := r.Service.cdnIngressesForUserOrigins(reconcilingCDNIngress.Group, ing)
-		//if err != nil {
-		//	return nil, fmt.Errorf("creating user origins desired state: %v", err)
-		//}
-		//paramsList = append(paramsList, userOriginParamsList...)
-	}
-	return paramsList, nil
 }
 
 // SetupWithManager ...

@@ -29,9 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
@@ -46,213 +44,226 @@ const (
 	reasonSuccess = "SuccessfullyReconciled"
 )
 
-var errNoCDNStatusForIng = errors.New("could not find a CDNStatus that referenced the ingress")
-
-type boundIngressesFunc func(v1alpha1.CDNStatus) ([]k8s.CDNIngress, error)
-
 // Service handles operations involving CloudFront
 type Service struct {
 	client.Client
 
-	CDNIngressFn boundIngressesFunc
-	Config       config.Config
-	Recorder     record.EventRecorder
-	AliasRepo    route53.AliasRepository
-	DistRepo     DistributionRepository
-
-	log logr.Logger
+	Config    config.Config
+	Recorder  record.EventRecorder
+	AliasRepo route53.AliasRepository
+	DistRepo  DistributionRepository
+	Fetcher   k8s.IngressFetcher
 }
 
 // Reconcile an Ingress resource of any version
-func (r *Service) Reconcile(reconciling k8s.CDNIngress, obj client.Object) error {
-	var ingresses []k8s.CDNIngress
+func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing client.Object) error {
+	log := logr.FromContext(ctx)
+
+	if k8s.HasFinalizer(ing) && !k8s.HasGroupAnnotation(ing) {
+		err := errors.New("ingress has no group annotation but has finalizer, can't continue without a group")
+		log.Error(err, "Faced invalid Ingress, removing finalizer. State may be inconsistent but should eventually self-heal.")
+		return s.reconcileFinalizer(ing, false)
+	}
+
+	desiredIngresses, desiredDist, err := s.desiredState(ctx, reconciling, ing)
+	if err != nil {
+		return fmt.Errorf("computing desired state: %v", err)
+	}
+
+	cdnStatus, err := s.fetchOrGenerateCDNStatus(desiredIngresses, desiredDist)
+	if err != nil {
+		return err
+	}
+
 	errs := &multierror.Error{}
 
-	isRemovingReconciling := isRemoving(obj)
-	//if !isRemovingReconciling {
-	//	ingresses = append(ingresses, reconciling)
-	//
-	//	userOriginParams, err := r.cdnIngressesForUserOrigins(reconciling.Group, obj)
-	//	errs = multierror.Append(errs, err)
-	//	ingresses = append(ingresses, userOriginParams...)
-	//}
+	existingDist, err := s.syncDist(ctx, desiredDist, cdnStatus, ing)
+	errs = multierror.Append(errs, err)
 
-	cdnStatus, fetchStatusErr := r.fetchCDNStatus(obj)
-	if errors.Is(fetchStatusErr, errNoCDNStatusForIng) {
-		r.log.Error(fmt.Errorf("fetching CDNStatus: %v", fetchStatusErr), "CDNStatus not found for Ingress which has no group annotation but has finalizer. Removing finalizer. State may be inconsistent.")
-		shouldHaveFinalizer := false
-		return r.reconcileFinalizer(obj, shouldHaveFinalizer)
+	if s.Config.CloudFrontRoute53CreateAlias {
+		err := s.syncAliases(cdnStatus, existingDist)
+		errs = multierror.Append(errs, err)
 	}
 
-	foundStatus := fetchStatusErr == nil
-	if foundStatus {
-		r.log.V(1).Info("CDNStatus resource found.", "cdnStatusName", cdnStatus.Name)
-		boundIngresses, err := r.CDNIngressFn(filterIngressRef(cdnStatus, obj))
-		if err != nil {
+	shouldHaveFinalizer := errs.Len() > 0 || !k8s.IsBeingRemovedFromDesiredState(ing)
+	if err := s.reconcileFinalizer(ing, shouldHaveFinalizer); err != nil {
+		errs = multierror.Append(errs, fmt.Errorf("reconciling finalizer for ingress (%s/%s): %v", ing.GetNamespace(), ing.GetName(), err))
+	}
+
+	if errs.Len() == 0 && k8s.IsBeingRemovedFromDesiredState(ing) {
+		cdnStatus.RemoveIngressRef(ing)
+	}
+
+	if errs.Len() == 0 && desiredDist.IsEmpty() {
+		errs = multierror.Append(errs, s.deleteCDNStatus(ctx, cdnStatus))
+	} else {
+		errs = multierror.Append(errs, s.upsertCDNStatus(ctx, cdnStatus))
+	}
+
+	return s.handleResult(ing, cdnStatus, errs)
+}
+
+func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress, obj client.Object) ([]k8s.CDNIngress, Distribution, error) {
+	desiredIngresses, err := s.desiredIngresses(ctx, reconciling, obj)
+	if err != nil {
+		return nil, Distribution{}, err
+	}
+
+	sharedParams, err := k8s.NewSharedIngressParams(desiredIngresses)
+	if err != nil {
+		return nil, Distribution{}, fmt.Errorf("shared ingress params: %v", err)
+	}
+
+	existingDistARN, err := s.DistRepo.ARNByGroup(reconciling.Group)
+	if err != nil && !errors.Is(err, ErrDistNotFound) {
+		return nil, Distribution{}, fmt.Errorf("fetching existing CloudFront ID based on group (%s): %v", reconciling.Group, err)
+	}
+
+	desiredDist, err := newDistribution(desiredIngresses, reconciling.Group, sharedParams.WebACLARN, existingDistARN, s.Config)
+	if err != nil {
+		return nil, Distribution{}, fmt.Errorf("building desired distribution: %v", err)
+	}
+
+	return desiredIngresses, desiredDist, nil
+}
+
+func (s *Service) desiredIngresses(ctx context.Context, reconciling k8s.CDNIngress, obj client.Object) ([]k8s.CDNIngress, error) {
+	desiredIngresses, err := s.Fetcher.FetchBy(ctx, s.isPartOfDesiredState(reconciling))
+	if err != nil {
+		return nil, fmt.Errorf("listing active Ingresses that belong to group %s: %v", reconciling.Group, err)
+	}
+	return desiredIngresses, nil
+}
+
+func (s *Service) isPartOfDesiredState(reconciling k8s.CDNIngress) func(k8s.CDNIngress) bool {
+	return func(ing k8s.CDNIngress) bool {
+		isPartOfGroup := ing.Group == reconciling.Group
+		hasBeenProvisioned := len(ing.LoadBalancerHost) > 0
+		return !ing.IsBeingRemoved && isPartOfGroup && hasBeenProvisioned
+	}
+}
+
+func (s *Service) fetchOrGenerateCDNStatus(desiredIngs []k8s.CDNIngress, dist Distribution) (*v1alpha1.CDNStatus, error) {
+	status := &v1alpha1.CDNStatus{}
+	key := client.ObjectKey{Name: dist.Group}
+
+	err := s.Client.Get(context.Background(), key, status)
+	if k8serrors.IsNotFound(err) {
+		return newCDNStatus(desiredIngs, dist), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetching CDNStatus: %v", err)
+	}
+
+	return status, nil
+}
+
+func newCDNStatus(ings []k8s.CDNIngress, dist Distribution) *v1alpha1.CDNStatus {
+	status := &v1alpha1.CDNStatus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dist.Group,
+		},
+	}
+
+	for _, ing := range ings {
+		status.SetIngressRef(false, ing)
+	}
+
+	return status
+}
+
+func (s *Service) syncDist(ctx context.Context, desiredDist Distribution, cdnStatus *v1alpha1.CDNStatus, ing client.Object) (Distribution, error) {
+	if desiredDist.IsEmpty() {
+		return desiredDist, s.deleteDistribution(ctx, desiredDist)
+	}
+	return s.upsertDistribution(ctx, desiredDist, cdnStatus, ing)
+}
+
+func (s *Service) upsertDistribution(ctx context.Context, dist Distribution, status *v1alpha1.CDNStatus, ing client.Object) (Distribution, error) {
+	var err error
+	var existingDist Distribution
+
+	if dist.Exists() {
+		existingDist, err = s.updateDistribution(ctx, dist)
+	} else {
+		existingDist, err = s.createDistribution(ctx, dist)
+	}
+
+	status.SetIngressRef(err == nil, ing)
+	if err == nil {
+		status.SetInfo(existingDist.ID, existingDist.ARN, existingDist.Address)
+		status.SetAliases(existingDist.AlternateDomains)
+	}
+
+	return existingDist, err
+}
+
+func (s *Service) updateDistribution(ctx context.Context, dist Distribution) (Distribution, error) {
+	log := logr.FromContext(ctx)
+	log.V(1).Info("Updating existing Distribution.", "distribution", dist)
+
+	existingDist, err := s.DistRepo.Sync(dist)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("updating Distribution: %v", err)
+	}
+
+	return existingDist, nil
+}
+
+func (s *Service) createDistribution(ctx context.Context, dist Distribution) (Distribution, error) {
+	log := logr.FromContext(ctx)
+	log.V(1).Info("Creating Distribution.", "distribution", dist)
+
+	existingDist, err := s.DistRepo.Create(dist)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("creating Distribution: %v", err)
+	}
+
+	return existingDist, nil
+}
+
+func (s *Service) deleteDistribution(ctx context.Context, dist Distribution) error {
+	if !dist.Exists() {
+		return nil
+	}
+
+	log := logr.FromContext(ctx)
+	if !s.Config.DeletionEnabled {
+		log.V(1).Info("In a deletion operation, but configured not to delete Distributions. Will not delete.")
+		return nil
+	}
+
+	log.V(1).Info("Disabling and deleting distribution on AWS, this may take a few minutes.")
+	return s.DistRepo.Delete(dist)
+}
+
+func (s *Service) upsertCDNStatus(ctx context.Context, status *v1alpha1.CDNStatus) error {
+	if !status.Exists() {
+		// create does not touch the .status subresource, so we need to create, then update the status
+		if err := s.Create(ctx, status); err != nil {
 			return err
 		}
-		ingresses = append(ingresses, boundIngresses...)
-
-		if isRemovingReconciling {
-			cdnStatus.RemoveIngressRef(obj)
-		}
 	}
-
-	group := cdnStatus.Name
-	if !foundStatus {
-		group = reconciling.Group
-	}
-
-	sharedParams, err := k8s.NewSharedIngressParams(ingresses)
-
-	if err != nil {
-		return fmt.Errorf("shared ingress params: %v", err)
-	}
-
-	var distErr error
-	var dist Distribution
-	distBuilder := newDistributionBuilder(ingresses, group, sharedParams.WebACLARN, r.Config)
-
-	shouldCreateDist := k8serrors.IsNotFound(fetchStatusErr)
-	shouldDeleteDist := len(ingresses) == 0
-	shouldSyncDist := foundStatus && !shouldDeleteDist
-	switch {
-	case shouldCreateDist:
-		dist, distErr = r.createDistribution(distBuilder, group)
-		if distErr != nil {
-			return fmt.Errorf("creating distribution: %v", distErr)
-		}
-
-		cdnStatus, distErr = r.createCDNStatus(dist, reconciling.Group)
-		if distErr != nil {
-			return fmt.Errorf("creating CDNStatus: %v", distErr)
-		}
-	case shouldSyncDist:
-		dist, distErr = r.syncDistribution(cdnStatus, distBuilder)
-		errs = multierror.Append(errs, distErr)
-	case shouldDeleteDist:
-		dist, distErr = r.deleteDistribution(cdnStatus, distBuilder)
-		errs = multierror.Append(errs, distErr)
-	default:
-		return fmt.Errorf("fetching CDN status: %v", fetchStatusErr)
-	}
-
-	if !isRemovingReconciling {
-		inSync := true
-		if errs.Len() > 0 {
-			inSync = false
-		}
-		cdnStatus.SetIngressRef(inSync, obj)
-	}
-	cdnStatus.SetAliases(dist.AlternateDomains)
-
-	var aliasesErr error
-	if r.Config.CloudFrontRoute53CreateAlias {
-		aliasesErr = r.syncAliases(cdnStatus, dist)
-		errs = multierror.Append(errs, aliasesErr)
-	}
-
-	reconciledSomething := distErr == nil || aliasesErr == nil
-	shouldHaveFinalizer := k8s.HasFinalizer(obj) || reconciledSomething
-	if isRemovingReconciling {
-		shouldHaveFinalizer = errs.Len() > 0
-	}
-	return r.handleResult(obj, cdnStatus, shouldHaveFinalizer, errs)
+	return s.Status().Update(ctx, status)
 }
 
-func (r *Service) fetchCDNStatus(ing client.Object) (*v1alpha1.CDNStatus, error) {
-	if isRemoving(ing) && !k8s.HasGroupAnnotation(ing) {
-		return r.discoverCDNStatusForIngress(ing)
-	}
-
-	nsName := types.NamespacedName{Name: ing.GetAnnotations()[k8s.CDNGroupAnnotation]}
-	cdnStatus := &v1alpha1.CDNStatus{}
-	fetchStatusErr := r.Get(context.Background(), nsName, cdnStatus)
-	return cdnStatus, fetchStatusErr
-}
-
-func (r *Service) discoverCDNStatusForIngress(ing client.Object) (*v1alpha1.CDNStatus, error) {
-	statusList := &v1alpha1.CDNStatusList{}
-	if err := r.Client.List(context.Background(), statusList); err != nil {
-		return nil, fmt.Errorf("listing CDNStatus resources: %v", err)
-	}
-
-	for _, s := range statusList.Items {
-		if s.HasIngressRef(ing) {
-			return &s, nil
-		}
-	}
-	return nil, fmt.Errorf("trying to match Ingress (%s/%s): %w", ing.GetNamespace(), ing.GetName(), errNoCDNStatusForIng)
-}
-
-func (r *Service) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, shouldHaveFinalizer bool, errs *multierror.Error) error {
-	if err := r.reconcileStatus(cdnStatus); err != nil {
-		errs = multierror.Append(errs, fmt.Errorf("reconciling CDNStatus: %v", err))
-	}
-
-	err := retry.RetryOnConflict(retry.DefaultRetry, r.retryableReconcileFinalizer(obj, shouldHaveFinalizer))
-	if err != nil {
-		errs = multierror.Append(errs, fmt.Errorf("reconciling finalizer: %v", err))
-	}
-
-	if errs.Len() > 0 {
-		return r.handleFailure(errs, obj, cdnStatus)
-	}
-	return r.handleSuccess(obj, cdnStatus)
-}
-
-func (r *Service) reconcileStatus(cdnStatus *v1alpha1.CDNStatus) error {
-	if len(cdnStatus.Status.Ingresses) == 0 {
-		return r.deleteCDNStatus(cdnStatus)
-	}
-	return r.updateCDNStatus(cdnStatus)
-}
-
-func (r *Service) deleteCDNStatus(cdnStatus *v1alpha1.CDNStatus) error {
-	if err := r.Delete(context.Background(), cdnStatus); err != nil {
-		r.log.Error(err, "Could not delete CDNStatus resource", "cdnStatus", cdnStatus)
+func (s *Service) deleteCDNStatus(ctx context.Context, cdnStatus *v1alpha1.CDNStatus) error {
+	if err := s.Delete(ctx, cdnStatus); err != nil && !k8serrors.IsNotFound(err) {
+		log := logr.FromContext(ctx)
+		log.V(1).Error(err, "Could not delete CDNStatus resource", "cdnStatus", cdnStatus)
 		return err
 	}
 	return nil
 }
 
-func (r *Service) updateCDNStatus(status *v1alpha1.CDNStatus) error {
-	if err := r.Status().Update(context.Background(), status); err != nil {
-		r.log.Error(err, "Could not persist CDNStatus resource", "cdnStatus", status)
-		return err
-	}
-	return nil
-}
+func (s *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution) error {
+	upserting, deleting := s.newAliases(dist, cdnStatus)
 
-func (r *Service) retryableReconcileFinalizer(obj client.Object, shouldHaveFinalizer bool) func() error {
-	return func() error {
-		return r.reconcileFinalizer(obj, shouldHaveFinalizer)
-	}
-}
-
-func (r *Service) reconcileFinalizer(obj client.Object, shouldHaveFinalizer bool) error {
-	key := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
-	if err := r.Get(context.Background(), key, obj); err != nil {
-		return fmt.Errorf("fetching current Ingress: %v", err)
-	}
-
-	if shouldHaveFinalizer {
-		k8s.AddFinalizer(obj)
-	} else {
-		k8s.RemoveFinalizer(obj)
-	}
-
-	return r.Client.Update(context.Background(), obj)
-}
-
-func (r *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution) error {
-	upserting, deleting := r.newAliases(dist, cdnStatus)
-
-	errUpsert := r.AliasRepo.Upsert(upserting)
+	errUpsert := s.AliasRepo.Upsert(upserting)
 	if errUpsert == nil {
 		cdnStatus.UpsertDNSRecords(upserting.Domains())
 	}
-	errDelete := r.AliasRepo.Delete(deleting)
+	errDelete := s.AliasRepo.Delete(deleting)
 	if errDelete == nil {
 		cdnStatus.RemoveDNSRecords(deleting.Domains())
 	}
@@ -265,54 +276,7 @@ func (r *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution) 
 	return result.ErrorOrNil()
 }
 
-func (r *Service) createDistribution(builder DistributionBuilder, group string) (Distribution, error) {
-	dist, err := r.build(builder)
-	if err != nil {
-		return Distribution{}, fmt.Errorf("building desired distribution: %v", err)
-	}
-
-	r.log.V(1).Info("CDNStatus resource not found, creating.", "cdnStatusName", group)
-	modifiedDist, err := r.DistRepo.Create(dist)
-	if err != nil {
-		return dist, err
-	}
-	r.log.V(1).Info("Distribution created.", "distribution", dist)
-	return modifiedDist, err
-}
-
-func (r *Service) syncDistribution(cdnStatus *v1alpha1.CDNStatus, builder DistributionBuilder) (Distribution, error) {
-	dist, err := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
-	if err != nil {
-		return Distribution{}, fmt.Errorf("building desired distribution: %v", err)
-	}
-	return dist, r.DistRepo.Sync(dist)
-}
-
-func (r *Service) deleteDistribution(cdnStatus *v1alpha1.CDNStatus, builder DistributionBuilder) (Distribution, error) {
-	dist, err := r.build(builder.WithInfo(cdnStatus.Status.ID, cdnStatus.Status.ARN, cdnStatus.Status.Address))
-	if err != nil {
-		return Distribution{}, fmt.Errorf("building desired distribution: %v", err)
-	}
-
-	if !r.Config.DeletionEnabled {
-		r.log.V(1).Info("In a deletion operation, but configured not to delete Distributions. Will not delete.")
-		return dist, nil
-	}
-
-	r.log.V(1).Info("Disabling and deleting distribution on AWS, this may take a few minutes.")
-	return dist, r.DistRepo.Delete(dist)
-}
-
-func (r *Service) build(distBuilder DistributionBuilder) (Distribution, error) {
-	dist, err := distBuilder.Build()
-	if err != nil {
-		return Distribution{}, err
-	}
-	r.log.V(1).Info("Built desired distribution.", "distribution", dist)
-	return dist, nil
-}
-
-func (r *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
+func (s *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
 	var deleting []string
 	if status.Status.DNS != nil {
 		desiredDomains := route53.NormalizeDomains(dist.AlternateDomains)
@@ -320,7 +284,7 @@ func (r *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus) (toU
 		deleting = getDeletions(desiredDomains, existingDomains)
 	}
 
-	if !r.Config.DeletionEnabled {
+	if !s.Config.DeletionEnabled {
 		deleting = []string{}
 	}
 
@@ -337,58 +301,40 @@ func getDeletions(desiredDomains, currentDomains []string) []string {
 	return toDelete
 }
 
-func (r *Service) createCDNStatus(dist Distribution, group string) (*v1alpha1.CDNStatus, error) {
-	cdnStatus := &v1alpha1.CDNStatus{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: group,
-		},
-		Status: v1alpha1.CDNStatusStatus{
-			ID:      dist.ID,
-			ARN:     dist.ARN,
-			Aliases: dist.AlternateDomains,
-			Address: dist.Address,
-		},
+func (s *Service) reconcileFinalizer(obj client.Object, shouldHaveFinalizer bool) error {
+	if shouldHaveFinalizer {
+		k8s.AddFinalizer(obj)
+	} else {
+		k8s.RemoveFinalizer(obj)
 	}
-
-	err := r.Create(context.Background(), cdnStatus)
-	if err != nil {
-		return nil, err
-	}
-	return cdnStatus, nil
+	return s.Client.Update(context.Background(), obj)
 }
 
-func (r *Service) handleFailure(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
+func (s *Service) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, errs *multierror.Error) error {
+	if errs.Len() > 0 {
+		return s.handleFailure(errs, obj, cdnStatus)
+	}
+	return s.handleSuccess(obj, cdnStatus)
+}
+
+func (s *Service) handleFailure(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
 	msg := "Unable to reconcile CDN: " + err.Error()
-	r.Recorder.Event(ingress, corev1.EventTypeWarning, reasonFailed, msg)
+	s.Recorder.Event(ingress, corev1.EventTypeWarning, reasonFailed, msg)
 
 	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
 	msg = fmt.Sprintf("%s: %s", ingRef, msg)
-	r.Recorder.Event(status, corev1.EventTypeWarning, reasonFailed, msg)
+	s.Recorder.Event(status, corev1.EventTypeWarning, reasonFailed, msg)
 
 	return err
 }
 
-func (r *Service) handleSuccess(ingress client.Object, status *v1alpha1.CDNStatus) error {
+func (s *Service) handleSuccess(ingress client.Object, status *v1alpha1.CDNStatus) error {
 	msg := "Successfully reconciled CDN"
-	r.Recorder.Event(ingress, corev1.EventTypeNormal, reasonSuccess, msg)
+	s.Recorder.Event(ingress, corev1.EventTypeNormal, reasonSuccess, msg)
 
 	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
 	msg = fmt.Sprintf("%s: %s", ingRef, msg)
-	r.Recorder.Event(status, corev1.EventTypeNormal, reasonSuccess, msg)
+	s.Recorder.Event(status, corev1.EventTypeNormal, reasonSuccess, msg)
 
 	return nil
-}
-
-func isRemoving(obj client.Object) bool {
-	return obj.GetDeletionTimestamp() != nil || (!k8s.HasGroupAnnotation(obj) && k8s.HasFinalizer(obj))
-}
-
-func filterIngressRef(status *v1alpha1.CDNStatus, obj client.Object) v1alpha1.CDNStatus {
-	statusCopy := status.DeepCopy()
-	for ref := range status.Status.Ingresses {
-		if ref.GetName() == obj.GetName() && ref.GetNamespace() == obj.GetNamespace() {
-			delete(statusCopy.Status.Ingresses, ref)
-		}
-	}
-	return *statusCopy
 }

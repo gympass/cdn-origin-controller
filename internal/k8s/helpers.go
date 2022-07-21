@@ -66,3 +66,8 @@ func HasLoadBalancer(o client.Object) bool {
 
 	return len(ingv1.Status.LoadBalancer.Ingress) > 0 && len(ingv1.Status.LoadBalancer.Ingress[0].Hostname) > 0
 }
+
+// IsBeingRemovedFromDesiredState return whether the Ingress is being removed or if it no longer belongs to a group
+func IsBeingRemovedFromDesiredState(obj client.Object) bool {
+	return obj.GetDeletionTimestamp() != nil || (!HasGroupAnnotation(obj) && HasFinalizer(obj))
+}

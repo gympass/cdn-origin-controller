@@ -71,7 +71,7 @@ type DistributionRepositoryTestSuite struct {
 	suite.Suite
 }
 
-func (s *DistributionRepositoryTestSuite) TestIDByGroup_CloudFrontExists() {
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
 	taggingClient := &test.MockResourceTaggingAPI{
 		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{
 			ResourceTagMappingList: []*resourcegroupstaggingapi.ResourceTagMapping{
@@ -87,24 +87,24 @@ func (s *DistributionRepositoryTestSuite) TestIDByGroup_CloudFrontExists() {
 
 	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
 
-	id, err := repo.IDByGroup("group")
+	arn, err := repo.ARNByGroup("group")
 	s.NoError(err)
-	s.Equal("AAAAAAAAAAAAAA", id)
+	s.Equal("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA", arn)
 }
 
-func (s *DistributionRepositoryTestSuite) TestIDByGroup_ErrorGettingResources() {
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_ErrorGettingResources() {
 	taggingClient := &test.MockResourceTaggingAPI{}
 
 	taggingClient.On("GetResources", mock.Anything).Return(errors.New("mock err"))
 
 	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
 
-	id, err := repo.IDByGroup("group")
+	id, err := repo.ARNByGroup("group")
 	s.Error(err)
 	s.Equal("", id)
 }
 
-func (s *DistributionRepositoryTestSuite) TestIDByGroup_DistributionDoesNotExist() {
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_DistributionDoesNotExist() {
 	taggingClient := &test.MockResourceTaggingAPI{
 		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{},
 	}
@@ -114,12 +114,12 @@ func (s *DistributionRepositoryTestSuite) TestIDByGroup_DistributionDoesNotExist
 
 	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
 
-	id, err := repo.IDByGroup("group")
+	arn, err := repo.ARNByGroup("group")
 	s.ErrorIs(err, ErrDistNotFound)
-	s.Equal("", id)
+	s.Equal("", arn)
 }
 
-func (s *DistributionRepositoryTestSuite) TestIDByGroup_MoreThanOneCloudFrontExists() {
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_MoreThanOneCloudFrontExists() {
 	taggingClient := &test.MockResourceTaggingAPI{
 		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{
 			ResourceTagMappingList: []*resourcegroupstaggingapi.ResourceTagMapping{
@@ -138,9 +138,9 @@ func (s *DistributionRepositoryTestSuite) TestIDByGroup_MoreThanOneCloudFrontExi
 
 	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
 
-	id, err := repo.IDByGroup("group")
+	arn, err := repo.ARNByGroup("group")
 	s.Error(err)
-	s.Equal("", id)
+	s.Equal("", arn)
 }
 
 func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
@@ -211,7 +211,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
@@ -234,7 +236,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 	awsClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
@@ -258,7 +262,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	awsClient.On("TagResource", mock.Anything).Return(errors.New("mock err")).Once()
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
@@ -275,8 +281,17 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 		},
 	}
 
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
+		},
+	}
+
 	var noError error
-	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -296,7 +311,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 	}
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
@@ -314,8 +330,17 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 		},
 	}
 
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
+		},
+	}
+
 	var noError error
-	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -335,7 +360,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 	}
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
@@ -398,8 +424,17 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 		},
 	}
 
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
+		},
+	}
+
 	var noError error
-	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -424,7 +459,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 	}
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
@@ -465,8 +501,17 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 		},
 	}
 
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
+		},
+	}
+
 	var noError error
-	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -487,7 +532,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 			},
 		},
 	}
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
@@ -503,8 +549,17 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 		},
 	}
 
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
+		},
+	}
+
 	var noError error
-	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -529,7 +584,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 	}
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_Success() {

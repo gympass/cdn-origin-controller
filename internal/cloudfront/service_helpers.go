@@ -30,7 +30,7 @@ import (
 
 const prefixPathType = string(networkingv1beta1.PathTypePrefix)
 
-func newDistributionBuilder(ingresses []k8s.CDNIngress, group, webACLARN string, cfg config.Config) DistributionBuilder {
+func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string, cfg config.Config) (Distribution, error) {
 	b := NewDistributionBuilder(
 		cfg.DefaultOriginDomain,
 		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
@@ -64,7 +64,11 @@ func newDistributionBuilder(ingresses []k8s.CDNIngress, group, webACLARN string,
 		b = b.WithWebACL(webACLARN)
 	}
 
-	return b
+	if len(distARN) > 0 {
+		b = b.WithARN(distARN)
+	}
+
+	return b.Build()
 }
 
 func renderDescription(template, group string) string {
