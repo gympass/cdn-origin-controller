@@ -171,8 +171,9 @@ func (c *CDNStatus) SetInfo(id, arn, address string) {
 	c.Status.Address = address
 }
 
-func (in *CDNStatus) Exists() bool {
-	return in.ObjectMeta.ResourceVersion != ""
+// Exists returns whether the CDNStatus exists on Kubernetes or not
+func (c *CDNStatus) Exists() bool {
+	return c.ObjectMeta.ResourceVersion != ""
 }
 
 //+kubebuilder:object:root=true

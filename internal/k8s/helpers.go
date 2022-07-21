@@ -29,30 +29,39 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
+// CDNClassAnnotationValue returns the CDN class found within an Ingress' annotations
 func CDNClassAnnotationValue(object client.Object) string {
 	return object.GetAnnotations()[CDNClassAnnotation]
 }
 
+// CDNClassMatches returns whether the candidate class matches the one being managed by this controller
 func CDNClassMatches(candidate string) bool {
 	return candidate == config.CDNClass()
 }
 
+// HasFinalizer returns whether a given Ingress has a finalizer managed by this controller
 func HasFinalizer(object client.Object) bool {
 	return strhelper.Contains(object.GetFinalizers(), CDNFinalizer)
 }
 
+// AddFinalizer adds the finalizer managed by this controller to a given Ingress.
+// It does not make any calls to the API server.
 func AddFinalizer(object client.Object) {
 	controllerutil.AddFinalizer(object, CDNFinalizer)
 }
 
+// RemoveFinalizer removes the finalizer managed by this controller from a given Ingress.
+// It does not make any calls to the API server.
 func RemoveFinalizer(object client.Object) {
 	controllerutil.RemoveFinalizer(object, CDNFinalizer)
 }
 
+// HasGroupAnnotation returns whether the given Ingress has the CDN group annotation
 func HasGroupAnnotation(o client.Object) bool {
 	return len(o.GetAnnotations()[CDNGroupAnnotation]) > 0
 }
 
+// HasLoadBalancer returns whether the given Ingress has been provisioned
 func HasLoadBalancer(o client.Object) bool {
 	ingv1beta1, ok := o.(*v1beta1.Ingress)
 	if ok {
