@@ -36,17 +36,6 @@ func NewIngressFetcherV1Beta1(k8sClient client.Client) IngressFetcher {
 	return ingFetcherV1Beta1{k8sClient: k8sClient}
 }
 
-func (i ingFetcherV1Beta1) Fetch(ctx context.Context, name, namespace string) (CDNIngress, error) {
-	ing := &networkingv1beta1.Ingress{}
-	key := client.ObjectKey{Name: name, Namespace: namespace}
-
-	if err := i.k8sClient.Get(ctx, key, ing); err != nil {
-		return CDNIngress{}, err
-	}
-
-	return NewCDNIngressFromV1beta1(ing), nil
-}
-
 func (i ingFetcherV1Beta1) FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
 	list := &networkingv1beta1.IngressList{}
 	if err := i.k8sClient.List(ctx, list); err != nil {

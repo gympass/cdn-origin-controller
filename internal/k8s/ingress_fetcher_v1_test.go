@@ -44,28 +44,6 @@ type IngressFetcherV1TestSuite struct {
 	suite.Suite
 }
 
-func (s *IngressFetcherV1TestSuite) TestFetch_Success() {
-	client := fake.NewClientBuilder().
-		WithObjects(newIngressV1WithLB("namespace", "name", nil)).
-		Build()
-
-	fetcher := NewIngressFetcherV1(client)
-
-	gotIng, err := fetcher.Fetch(context.Background(), "name", "namespace")
-	s.NoError(err)
-	s.NotNil(gotIng)
-}
-
-func (s *IngressFetcherV1TestSuite) TestFetch_Failure() {
-	client := fake.NewClientBuilder().Build()
-
-	fetcher := NewIngressFetcherV1(client)
-
-	gotIng, err := fetcher.Fetch(context.Background(), "name", "namespace")
-	s.Error(err)
-	s.Equal(CDNIngress{}, gotIng)
-}
-
 func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
 	client := fake.NewClientBuilder().
 		WithLists(&networkingv1.IngressList{
@@ -89,7 +67,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
 	s.Equal("ingress-matching-annotation", gotIngs[0].Name)
 }
 
-func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithoutUserOrigins() {
+func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureToListIngresses() {
 	client := &test.MockK8sClient{}
 	client.On("List", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err"))
 
@@ -211,8 +189,16 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 			cfUserOriginsAnnotation: tc.annotationValue,
 			CDNGroupAnnotation:      "group",
 		})
+		client := fake.NewClientBuilder().
+			WithLists(&networkingv1.IngressList{
+				Items: []networkingv1.Ingress{*ing},
+			}).
+			Build()
 
-		got, err := cdnIngressesForUserOrigins(ing)
+		fetcher := NewIngressFetcherV1(client)
+		predicate := func(ing CDNIngress) bool { return true }
+
+		got, err := fetcher.FetchBy(context.Background(), predicate)
 		s.Error(err, "test: %s", tc.name)
 		s.Nil(got, "test: %s", tc.name)
 	}
