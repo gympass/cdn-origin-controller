@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -54,14 +53,14 @@ var ErrDistNotFound = errors.New("distribution not found")
 
 // DistributionRepository provides a repository for manipulating CloudFront distributions to match desired configuration
 type DistributionRepository interface {
-	// IDByGroup fetches the ID from an existing Distribution in AWS that is owned by the operator and was created for
+	// ARNByGroup fetches the ARN from an existing Distribution in AWS that is owned by the operator and was created for
 	// the given group.
 	// Returns ErrDistNotFound if no existing Distribution was found.
-	IDByGroup(group string) (string, error)
-	// Create creates the given Distribution on CloudFront
+	ARNByGroup(group string) (string, error)
+	// Create creates the given Distribution on CloudFront. Returns the created dist.
 	Create(Distribution) (Distribution, error)
-	// Sync ensures the given Distribution is correctly configured on CloudFront
-	Sync(Distribution) error
+	// Sync ensures the given Distribution is correctly configured on CloudFront. Returns synced dist.
+	Sync(Distribution) (Distribution, error)
 	// Delete deletes the Distribution at AWS
 	Delete(Distribution) error
 }
@@ -78,7 +77,7 @@ func NewDistributionRepository(cloudFrontClient cloudfrontiface.CloudFrontAPI, t
 	return &repository{cloudfrontCli: cloudFrontClient, taggingCli: taggingClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
 }
 
-func (r repository) IDByGroup(group string) (string, error) {
+func (r repository) ARNByGroup(group string) (string, error) {
 	input := &resourcegroupstaggingapi.GetResourcesInput{
 		ResourceTypeFilters: []*string{aws.String("cloudfront:distribution")},
 		TagFilters: []*resourcegroupstaggingapi.TagFilter{
@@ -106,13 +105,7 @@ func (r repository) IDByGroup(group string) (string, error) {
 		return "", fmt.Errorf("found more than one CloudFront with matching group tag (%s), state is inconsistent and can't continue", group)
 	}
 
-	return r.extractID(aws.StringValue(out.ResourceTagMappingList[0].ResourceARN)), nil
-}
-
-// extractID assumes a valid ARN is given
-// arn:aws:cloudfront::<account>:distribution/<ID>
-func (r repository) extractID(arn string) string {
-	return strings.Split(arn, "/")[1]
+	return aws.StringValue(out.ResourceTagMappingList[0].ResourceARN), nil
 }
 
 func (r repository) Create(d Distribution) (Distribution, error) {
@@ -134,11 +127,11 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 	return d, nil
 }
 
-func (r repository) Sync(d Distribution) error {
+func (r repository) Sync(d Distribution) (Distribution, error) {
 	config := newAWSDistributionConfig(d, r.callerRef)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
-		return fmt.Errorf("getting distribution config: %v", err)
+		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
 
 	config.SetCallerReference(*output.DistributionConfig.CallerReference)
@@ -152,8 +145,9 @@ func (r repository) Sync(d Distribution) error {
 		Id:                 aws.String(d.ID),
 	}
 
-	if _, err = r.cloudfrontCli.UpdateDistribution(updateInput); err != nil {
-		return fmt.Errorf("updating distribution: %v", err)
+	updateOut, err := r.cloudfrontCli.UpdateDistribution(updateInput)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("updating distribution: %v", err)
 	}
 
 	tagsInput := &awscloudfront.TagResourceInput{
@@ -162,10 +156,13 @@ func (r repository) Sync(d Distribution) error {
 	}
 
 	if _, err = r.cloudfrontCli.TagResource(tagsInput); err != nil {
-		return fmt.Errorf("updating tags: %v", err)
+		return Distribution{}, fmt.Errorf("updating tags: %v", err)
 	}
 
-	return nil
+	d.ID = *updateOut.Distribution.Id
+	d.ARN = *updateOut.Distribution.ARN
+	d.Address = *updateOut.Distribution.DomainName
+	return d, nil
 }
 
 func (r repository) Delete(d Distribution) error {

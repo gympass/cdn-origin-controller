@@ -208,17 +208,14 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithWebACL() {
 	s.Equal("test:acl", dist.WebACLID)
 }
 
-func (s *DistributionTestSuite) TestDistributionBuilder_WithInfo() {
-	id, arn, addr := "id", "arn", "addr"
-
+func (s *DistributionTestSuite) TestDistributionBuilder_WithARN() {
 	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
-		WithInfo(id, arn, addr).
+		WithARN("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA").
 		Build()
 
 	s.NoError(err)
-	s.Equal(id, dist.ID)
-	s.Equal(arn, dist.ARN)
-	s.Equal(addr, dist.Address)
+	s.Equal("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA", dist.ARN)
+	s.Equal("AAAAAAAAAAAAAA", dist.ID)
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_InvalidDistribution() {

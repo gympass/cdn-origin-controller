@@ -17,50 +17,56 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package cloudfront
 
 import (
-	"fmt"
+	"testing"
 
-	"gopkg.in/yaml.v3"
-
-	"github.com/Gympass/cdn-origin-controller/internal/k8s"
+	"github.com/stretchr/testify/suite"
 )
 
-type userOrigin struct {
-	Host              string   `yaml:"host"`
-	ResponseTimeout   int64    `yaml:"responseTimeout"`
-	Paths             []string `yaml:"paths"`
-	ViewerFunctionARN string   `yaml:"viewerFunctionARN"`
-	RequestPolicy     string   `yaml:"originRequestPolicy"`
-	CachePolicy       string   `yaml:"cachePolicy"`
-	WebACLARN         string   `yaml:"webACLARN"`
+func TestRunCloudFrontServiceTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &CloudFrontServiceTestSuite{})
 }
 
-func (o userOrigin) paths() []k8s.Path {
-	var paths []k8s.Path
-	for _, p := range o.Paths {
-		paths = append(paths, k8s.Path{PathPattern: p})
-	}
-	return paths
+type CloudFrontServiceTestSuite struct {
+	suite.Suite
 }
 
-func (o userOrigin) isValid() bool {
-	return len(o.Host) > 0 && len(o.Paths) > 0
-}
-
-func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
-	origins := []userOrigin{}
-	err := yaml.Unmarshal(originsData, &origins)
-	if err != nil {
-		return nil, err
+func (s CloudFrontServiceTestSuite) Test_getDeletions() {
+	testCases := []struct {
+		name             string
+		desired, current []string
+		want             []string
+	}{
+		{
+			name:    "No current state",
+			desired: []string{"foo"},
+			current: nil,
+			want:    nil,
+		},
+		{
+			name:    "Current and desired state match",
+			desired: []string{"foo"},
+			current: []string{"foo"},
+			want:    nil,
+		},
+		{
+			name:    "Current and desired state don't match",
+			desired: []string{"foo"},
+			current: []string{"bar"},
+			want:    []string{"bar"},
+		},
+		{
+			name:    "No desired state and has current state",
+			desired: nil,
+			current: []string{"foo"},
+			want:    []string{"foo"},
+		},
 	}
 
-	for _, o := range origins {
-		if !o.isValid() {
-			return nil, fmt.Errorf("user origin invalid. Must have at lease one path and must have a host: has %d paths and the host is %q", len(o.Paths), o.Host)
-		}
+	for _, tc := range testCases {
+		s.Equal(tc.want, getDeletions(tc.desired, tc.current), "test: %s", tc.name)
 	}
-
-	return origins, nil
 }

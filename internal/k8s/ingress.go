@@ -37,13 +37,17 @@ import (
 const (
 	// CDNGroupAnnotation is the annotation key that represents a group of Ingresses composing a single Distribution
 	CDNGroupAnnotation = "cdn-origin-controller.gympass.com/cdn.group"
+	// CDNClassAnnotation is the annotation key that represents a class
+	CDNClassAnnotation = "cdn-origin-controller.gympass.com/cdn.class"
+	// CDNFinalizer is the finalizer to be used in Ingresses managed by the operator
+	CDNFinalizer = "cdn-origin-controller.gympass.com/finalizer"
 
 	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"
 	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
-	webACLARNAnnotation              = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
+	cfWebACLARNAnnotation            = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
 )
 
 // Path represents a path item within an Ingress
@@ -64,6 +68,17 @@ type CDNIngress struct {
 	OriginRespTimeout    int64
 	AlternateDomainNames []string
 	WebACLARN            string
+	IsBeingRemoved       bool
+}
+
+// GetNamespace returns the CDNIngress namespace
+func (c CDNIngress) GetNamespace() string {
+	return c.Namespace
+}
+
+// GetName returns the CDNIngress name
+func (c CDNIngress) GetName() string {
+	return c.Name
 }
 
 // SharedIngressParams represents parameters which might be specified in multiple Ingresses
@@ -90,12 +105,11 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 
 // NewCDNIngressFromV1beta1 creates a CDNIngress from a v1beta1 Ingress
 func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
-	return CDNIngress{
+	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
 		},
-		LoadBalancerHost:     ing.Status.LoadBalancer.Ingress[0].Hostname,
 		Group:                groupAnnotationValue(ing),
 		Paths:                pathsV1beta1(ing.Spec.Rules),
 		ViewerFnARN:          viewerFnARN(ing),
@@ -104,7 +118,14 @@ func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
+		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 	}
+
+	if len(ing.Status.LoadBalancer.Ingress) > 0 {
+		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
+	}
+
+	return result
 }
 
 func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
@@ -123,12 +144,11 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
 
 // NewCDNIngressFromV1 creates a new CDNIngress from a v1 Ingress
 func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
-	return CDNIngress{
+	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
 		},
-		LoadBalancerHost:     ing.Status.LoadBalancer.Ingress[0].Hostname,
 		Group:                groupAnnotationValue(ing),
 		Paths:                pathsV1(ing.Spec.Rules),
 		ViewerFnARN:          viewerFnARN(ing),
@@ -137,7 +157,14 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
+		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 	}
+
+	if len(ing.Status.LoadBalancer.Ingress) > 0 {
+		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
+	}
+
+	return result
 }
 
 func pathsV1(rules []networkingv1.IngressRule) []Path {
@@ -191,5 +218,5 @@ func alternateDomainNames(obj client.Object) (domainNames []string) {
 }
 
 func webACLARN(obj client.Object) string {
-	return obj.GetAnnotations()[webACLARNAnnotation]
+	return obj.GetAnnotations()[cfWebACLARNAnnotation]
 }

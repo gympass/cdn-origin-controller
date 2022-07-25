@@ -25,6 +25,7 @@ import (
 
 // IngressFetcher interacts with Kubernetes to fetch networking.k8s.io Ingress resources
 type IngressFetcher interface {
-	Fetch(ctx context.Context, name, namespace string) (CDNIngress, error)
+	// FetchBy fetches all Ingresses and returns a slice of the ones matching the given predicate.
+	// User-supplied origins present in annotations of these Ingresses are also included in the output.
 	FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error)
 }
