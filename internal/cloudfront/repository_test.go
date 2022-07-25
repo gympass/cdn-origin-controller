@@ -27,10 +27,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
+	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
 var (
@@ -57,70 +59,8 @@ var (
 		Id:         aws.String("default.origin"),
 		OriginPath: aws.String(""),
 	}
-
-	expectedDefaultCacheBehavior = &awscloudfront.DefaultCacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
-		}, CachePolicyId: aws.String(cachingDisabledPolicyID),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		FunctionAssociations:       nil,
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		RealtimeLogConfigArn:       nil,
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String("default.origin"),
-		TrustedKeyGroups:           nil,
-		TrustedSigners:             nil,
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-	}
-
 	testCallerRefFn = func() string { return "test caller ref" }
 )
-
-type awsClientMock struct {
-	mock.Mock
-	cloudfrontiface.CloudFrontAPI
-	expectedGetDistributionConfigOutput      *awscloudfront.GetDistributionConfigOutput
-	expectedUpdateDistributionOutput         *awscloudfront.UpdateDistributionOutput
-	expectedCreateDistributionWithTagsOutput *awscloudfront.CreateDistributionWithTagsOutput
-	expectedTagResourceOutput                *awscloudfront.TagResourceOutput
-	expectedGetDistributionOutput            *awscloudfront.GetDistributionOutput
-}
-
-func (c *awsClientMock) GetDistributionConfig(in *awscloudfront.GetDistributionConfigInput) (*awscloudfront.GetDistributionConfigOutput, error) {
-	args := c.Called(in)
-	return c.expectedGetDistributionConfigOutput, args.Error(0)
-}
-
-func (c *awsClientMock) UpdateDistribution(in *awscloudfront.UpdateDistributionInput) (*awscloudfront.UpdateDistributionOutput, error) {
-	args := c.Called(in)
-	return c.expectedUpdateDistributionOutput, args.Error(0)
-}
-func (c *awsClientMock) GetDistribution(in *awscloudfront.GetDistributionInput) (*awscloudfront.GetDistributionOutput, error) {
-	args := c.Called(in)
-	return c.expectedGetDistributionOutput, args.Error(0)
-}
-
-func (c *awsClientMock) CreateDistributionWithTags(in *awscloudfront.CreateDistributionWithTagsInput) (*awscloudfront.CreateDistributionWithTagsOutput, error) {
-	args := c.Called(in)
-	return c.expectedCreateDistributionWithTagsOutput, args.Error(0)
-}
-
-func (c *awsClientMock) TagResource(in *awscloudfront.TagResourceInput) (*awscloudfront.TagResourceOutput, error) {
-	args := c.Called(in)
-	return c.expectedTagResourceOutput, args.Error(0)
-}
-
-func (c *awsClientMock) DeleteDistribution(in *awscloudfront.DeleteDistributionInput) (*awscloudfront.DeleteDistributionOutput, error) {
-	args := c.Called(in)
-	return nil, args.Error(0)
-}
 
 func TestRunDistributionRepositoryTestSuite(t *testing.T) {
 	t.Parallel()
@@ -131,9 +71,81 @@ type DistributionRepositoryTestSuite struct {
 	suite.Suite
 }
 
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
+	taggingClient := &test.MockResourceTaggingAPI{
+		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{
+			ResourceTagMappingList: []*resourcegroupstaggingapi.ResourceTagMapping{
+				{
+					ResourceARN: aws.String("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA"),
+				},
+			},
+		},
+	}
+
+	var noError error
+	taggingClient.On("GetResources", mock.Anything).Return(noError)
+
+	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
+
+	arn, err := repo.ARNByGroup("group")
+	s.NoError(err)
+	s.Equal("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA", arn)
+}
+
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_ErrorGettingResources() {
+	taggingClient := &test.MockResourceTaggingAPI{}
+
+	taggingClient.On("GetResources", mock.Anything).Return(errors.New("mock err"))
+
+	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
+
+	id, err := repo.ARNByGroup("group")
+	s.Error(err)
+	s.Equal("", id)
+}
+
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_DistributionDoesNotExist() {
+	taggingClient := &test.MockResourceTaggingAPI{
+		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{},
+	}
+
+	var noError error
+	taggingClient.On("GetResources", mock.Anything).Return(noError)
+
+	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
+
+	arn, err := repo.ARNByGroup("group")
+	s.ErrorIs(err, ErrDistNotFound)
+	s.Equal("", arn)
+}
+
+func (s *DistributionRepositoryTestSuite) TestARNByGroup_MoreThanOneCloudFrontExists() {
+	taggingClient := &test.MockResourceTaggingAPI{
+		ExpectedGetResourcesOutput: &resourcegroupstaggingapi.GetResourcesOutput{
+			ResourceTagMappingList: []*resourcegroupstaggingapi.ResourceTagMapping{
+				{
+					ResourceARN: aws.String("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA"),
+				},
+				{
+					ResourceARN: aws.String("arn:aws:cloudfront::000000000000:distribution/BBBBBBBBBBBBBB"),
+				},
+			},
+		},
+	}
+
+	var noError error
+	taggingClient.On("GetResources", mock.Anything).Return(noError)
+
+	repo := NewDistributionRepository(&test.MockCloudFrontAPI{}, taggingClient, testCallerRefFn, time.Second)
+
+	arn, err := repo.ARNByGroup("group")
+	s.Error(err)
+	s.Equal("", arn)
+}
+
 func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
-	awsClient := &awsClientMock{
-		expectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
 			Distribution: &awscloudfront.Distribution{
 				Id:         aws.String("L2FB5NP10VU7KL"),
 				ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
@@ -142,97 +154,8 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		},
 	}
 
-	expectedCreateInput := &awscloudfront.CreateDistributionWithTagsInput{
-		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
-			Tags: &awscloudfront.Tags{
-				Items: []*awscloudfront.Tag{
-					{
-						Key:   aws.String("cdn-origin-controller.gympass.com/cdn.group"),
-						Value: aws.String("test group"),
-					},
-					{
-						Key:   aws.String("cdn-origin-controller.gympass.com/owned"),
-						Value: aws.String("true"),
-					},
-					{
-						Key:   aws.String("foo"),
-						Value: aws.String("bar"),
-					},
-				},
-			},
-			DistributionConfig: &awscloudfront.DistributionConfig{
-				Aliases: &awscloudfront.Aliases{
-					Items:    aws.StringSlice([]string{"test.alias.1", "test.alias.2"}),
-					Quantity: aws.Int64(2),
-				},
-				CallerReference: aws.String(testCallerRefFn()),
-				CacheBehaviors: &awscloudfront.CacheBehaviors{
-					Quantity: aws.Int64(0),
-				},
-				Comment: aws.String("test description"),
-				DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
-					Compress:                   aws.Bool(true),
-					FieldLevelEncryptionId:     aws.String(""),
-					SmoothStreaming:            aws.Bool(false),
-					LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-					CachePolicyId:              aws.String(cachingDisabledPolicyID),
-					OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-					TargetOriginId:             aws.String("default.origin"),
-					ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-					AllowedMethods: &awscloudfront.AllowedMethods{
-						Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-						Quantity: aws.Int64(7),
-						CachedMethods: &awscloudfront.CachedMethods{
-							Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-							Quantity: aws.Int64(2),
-						},
-					},
-				},
-				Enabled:       aws.Bool(true),
-				HttpVersion:   aws.String(awscloudfront.HttpVersionHttp2),
-				IsIPV6Enabled: aws.Bool(true),
-				Logging: &awscloudfront.LoggingConfig{
-					Enabled:        aws.Bool(true),
-					Bucket:         aws.String("test s3"),
-					Prefix:         aws.String("test prefix"),
-					IncludeCookies: aws.Bool(false),
-				},
-				Origins: &awscloudfront.Origins{
-					Items: []*awscloudfront.Origin{
-						defaultOrigin,
-						{
-							CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-							CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-								HTTPPort:               aws.Int64(80),
-								HTTPSPort:              aws.Int64(443),
-								OriginKeepaliveTimeout: aws.Int64(5),
-								OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-								OriginReadTimeout:      aws.Int64(30),
-								OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-									Items:    sslProtocols,
-									Quantity: aws.Int64(int64(len(sslProtocols))),
-								},
-							},
-							DomainName: aws.String("origin"),
-							Id:         aws.String("origin"),
-							OriginPath: aws.String(""),
-						},
-					},
-					Quantity: aws.Int64(2),
-				},
-				PriceClass: aws.String(awscloudfront.PriceClassPriceClass100),
-				ViewerCertificate: &awscloudfront.ViewerCertificate{
-					ACMCertificateArn:      aws.String("test:cert:arn"),
-					MinimumProtocolVersion: aws.String("test security policy"),
-					SSLSupportMethod:       aws.String(awscloudfront.SSLSupportMethodSniOnly),
-				},
-				WebACLId: aws.String("test web acl"),
-			},
-		},
-	}
-
 	var noError error
-	awsClient.On("CreateDistributionWithTags", expectedCreateInput).Return(noError).Once()
+	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(noError).Once()
 
 	distribution, err := NewDistributionBuilder(
 		"default.origin",
@@ -251,7 +174,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		Build()
 	s.NoError(err)
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	dist, err := repo.Create(distribution)
 	s.Equal(dist.ID, "L2FB5NP10VU7KL")
 	s.Equal(dist.ARN, "arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL")
@@ -260,7 +183,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 }
 
 func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistribution() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(errors.New("mock err")).Once()
 
 	distribution := Distribution{
@@ -277,18 +200,20 @@ func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistributi
 		},
 	}
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	dist, err := repo.Create(distribution)
 	s.Equal(Distribution{}, dist)
 	s.Error(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
@@ -306,12 +231,14 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
@@ -329,13 +256,15 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.Error(repo.Sync(Distribution{}))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	gotDist, err := repo.Sync(Distribution{})
+	s.Error(err)
+	s.Equal(Distribution{}, gotDist)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
@@ -352,62 +281,19 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 		},
 	}
 
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Aliases: &awscloudfront.Aliases{
-				Items:    []*string{},
-				Quantity: aws.Int64(0),
-			},
-			Enabled:              aws.Bool(true),
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-			Comment:              aws.String(""),
-			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled:        aws.Bool(false),
-			Logging: &awscloudfront.LoggingConfig{
-				Enabled:        aws.Bool(false),
-				Bucket:         aws.String(""),
-				Prefix:         aws.String(""),
-				IncludeCookies: aws.Bool(false),
-			},
-			WebACLId:   aws.String(""),
-			PriceClass: aws.String(""),
-			Origins: &awscloudfront.Origins{
-				Items: []*awscloudfront.Origin{
-					defaultOrigin,
-					{
-						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-							HTTPPort:               aws.Int64(80),
-							HTTPSPort:              aws.Int64(443),
-							OriginKeepaliveTimeout: aws.Int64(5),
-							OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-							OriginReadTimeout:      aws.Int64(30),
-							OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-								Items:    sslProtocols,
-								Quantity: aws.Int64(int64(len(sslProtocols))),
-							},
-						},
-						DomainName: aws.String("origin"),
-						Id:         aws.String("origin"),
-						OriginPath: aws.String(""),
-					},
-				},
-				Quantity: aws.Int64(2),
-			},
-			DefaultCacheBehavior: expectedDefaultCacheBehavior,
-			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
 		},
-		Id:      aws.String("mock id"),
-		IfMatch: aws.String(""),
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
 	distribution := Distribution{
@@ -424,8 +310,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 		},
 	}
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
@@ -443,62 +330,19 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 		},
 	}
 
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Aliases: &awscloudfront.Aliases{
-				Items:    []*string{},
-				Quantity: aws.Int64(0),
-			},
-			Enabled:              aws.Bool(true),
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-			Comment:              aws.String(""),
-			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled:        aws.Bool(false),
-			Logging: &awscloudfront.LoggingConfig{
-				Enabled:        aws.Bool(false),
-				Bucket:         aws.String(""),
-				Prefix:         aws.String(""),
-				IncludeCookies: aws.Bool(false),
-			},
-			WebACLId:   aws.String(""),
-			PriceClass: aws.String(""),
-			Origins: &awscloudfront.Origins{
-				Items: []*awscloudfront.Origin{
-					defaultOrigin,
-					{
-						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-							HTTPPort:               aws.Int64(80),
-							HTTPSPort:              aws.Int64(443),
-							OriginKeepaliveTimeout: aws.Int64(5),
-							OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-							OriginReadTimeout:      aws.Int64(30),
-							OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-								Items:    sslProtocols,
-								Quantity: aws.Int64(int64(len(sslProtocols))),
-							},
-						},
-						DomainName: aws.String("origin"),
-						Id:         aws.String("origin"),
-						OriginPath: aws.String(""),
-					},
-				},
-				Quantity: aws.Int64(2),
-			},
-			DefaultCacheBehavior: expectedDefaultCacheBehavior,
-			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
 		},
-		Id:      aws.String("mock id"),
-		IfMatch: aws.String(""),
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
 	distribution := Distribution{
@@ -515,8 +359,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 		},
 	}
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
@@ -579,89 +424,19 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 		},
 	}
 
-	expectedNewCacheBehavior := &awscloudfront.CacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
 		},
-		CachePolicyId:              aws.String("cache-policy"),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String("policy"),
-		PathPattern:                aws.String("/mid-sized/path/with/medium/precedence"),
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String("origin"),
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-	}
-
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Aliases: &awscloudfront.Aliases{
-				Items:    []*string{},
-				Quantity: aws.Int64(0),
-			},
-			Enabled:              aws.Bool(true),
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-			Comment:              aws.String(""),
-			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled:        aws.Bool(false),
-			Logging: &awscloudfront.LoggingConfig{
-				Enabled:        aws.Bool(false),
-				Bucket:         aws.String(""),
-				Prefix:         aws.String(""),
-				IncludeCookies: aws.Bool(false),
-			},
-			WebACLId:   aws.String(""),
-			PriceClass: aws.String(""),
-			Origins: &awscloudfront.Origins{
-				Items: []*awscloudfront.Origin{
-					defaultOrigin,
-					{
-						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-							HTTPPort:               aws.Int64(80),
-							HTTPSPort:              aws.Int64(443),
-							OriginKeepaliveTimeout: aws.Int64(5),
-							OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-							OriginReadTimeout:      aws.Int64(30),
-							OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-								Items:    sslProtocols,
-								Quantity: aws.Int64(int64(len(sslProtocols))),
-							},
-						},
-						DomainName: aws.String("origin"),
-						Id:         aws.String("origin"),
-						OriginPath: aws.String(""),
-					},
-				},
-				Quantity: aws.Int64(2),
-			},
-			DefaultCacheBehavior: expectedDefaultCacheBehavior,
-			CacheBehaviors: &awscloudfront.CacheBehaviors{
-				Items: []*awscloudfront.CacheBehavior{
-					higherPrecedenceExistingBehavior,
-					expectedNewCacheBehavior,
-					lowerPrecedenceExistingBehavior,
-				},
-				Quantity: aws.Int64(3),
-			},
-		},
-		Id:      aws.String("mock id"),
-		IfMatch: aws.String(""),
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
 	distribution := Distribution{
@@ -683,8 +458,9 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 		},
 	}
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
@@ -725,66 +501,22 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 		},
 	}
 
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Aliases: &awscloudfront.Aliases{
-				Items:    []*string{},
-				Quantity: aws.Int64(0),
-			},
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-			Enabled:              aws.Bool(true),
-			Comment:              aws.String(""),
-			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled:        aws.Bool(false),
-			Logging: &awscloudfront.LoggingConfig{
-				Enabled:        aws.Bool(false),
-				Bucket:         aws.String(""),
-				Prefix:         aws.String(""),
-				IncludeCookies: aws.Bool(false),
-			},
-			WebACLId:             aws.String(""),
-			PriceClass:           aws.String(""),
-			Origins:              existingOrigins,
-			DefaultCacheBehavior: expectedDefaultCacheBehavior,
-			CacheBehaviors: &awscloudfront.CacheBehaviors{
-				Items: []*awscloudfront.CacheBehavior{
-					{
-						AllowedMethods: &awscloudfront.AllowedMethods{
-							Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-							Quantity: aws.Int64(7),
-							CachedMethods: &awscloudfront.CachedMethods{
-								Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-								Quantity: aws.Int64(2),
-							},
-						},
-						CachePolicyId:              aws.String("cache-policy"),
-						Compress:                   aws.Bool(true),
-						FieldLevelEncryptionId:     aws.String(""),
-						LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-						OriginRequestPolicyId:      aws.String("policy"),
-						PathPattern:                aws.String("/*"),
-						SmoothStreaming:            aws.Bool(false),
-						TargetOriginId:             aws.String("origin"),
-						ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-					},
-				},
-				Quantity: aws.Int64(1),
-			},
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
 		},
-		Id:      aws.String("mock id"),
-		IfMatch: aws.String(""),
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 
 	distribution := Distribution{
 		ID: "mock id",
@@ -800,7 +532,8 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 			},
 		},
 	}
-	s.NoError(repo.Sync(distribution))
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
@@ -816,131 +549,20 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 		},
 	}
 
-	expectedDefaultCacheBehavior := &awscloudfront.DefaultCacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
-		}, CachePolicyId: aws.String(cachingDisabledPolicyID),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		FunctionAssociations:       nil,
-		OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		RealtimeLogConfigArn:       nil,
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String("default.origin"),
-		TrustedKeyGroups:           nil,
-		TrustedSigners:             nil,
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-	}
-
-	expectedNewCacheBehavior := &awscloudfront.CacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
-		},
-		CachePolicyId:              aws.String("cache-policy"),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String("policy"),
-		PathPattern:                aws.String("/foo"),
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String("origin"),
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-		FunctionAssociations: &awscloudfront.FunctionAssociations{
-			Items: []*awscloudfront.FunctionAssociation{
-				{
-					EventType:   aws.String(awscloudfront.EventTypeViewerRequest),
-					FunctionARN: aws.String("some-arn"),
-				},
-			},
-			Quantity: aws.Int64(1),
-		},
-	}
-
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Aliases: &awscloudfront.Aliases{
-				Items:    []*string{},
-				Quantity: aws.Int64(0),
-			},
-			Enabled:              aws.Bool(true),
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-			Comment:              aws.String(""),
-			HttpVersion:          aws.String(awscloudfront.HttpVersionHttp2),
-			IsIPV6Enabled:        aws.Bool(false),
-			Logging: &awscloudfront.LoggingConfig{
-				Enabled:        aws.Bool(false),
-				Bucket:         aws.String(""),
-				Prefix:         aws.String(""),
-				IncludeCookies: aws.Bool(false),
-			},
-			WebACLId:   aws.String(""),
-			PriceClass: aws.String(""),
-			Origins: &awscloudfront.Origins{
-				Items: []*awscloudfront.Origin{
-					defaultOrigin,
-					{
-						CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-						CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-							HTTPPort:               aws.Int64(80),
-							HTTPSPort:              aws.Int64(443),
-							OriginKeepaliveTimeout: aws.Int64(5),
-							OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-							OriginReadTimeout:      aws.Int64(30),
-							OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-								Items:    sslProtocols,
-								Quantity: aws.Int64(int64(len(sslProtocols))),
-							},
-						},
-						DomainName: aws.String("origin"),
-						Id:         aws.String("origin"),
-						OriginPath: aws.String(""),
-					},
-				},
-				Quantity: aws.Int64(2),
-			},
-			DefaultCacheBehavior: expectedDefaultCacheBehavior,
-			CacheBehaviors: &awscloudfront.CacheBehaviors{
-				Items: []*awscloudfront.CacheBehavior{
-					expectedNewCacheBehavior,
-				},
-				Quantity: aws.Int64(1),
-			},
-		},
-		Id:      aws.String("mock id"),
-		IfMatch: aws.String("foo"),
-	}
-
-	expectedTagResourceInput := &awscloudfront.TagResourceInput{
-		Resource: aws.String("arn:aws:cloudfront::1010102030:distribution/ABCABC123456"),
-		Tags: &awscloudfront.Tags{
-			Items: []*awscloudfront.Tag{
-				{
-					Key:   aws.String("foo"),
-					Value: aws.String("bar"),
-				},
-			},
+	expectedUpdateDistributionOut := &awscloudfront.UpdateDistributionOutput{
+		Distribution: &awscloudfront.Distribution{
+			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
 		},
 	}
 
 	var noError error
-	awsClient := &awsClientMock{expectedGetDistributionConfigOutput: expectedDistributionConfigOutput}
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: expectedDistributionConfigOutput,
+		ExpectedUpdateDistributionOutput:    expectedUpdateDistributionOut,
+	}
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("TagResource", expectedTagResourceInput).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("TagResource", mock.Anything).Return(noError).Once()
 
 	distribution := Distribution{
 		ID:  "mock id",
@@ -961,23 +583,24 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 		Tags: map[string]string{"foo": "bar"},
 	}
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
-	s.NoError(repo.Sync(distribution))
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	_, err := repo.Sync(distribution)
+	s.NoError(err)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_Success() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -986,48 +609,32 @@ func (s *DistributionRepositoryTestSuite) TestDelete_Success() {
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-	expectedGetDistributionInput := &awscloudfront.GetDistributionInput{
-		Id: aws.String("id"),
-	}
-	expectedDeleteDistributionInput := &awscloudfront.DeleteDistributionInput{
-		Id:      aws.String("id"),
-		IfMatch: aws.String("etag2"),
-	}
-
 	var noError error
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("GetDistribution", expectedGetDistributionInput).Return(noError).Once()
-	awsClient.On("DeleteDistribution", expectedDeleteDistributionInput).Return(noError).Once()
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("GetDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("DeleteDistribution", mock.Anything).Return(noError).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfig() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String("id"),
 	}
 	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
@@ -1046,23 +653,23 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution(
 	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
 	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistributionDeployment() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -1071,40 +678,28 @@ func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistribution
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-	expectedGetDistributionInput := &awscloudfront.GetDistributionInput{
-		Id: aws.String("id"),
-	}
-
 	var noError error
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("GetDistribution", expectedGetDistributionInput).Return(errors.New("mock err"))
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("GetDistribution", mock.Anything).Return(errors.New("mock err"))
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Microsecond)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Microsecond)
 	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), wait.ErrWaitTimeout)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -1113,87 +708,62 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution()
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-	expectedGetDistributionInput := &awscloudfront.GetDistributionInput{
-		Id: aws.String("id"),
-	}
-	expectedDeleteDistributionInput := &awscloudfront.DeleteDistributionInput{
-		Id:      aws.String("id"),
-		IfMatch: aws.String("etag2"),
-	}
-
 	var noError error
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("GetDistribution", expectedGetDistributionInput).Return(noError).Once()
-	awsClient.On("DeleteDistribution", expectedDeleteDistributionInput).Return(errors.New("mock err")).Once()
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("GetDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("DeleteDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingConfig() {
-	awsClient := &awsClientMock{}
+	awsClient := &test.MockCloudFrontAPI{}
 
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
 	awsClient.On("GetDistributionConfig", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisablingDist() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-
 	var noError error
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(awsErr).Once()
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingForItToBeDeployed() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -1202,41 +772,29 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingFo
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-	expectedGetDistributionInput := &awscloudfront.GetDistributionInput{
-		Id: aws.String("id"),
-	}
-
 	var noError error
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("GetDistribution", expectedGetDistributionInput).Return(awsErr).Once()
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("GetDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingIt() {
 	enabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(true)}
 	disabledDistConfig := &awscloudfront.DistributionConfig{Enabled: aws.Bool(false)}
-	awsClient := &awsClientMock{
-		expectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedGetDistributionConfigOutput: &awscloudfront.GetDistributionConfigOutput{
 			ETag:               aws.String("etag1"),
 			DistributionConfig: enabledDistConfig,
 		},
-		expectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
+		ExpectedUpdateDistributionOutput: &awscloudfront.UpdateDistributionOutput{
 			ETag:         aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{DistributionConfig: disabledDistConfig},
 		},
-		expectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
+		ExpectedGetDistributionOutput: &awscloudfront.GetDistributionOutput{
 			ETag: aws.String("etag2"),
 			Distribution: &awscloudfront.Distribution{
 				DistributionConfig: disabledDistConfig,
@@ -1245,37 +803,21 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingI
 		},
 	}
 
-	expectedGetDistributionConfigInput := &awscloudfront.GetDistributionConfigInput{
-		Id: aws.String("id"),
-	}
-	expectedUpdateDistributionInput := &awscloudfront.UpdateDistributionInput{
-		DistributionConfig: disabledDistConfig,
-		Id:                 aws.String("id"),
-		IfMatch:            aws.String("etag1"),
-	}
-	expectedGetDistributionInput := &awscloudfront.GetDistributionInput{
-		Id: aws.String("id"),
-	}
-	expectedDeleteDistributionInput := &awscloudfront.DeleteDistributionInput{
-		Id:      aws.String("id"),
-		IfMatch: aws.String("etag2"),
-	}
-
 	var noError error
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
-	awsClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
-	awsClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(noError).Once()
-	awsClient.On("GetDistribution", expectedGetDistributionInput).Return(noError).Once()
-	awsClient.On("DeleteDistribution", expectedDeleteDistributionInput).Return(awsErr).Once()
+	awsClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	awsClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("GetDistribution", mock.Anything).Return(noError).Once()
+	awsClient.On("DeleteDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(awsClient, testCallerRefFn, time.Minute)
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
 	cb := baseCacheBehavior(
-		"host",
 		Behavior{
+			OriginHost:    "host",
 			PathPattern:   "path",
 			RequestPolicy: "b2884449-e4de-46a7-ac36-70bc7f1ddd6d",
 		},
@@ -1285,8 +827,8 @@ func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySet() {
 
 func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone() {
 	cb := baseCacheBehavior(
-		"host",
 		Behavior{
+			OriginHost:    "host",
 			PathPattern:   "path",
 			RequestPolicy: "None",
 		},

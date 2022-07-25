@@ -1,4 +1,4 @@
-// Copyright (c) 2021 GPBR Participacoes LTDA.
+// Copyright (c) 2022 GPBR Participacoes LTDA.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -17,24 +17,42 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package cloudfront
+package k8s
 
-import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+import (
+	"context"
+	"fmt"
 
-type byDescendingPathLength []Behavior
+	networkingv1 "k8s.io/api/networking/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
-func (s byDescendingPathLength) Len() int {
-	return len(s)
-}
-func (s byDescendingPathLength) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byDescendingPathLength) Less(i, j int) bool {
-	return len(s[i].PathPattern) > len(s[j].PathPattern)
+type ingFetcherV1 struct {
+	k8sClient client.Client
 }
 
-type byKey []*awscloudfront.Tag
+// NewIngressFetcherV1 creates an IngressFetcher that works with v1 Ingreses
+func NewIngressFetcherV1(k8sClient client.Client) IngressFetcher {
+	return ingFetcherV1{k8sClient: k8sClient}
+}
 
-func (s byKey) Len() int           { return len(s) }
-func (s byKey) Less(i, j int) bool { return *s[i].Key < *s[j].Key }
-func (s byKey) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
+	list := &networkingv1.IngressList{}
+	if err := i.k8sClient.List(ctx, list); err != nil {
+		return nil, fmt.Errorf("listing Ingresses: %v", err)
+	}
+
+	var result []CDNIngress
+	for _, k8sIng := range list.Items {
+		ing := NewCDNIngressFromV1(&k8sIng)
+		if predicate(ing) {
+			result = append(result, ing)
+			userOriginsCDNIngresses, err := cdnIngressesForUserOrigins(&k8sIng)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, userOriginsCDNIngresses...)
+		}
+	}
+	return result, nil
+}

@@ -21,6 +21,8 @@ package cloudfront
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -34,6 +36,7 @@ type Distribution struct {
 	CustomOrigins    []Origin
 	DefaultOrigin    Origin
 	Description      string
+	Group            string
 	IPv6Enabled      bool
 	Logging          loggingConfig
 	PriceClass       string
@@ -52,6 +55,27 @@ type loggingConfig struct {
 	Enabled       bool
 	BucketAddress string
 	Prefix        string
+}
+
+// SortedCustomBehaviors returns a slice of all custom Behavior sorted by descending path length
+func (d Distribution) SortedCustomBehaviors() []Behavior {
+	var result []Behavior
+	for _, o := range d.CustomOrigins {
+		result = append(result, o.Behaviors...)
+	}
+
+	sort.Sort(byDescendingPathLength(result))
+	return result
+}
+
+// Exists returns whether this Distribution exists on AWS or not
+func (d Distribution) Exists() bool {
+	return len(d.ID) > 0
+}
+
+// IsEmpty return whether this Distribution has custom origins/behaviors
+func (d Distribution) IsEmpty() bool {
+	return len(d.CustomOrigins) == 0
 }
 
 // DistributionBuilder allows the construction of a Distribution
@@ -137,12 +161,17 @@ func (b DistributionBuilder) WithWebACL(id string) DistributionBuilder {
 	return b
 }
 
-// WithInfo takes in identifying information from an existing CloudFront to populate the resulting Distribution
-func (b DistributionBuilder) WithInfo(id string, arn string, address string) DistributionBuilder {
-	b.id = id
+// WithARN takes in identifying information from an existing CloudFront to populate the resulting Distribution
+func (b DistributionBuilder) WithARN(arn string) DistributionBuilder {
+	b.id = b.extractID(arn)
 	b.arn = arn
-	b.address = address
 	return b
+}
+
+// extractID assumes a valid ARN is given
+// arn:aws:cloudfront::<account>:distribution/<ID>
+func (b DistributionBuilder) extractID(arn string) string {
+	return strings.Split(arn, "/")[1]
 }
 
 // Build constructs a Distribution taking into account all configuration set by previous "With*" method calls
@@ -154,6 +183,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 		CustomOrigins:    b.customOrigins,
 		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
 		Description:      b.description,
+		Group:            b.group,
 		PriceClass:       b.priceClass,
 		Tags:             b.generateTags(),
 		Logging:          b.logging,
@@ -166,7 +196,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 	if err := validate(d); err != nil {
 		return Distribution{}, err
 	}
-	return d, nil
+	return mergeCustomOrigins(d), nil
 }
 
 func (b DistributionBuilder) generateTags() map[string]string {
@@ -178,14 +208,14 @@ func (b DistributionBuilder) generateTags() map[string]string {
 }
 
 const (
-	managedByTagKey   = "cdn-origin-controller.gympass.com/owned"
-	managedByTagValue = "true"
+	ownershipTagKey   = "cdn-origin-controller.gympass.com/owned"
+	ownershipTagValue = "true"
 	groupTagKey       = "cdn-origin-controller.gympass.com/cdn.group"
 )
 
 func (b DistributionBuilder) defaultTags() map[string]string {
 	tags := make(map[string]string)
-	tags[managedByTagKey] = managedByTagValue
+	tags[ownershipTagKey] = ownershipTagValue
 	tags[groupTagKey] = b.group
 	return tags
 }
@@ -205,4 +235,32 @@ func validate(d Distribution) error {
 		existingOrigins[o.Host] = o
 	}
 	return nil
+}
+
+// mergeCustomOrigins ensures duplicate origins are merged into a single one.
+// It expects a valid Distribution as input.
+func mergeCustomOrigins(d Distribution) Distribution {
+	merged := mergedOriginMap(d)
+
+	var normalized []Origin
+	for _, origin := range merged {
+		normalized = append(normalized, origin)
+	}
+
+	d.CustomOrigins = normalized
+	return d
+}
+
+func mergedOriginMap(d Distribution) map[string]Origin {
+	existingOrigins := make(map[string]Origin) // map[host]origin
+	for _, candidateO := range d.CustomOrigins {
+		existingO, ok := existingOrigins[candidateO.Host]
+		if !ok {
+			existingOrigins[candidateO.Host] = candidateO
+		} else {
+			existingO.Behaviors = append(existingO.Behaviors, candidateO.Behaviors...)
+			existingOrigins[existingO.Host] = existingO
+		}
+	}
+	return existingOrigins
 }

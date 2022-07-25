@@ -1,0 +1,87 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.6.1
+  creationTimestamp: null
+  name: cdnstatuses.cdn.gympass.com
+spec:
+  group: cdn.gympass.com
+  names:
+    kind: CDNStatus
+    listKind: CDNStatusList
+    plural: cdnstatuses
+    singular: cdnstatus
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.id
+      name: ID
+      type: string
+    - jsonPath: .status.aliases
+      name: Aliases
+      type: string
+    - jsonPath: .status.address
+      name: Address
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CDNStatus is the Schema for the cdnstatuses API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          status:
+            description: CDNStatusStatus defines the observed state of CDNStatus
+            properties:
+              address:
+                type: string
+              aliases:
+                items:
+                  type: string
+                type: array
+              arn:
+                type: string
+              dns:
+                description: DNSStatus provides status regarding the creation of DNS
+                  records for aliases
+                nullable: true
+                properties:
+                  records:
+                    items:
+                      type: string
+                    type: array
+                  synced:
+                    type: boolean
+                type: object
+              id:
+                type: string
+              ingresses:
+                additionalProperties:
+                  type: string
+                description: IngressRefs ingresses map
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

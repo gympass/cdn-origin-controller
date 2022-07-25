@@ -1,4 +1,4 @@
-// Copyright (c) 2021 GPBR Participacoes LTDA.
+// Copyright (c) 2022 GPBR Participacoes LTDA.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -17,24 +17,22 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package cloudfront
+package test
 
-import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+import (
+	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
+	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi/resourcegroupstaggingapiiface"
+	"github.com/stretchr/testify/mock"
+)
 
-type byDescendingPathLength []Behavior
-
-func (s byDescendingPathLength) Len() int {
-	return len(s)
+// MockResourceTaggingAPI is a mocked resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI to be used during testing
+type MockResourceTaggingAPI struct {
+	mock.Mock
+	resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
+	ExpectedGetResourcesOutput *resourcegroupstaggingapi.GetResourcesOutput
 }
-func (s byDescendingPathLength) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byDescendingPathLength) Less(i, j int) bool {
-	return len(s[i].PathPattern) > len(s[j].PathPattern)
-}
 
-type byKey []*awscloudfront.Tag
-
-func (s byKey) Len() int           { return len(s) }
-func (s byKey) Less(i, j int) bool { return *s[i].Key < *s[j].Key }
-func (s byKey) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (m *MockResourceTaggingAPI) GetResources(in *resourcegroupstaggingapi.GetResourcesInput) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
+	args := m.Called(in)
+	return m.ExpectedGetResourcesOutput, args.Error(0)
+}

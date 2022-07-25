@@ -36,6 +36,29 @@ type DistributionTestSuite struct {
 	suite.Suite
 }
 
+func (s *DistributionTestSuite) TestDistribution_CustomBehaviors() {
+	defaultOriginDomain := "test.default.origin"
+	defaultWebACL := "default-web-acl"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+
+	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/short").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/longest").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/longer").Build()).
+		Build()
+	s.NoError(err)
+
+	expected := []cloudfront.Behavior{
+		cloudfront.NewOriginBuilder("host").WithBehavior("/longest").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("host").WithBehavior("/longer").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("host").WithBehavior("/short").Build().Behaviors[0],
+	}
+	got := dist.SortedCustomBehaviors()
+	s.Equal(expected, got)
+}
+
 func (s *DistributionTestSuite) TestDistributionBuilder_New() {
 	defaultOriginDomain := "test.default.origin"
 	defaultWebACL := "default-web-acl"
@@ -72,6 +95,43 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 	s.NoError(err)
 	s.Len(dist.CustomOrigins, 1)
 	s.Equal(origin, dist.CustomOrigins[0])
+}
+
+func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
+	defaultOriginDomain := "test.default.origin"
+	defaultWebACL := "default-web-acl"
+	description := "test description"
+	priceClass := "test price class"
+	group := "test group"
+
+	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path1").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path2").WithBehavior("/path3").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("host").WithBehavior("/path4").Build()).
+		Build()
+
+	s.NoError(err)
+	s.Len(dist.CustomOrigins, 1)
+	s.Len(dist.CustomOrigins[0].Behaviors, 4)
+
+	newBehavior := func(path string) cloudfront.Behavior {
+		return cloudfront.Behavior{
+			PathPattern:   path,
+			RequestPolicy: "216adef6-5c7f-47e4-b989-5492eafa07d3",
+			CachePolicy:   "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+			ViewerFnARN:   "",
+			OriginHost:    "host",
+		}
+	}
+
+	expectedBehaviors := []cloudfront.Behavior{
+		newBehavior("/path1"),
+		newBehavior("/path2"),
+		newBehavior("/path3"),
+		newBehavior("/path4"),
+	}
+
+	s.ElementsMatch(expectedBehaviors, dist.CustomOrigins[0].Behaviors)
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithLogging() {
@@ -148,17 +208,14 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithWebACL() {
 	s.Equal("test:acl", dist.WebACLID)
 }
 
-func (s *DistributionTestSuite) TestDistributionBuilder_WithInfo() {
-	id, arn, addr := "id", "arn", "addr"
-
+func (s *DistributionTestSuite) TestDistributionBuilder_WithARN() {
 	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
-		WithInfo(id, arn, addr).
+		WithARN("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA").
 		Build()
 
 	s.NoError(err)
-	s.Equal(id, dist.ID)
-	s.Equal(arn, dist.ARN)
-	s.Equal(addr, dist.Address)
+	s.Equal("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA", dist.ARN)
+	s.Equal("AAAAAAAAAAAAAA", dist.ID)
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_InvalidDistribution() {

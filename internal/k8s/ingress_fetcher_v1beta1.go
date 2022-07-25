@@ -1,4 +1,4 @@
-// Copyright (c) 2021 GPBR Participacoes LTDA.
+// Copyright (c) 2022 GPBR Participacoes LTDA.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -17,48 +17,42 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package controllers
+package k8s
 
 import (
+	"context"
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type userOrigin struct {
-	Host              string   `yaml:"host"`
-	ResponseTimeout   int64    `yaml:"responseTimeout"`
-	Paths             []string `yaml:"paths"`
-	ViewerFunctionARN string   `yaml:"viewerFunctionARN"`
-	RequestPolicy     string   `yaml:"originRequestPolicy"`
-	CachePolicy       string   `yaml:"cachePolicy"`
-	WebACLARN         string   `yaml:"webACLARN"`
+type ingFetcherV1Beta1 struct {
+	k8sClient client.Client
 }
 
-func (o userOrigin) paths() []path {
-	var paths []path
-	for _, p := range o.Paths {
-		paths = append(paths, path{pathPattern: p})
-	}
-	return paths
+// NewIngressFetcherV1Beta1 creates an IngressFetcher that works with v1beta1 Ingreses
+func NewIngressFetcherV1Beta1(k8sClient client.Client) IngressFetcher {
+	return ingFetcherV1Beta1{k8sClient: k8sClient}
 }
 
-func (o userOrigin) isValid() bool {
-	return len(o.Host) > 0 && len(o.Paths) > 0
-}
-
-func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
-	origins := []userOrigin{}
-	err := yaml.Unmarshal(originsData, &origins)
-	if err != nil {
-		return nil, err
+func (i ingFetcherV1Beta1) FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
+	list := &networkingv1beta1.IngressList{}
+	if err := i.k8sClient.List(ctx, list); err != nil {
+		return nil, fmt.Errorf("listing Ingresses: %v", err)
 	}
 
-	for _, o := range origins {
-		if !o.isValid() {
-			return nil, fmt.Errorf("user origin invalid. Must have at lease one path and must have a host: has %d paths and the host is %q", len(o.Paths), o.Host)
+	var result []CDNIngress
+	for _, k8sIng := range list.Items {
+		ing := NewCDNIngressFromV1beta1(&k8sIng)
+		if predicate(ing) {
+			result = append(result, ing)
+			userOriginsCDNIngresses, err := cdnIngressesForUserOrigins(&k8sIng)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, userOriginsCDNIngresses...)
 		}
 	}
-
-	return origins, nil
+	return result, nil
 }

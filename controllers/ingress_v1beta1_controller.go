@@ -26,23 +26,19 @@ import (
 	"github.com/go-logr/logr"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 // V1beta1Reconciler reconciles v1beta1 Ingress resources
 type V1beta1Reconciler struct {
 	client.Client
 
-	OriginalLog       logr.Logger
-	Scheme            *runtime.Scheme
-	IngressReconciler *IngressReconciler
-
-	log logr.Logger
+	CloudFrontService *cloudfront.Service
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -53,50 +49,26 @@ type V1beta1Reconciler struct {
 
 //Reconcile a v1beta1 Ingress resource
 func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.log = r.OriginalLog.WithValues("Ingress", req.NamespacedName)
-	r.IngressReconciler.log = r.log
-	r.log.Info("Starting reconciliation.")
+	log := logr.FromContext(ctx)
+	log.Info("Starting reconciliation.")
 
 	ingress := &networkingv1beta1.Ingress{}
 	err := r.Client.Get(ctx, req.NamespacedName, ingress)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			r.log.Info("Ignoring not found Ingress.")
+			log.Info("Ignoring not found Ingress.")
 			return reconcile.Result{}, nil
 		}
 
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	reconcilingIP := newIngressParamsV1beta1(ingress)
-	err = r.IngressReconciler.Reconcile(reconcilingIP, ingress)
+	reconcilingCDNIngress := k8s.NewCDNIngressFromV1beta1(ingress)
+	err = r.CloudFrontService.Reconcile(ctx, reconcilingCDNIngress, ingress)
 	if err == nil {
-		r.log.Info("Reconciliation successful.")
+		log.Info("Reconciliation successful.")
 	}
 	return ctrl.Result{}, err
-}
-
-// BoundIngresses returns a slice of ingressParams for each Ingress associated with a particular CDNStatus
-func (r *V1beta1Reconciler) BoundIngresses(status v1alpha1.CDNStatus) ([]ingressParams, error) {
-	var paramsList []ingressParams
-	for _, key := range status.GetIngressKeys() {
-		ing := &networkingv1beta1.Ingress{}
-		err := r.Client.Get(context.Background(), key, ing)
-		if err != nil {
-			return nil, fmt.Errorf("fetching ingress %s: %v", key.String(), err)
-		}
-		r.log.V(1).Info("Fetched bound Ingress", "name", ing.Name, "namespace", ing.Namespace)
-
-		params := newIngressParamsV1beta1(ing)
-		paramsList = append(paramsList, params)
-
-		userOriginParamsList, err := r.IngressReconciler.ingressParamsForUserOrigins(params.group, ing)
-		if err != nil {
-			return nil, fmt.Errorf("creating user origins desired state: %v", err)
-		}
-		paramsList = append(paramsList, userOriginParamsList...)
-	}
-	return paramsList, nil
 }
 
 // SetupWithManager ...

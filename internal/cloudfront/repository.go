@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
+	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
+	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi/resourcegroupstaggingapiiface"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -46,41 +48,75 @@ const (
 	originSSLProtocolSSLv3  = "SSLv3"
 )
 
+// ErrDistNotFound represents failure when finding/fetching a distribution
+var ErrDistNotFound = errors.New("distribution not found")
+
 // DistributionRepository provides a repository for manipulating CloudFront distributions to match desired configuration
 type DistributionRepository interface {
-	// Create creates the given Distribution on CloudFront
+	// ARNByGroup fetches the ARN from an existing Distribution in AWS that is owned by the operator and was created for
+	// the given group.
+	// Returns ErrDistNotFound if no existing Distribution was found.
+	ARNByGroup(group string) (string, error)
+	// Create creates the given Distribution on CloudFront. Returns the created dist.
 	Create(Distribution) (Distribution, error)
-	// Sync ensures the given Distribution is correctly configured on CloudFront
-	Sync(Distribution) error
+	// Sync ensures the given Distribution is correctly configured on CloudFront. Returns synced dist.
+	Sync(Distribution) (Distribution, error)
 	// Delete deletes the Distribution at AWS
-	Delete(distribution Distribution) error
+	Delete(Distribution) error
 }
 
-// CallerRefFn is the function that should be called when setting the request's caller reference.
-// It should be a unique identifier to prevent the request from being replayed.
-// https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_CreateDistribution.html
-type CallerRefFn func() string
-
 type repository struct {
-	awsClient   cloudfrontiface.CloudFrontAPI
-	callerRef   CallerRefFn
-	waitTimeout time.Duration
+	cloudfrontCli cloudfrontiface.CloudFrontAPI
+	taggingCli    resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
+	callerRef     CallerRefFn
+	waitTimeout   time.Duration
 }
 
 // NewDistributionRepository creates a new AWS CloudFront DistributionRepository
-func NewDistributionRepository(awsClient cloudfrontiface.CloudFrontAPI, callerRefFn CallerRefFn, waitTimeout time.Duration) DistributionRepository {
-	return &repository{awsClient: awsClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
+func NewDistributionRepository(cloudFrontClient cloudfrontiface.CloudFrontAPI, taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI, callerRefFn CallerRefFn, waitTimeout time.Duration) DistributionRepository {
+	return &repository{cloudfrontCli: cloudFrontClient, taggingCli: taggingClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
+}
+
+func (r repository) ARNByGroup(group string) (string, error) {
+	input := &resourcegroupstaggingapi.GetResourcesInput{
+		ResourceTypeFilters: []*string{aws.String("cloudfront:distribution")},
+		TagFilters: []*resourcegroupstaggingapi.TagFilter{
+			{
+				Key:    aws.String(ownershipTagKey),
+				Values: aws.StringSlice([]string{ownershipTagValue}),
+			},
+			{
+				Key:    aws.String(groupTagKey),
+				Values: aws.StringSlice([]string{group}),
+			},
+		},
+	}
+
+	out, err := r.taggingCli.GetResources(input)
+	if err != nil {
+		return "", fmt.Errorf("listing CloudFronts: %v", err)
+	}
+
+	if len(out.ResourceTagMappingList) == 0 {
+		return "", ErrDistNotFound
+	}
+
+	if len(out.ResourceTagMappingList) > 1 {
+		return "", fmt.Errorf("found more than one CloudFront with matching group tag (%s), state is inconsistent and can't continue", group)
+	}
+
+	return aws.StringValue(out.ResourceTagMappingList[0].ResourceARN), nil
 }
 
 func (r repository) Create(d Distribution) (Distribution, error) {
-	config := r.newAWSDistributionConfig(d)
+	config := newAWSDistributionConfig(d, r.callerRef)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
 			DistributionConfig: config,
 			Tags:               r.distributionTags(d),
 		},
 	}
-	output, err := r.awsClient.CreateDistributionWithTags(createInput)
+	output, err := r.cloudfrontCli.CreateDistributionWithTags(createInput)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
@@ -91,11 +127,11 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 	return d, nil
 }
 
-func (r repository) Sync(d Distribution) error {
-	config := r.newAWSDistributionConfig(d)
+func (r repository) Sync(d Distribution) (Distribution, error) {
+	config := newAWSDistributionConfig(d, r.callerRef)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
-		return fmt.Errorf("getting distribution config: %v", err)
+		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
 
 	config.SetCallerReference(*output.DistributionConfig.CallerReference)
@@ -109,8 +145,9 @@ func (r repository) Sync(d Distribution) error {
 		Id:                 aws.String(d.ID),
 	}
 
-	if _, err = r.awsClient.UpdateDistribution(updateInput); err != nil {
-		return fmt.Errorf("updating distribution: %v", err)
+	updateOut, err := r.cloudfrontCli.UpdateDistribution(updateInput)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("updating distribution: %v", err)
 	}
 
 	tagsInput := &awscloudfront.TagResourceInput{
@@ -118,11 +155,14 @@ func (r repository) Sync(d Distribution) error {
 		Tags:     r.distributionTags(d),
 	}
 
-	if _, err = r.awsClient.TagResource(tagsInput); err != nil {
-		return fmt.Errorf("updating tags: %v", err)
+	if _, err = r.cloudfrontCli.TagResource(tagsInput); err != nil {
+		return Distribution{}, fmt.Errorf("updating tags: %v", err)
 	}
 
-	return nil
+	d.ID = *updateOut.Distribution.Id
+	d.ARN = *updateOut.Distribution.ARN
+	d.Address = *updateOut.Distribution.DomainName
+	return d, nil
 }
 
 func (r repository) Delete(d Distribution) error {
@@ -156,7 +196,7 @@ func (r repository) Delete(d Distribution) error {
 		Id:      aws.String(d.ID),
 		IfMatch: eTag,
 	}
-	_, err = r.awsClient.DeleteDistribution(input)
+	_, err = r.cloudfrontCli.DeleteDistribution(input)
 	if isNoSuchDistributionErr(err) {
 		err = nil
 	}
@@ -180,7 +220,7 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 	input := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String(id),
 	}
-	output, err := r.awsClient.GetDistributionConfig(input)
+	output, err := r.cloudfrontCli.GetDistributionConfig(input)
 
 	if err != nil {
 		return nil, err
@@ -196,7 +236,7 @@ func (r repository) disableDist(config *awscloudfront.DistributionConfig, id, eT
 		Id:                 aws.String(id),
 	}
 
-	_, err := r.awsClient.UpdateDistribution(updateInput)
+	_, err := r.cloudfrontCli.UpdateDistribution(updateInput)
 	return err
 }
 
@@ -228,182 +268,7 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 	input := &awscloudfront.GetDistributionInput{
 		Id: aws.String(id),
 	}
-	return r.awsClient.GetDistribution(input)
-}
-
-func (r repository) newAWSDistributionConfig(d Distribution) *awscloudfront.DistributionConfig {
-	var allCacheBehaviors []*awscloudfront.CacheBehavior
-	allOrigins := []*awscloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
-
-	for _, o := range d.CustomOrigins {
-		allOrigins = append(allOrigins, newAWSOrigin(o))
-		for _, b := range o.Behaviors {
-			allCacheBehaviors = append(allCacheBehaviors, newCacheBehavior(b, o.Host))
-		}
-	}
-
-	sort.Sort(byDescendingPathLength(allCacheBehaviors))
-
-	allOrigins = removeDuplicates(allOrigins)
-
-	config := &awscloudfront.DistributionConfig{
-		Aliases: &awscloudfront.Aliases{
-			Items:    aws.StringSlice(d.AlternateDomains),
-			Quantity: aws.Int64(int64(len(d.AlternateDomains))),
-		},
-		CacheBehaviors: &awscloudfront.CacheBehaviors{
-			Items:    allCacheBehaviors,
-			Quantity: aws.Int64(int64(len(allCacheBehaviors))),
-		},
-		CallerReference:      aws.String(r.callerRef()),
-		Comment:              aws.String(d.Description),
-		CustomErrorResponses: nil,
-		DefaultCacheBehavior: &awscloudfront.DefaultCacheBehavior{
-			AllowedMethods: &awscloudfront.AllowedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-				Quantity: aws.Int64(7),
-				CachedMethods: &awscloudfront.CachedMethods{
-					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-					Quantity: aws.Int64(2),
-				},
-			}, CachePolicyId: aws.String(cachingDisabledPolicyID),
-			Compress:                   aws.Bool(true),
-			FieldLevelEncryptionId:     aws.String(""),
-			FunctionAssociations:       nil,
-			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
-			LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-			RealtimeLogConfigArn:       nil,
-			SmoothStreaming:            aws.Bool(false),
-			TargetOriginId:             aws.String(d.DefaultOrigin.Host),
-			TrustedKeyGroups:           nil,
-			TrustedSigners:             nil,
-			ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-		},
-		Origins: &awscloudfront.Origins{
-			Items:    allOrigins,
-			Quantity: aws.Int64(int64(len(allOrigins))),
-		},
-		DefaultRootObject: nil,
-		Enabled:           aws.Bool(true),
-		HttpVersion:       aws.String(awscloudfront.HttpVersionHttp2),
-		IsIPV6Enabled:     aws.Bool(d.IPv6Enabled),
-		Logging: &awscloudfront.LoggingConfig{
-			Enabled:        aws.Bool(false),
-			Bucket:         aws.String(""),
-			Prefix:         aws.String(""),
-			IncludeCookies: aws.Bool(false),
-		},
-		OriginGroups:      nil,
-		PriceClass:        aws.String(d.PriceClass),
-		Restrictions:      nil,
-		ViewerCertificate: nil,
-		WebACLId:          aws.String(d.WebACLID),
-	}
-
-	if d.TLS.Enabled {
-		config.ViewerCertificate = &awscloudfront.ViewerCertificate{
-			ACMCertificateArn:      aws.String(d.TLS.CertARN),
-			MinimumProtocolVersion: aws.String(d.TLS.SecurityPolicyID),
-			SSLSupportMethod:       aws.String(awscloudfront.SSLSupportMethodSniOnly),
-		}
-	}
-	if d.Logging.Enabled {
-		config.Logging = &awscloudfront.LoggingConfig{
-			Enabled:        aws.Bool(true),
-			Bucket:         aws.String(d.Logging.BucketAddress),
-			Prefix:         aws.String(d.Logging.Prefix),
-			IncludeCookies: aws.Bool(false),
-		}
-	}
-
-	return config
-}
-
-func newAWSOrigin(o Origin) *awscloudfront.Origin {
-	SSLProtocols := []*string{
-		aws.String(originSSLProtocolSSLv3),
-		aws.String(originSSLProtocolTLSv1),
-		aws.String(originSSLProtocolTLSv11),
-		aws.String(originSSLProtocolTLSv12),
-	}
-
-	return &awscloudfront.Origin{
-		CustomHeaders: &awscloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-		CustomOriginConfig: &awscloudfront.CustomOriginConfig{
-			HTTPPort:               aws.Int64(80),
-			HTTPSPort:              aws.Int64(443),
-			OriginKeepaliveTimeout: aws.Int64(5),
-			OriginProtocolPolicy:   aws.String(awscloudfront.OriginProtocolPolicyMatchViewer),
-			OriginReadTimeout:      aws.Int64(o.ResponseTimeout),
-			OriginSslProtocols: &awscloudfront.OriginSslProtocols{
-				Items:    SSLProtocols,
-				Quantity: aws.Int64(int64(len(SSLProtocols))),
-			},
-		},
-		DomainName: aws.String(o.Host),
-		Id:         aws.String(o.Host),
-		OriginPath: aws.String(""),
-	}
-}
-
-func newCacheBehavior(behavior Behavior, host string) *awscloudfront.CacheBehavior {
-	cb := baseCacheBehavior(host, behavior)
-	if len(behavior.ViewerFnARN) > 0 {
-		addViewerFunctionAssociation(cb, behavior.ViewerFnARN)
-	}
-	return cb
-}
-
-func addViewerFunctionAssociation(cb *awscloudfront.CacheBehavior, functionARN string) {
-	cb.FunctionAssociations = &awscloudfront.FunctionAssociations{
-		Items: []*awscloudfront.FunctionAssociation{
-			{
-				FunctionARN: aws.String(functionARN),
-				EventType:   aws.String(awscloudfront.EventTypeViewerRequest),
-			},
-		},
-		Quantity: aws.Int64(1),
-	}
-}
-
-func baseCacheBehavior(host string, behavior Behavior) *awscloudfront.CacheBehavior {
-	cb := &awscloudfront.CacheBehavior{
-		AllowedMethods: &awscloudfront.AllowedMethods{
-			Items:    aws.StringSlice([]string{"GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"}),
-			Quantity: aws.Int64(7),
-			CachedMethods: &awscloudfront.CachedMethods{
-				Items:    aws.StringSlice([]string{"GET", "HEAD"}),
-				Quantity: aws.Int64(2),
-			},
-		},
-		CachePolicyId:              aws.String(behavior.CachePolicy),
-		Compress:                   aws.Bool(true),
-		FieldLevelEncryptionId:     aws.String(""),
-		LambdaFunctionAssociations: &awscloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
-		OriginRequestPolicyId:      aws.String(behavior.RequestPolicy),
-		PathPattern:                aws.String(behavior.PathPattern),
-		SmoothStreaming:            aws.Bool(false),
-		TargetOriginId:             aws.String(host),
-		ViewerProtocolPolicy:       aws.String(awscloudfront.ViewerProtocolPolicyRedirectToHttps),
-	}
-
-	if behavior.RequestPolicy == "None" {
-		cb.OriginRequestPolicyId = nil
-	}
-
-	return cb
-}
-
-func removeDuplicates(origins []*awscloudfront.Origin) []*awscloudfront.Origin {
-	var result []*awscloudfront.Origin
-	foundSet := make(map[string]bool)
-	for _, origin := range origins {
-		if !foundSet[*origin.DomainName] {
-			foundSet[*origin.DomainName] = true
-			result = append(result, origin)
-		}
-	}
-	return result
+	return r.cloudfrontCli.GetDistribution(input)
 }
 
 func isNoSuchDistributionErr(err error) bool {

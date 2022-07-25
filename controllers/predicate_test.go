@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 func TestRunPredicateTestSuite(t *testing.T) {
@@ -47,8 +48,8 @@ var (
 	annotatedIngress = func() *networkingv1beta1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
-		i.Annotations[cdnGroupAnnotation] = "some value"
-		i.Annotations[cdnClassAnnotation] = "default"
+		i.Annotations[k8s.CDNGroupAnnotation] = "some value"
+		i.Annotations[k8s.CDNClassAnnotation] = "default"
 		return i
 	}()
 	provisionedIngress = func() *networkingv1beta1.Ingress {
@@ -64,7 +65,7 @@ var (
 	}()
 	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
 		i := annotatedIngress.DeepCopy()
-		i.Finalizers = []string{cdnFinalizer}
+		i.Finalizers = []string{k8s.CDNFinalizer}
 		return i
 	}()
 )
@@ -260,10 +261,10 @@ func (s *PredicateSuite) Test_hasCdnAnnotationPredicate_Generic() {
 
 func (s *PredicateSuite) Test_hasLoadBalancer_v1Ingress() {
 	var ing client.Object = &networkingv1.Ingress{}
-	s.False(hasLoadBalancer(ing))
+	s.False(k8s.HasLoadBalancer(ing))
 }
 
 func (s *PredicateSuite) Test_hasLoadBalancer_notAnIngress() {
 	var ing client.Object = &corev1.Service{}
-	s.False(hasLoadBalancer(ing))
+	s.False(k8s.HasLoadBalancer(ing))
 }

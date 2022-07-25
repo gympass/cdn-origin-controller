@@ -19,22 +19,54 @@
 
 package cloudfront
 
-import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+import (
+	"testing"
 
-type byDescendingPathLength []Behavior
+	"github.com/stretchr/testify/suite"
+)
 
-func (s byDescendingPathLength) Len() int {
-	return len(s)
-}
-func (s byDescendingPathLength) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-func (s byDescendingPathLength) Less(i, j int) bool {
-	return len(s[i].PathPattern) > len(s[j].PathPattern)
+func TestRunCloudFrontServiceTestSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &CloudFrontServiceTestSuite{})
 }
 
-type byKey []*awscloudfront.Tag
+type CloudFrontServiceTestSuite struct {
+	suite.Suite
+}
 
-func (s byKey) Len() int           { return len(s) }
-func (s byKey) Less(i, j int) bool { return *s[i].Key < *s[j].Key }
-func (s byKey) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s CloudFrontServiceTestSuite) Test_getDeletions() {
+	testCases := []struct {
+		name             string
+		desired, current []string
+		want             []string
+	}{
+		{
+			name:    "No current state",
+			desired: []string{"foo"},
+			current: nil,
+			want:    nil,
+		},
+		{
+			name:    "Current and desired state match",
+			desired: []string{"foo"},
+			current: []string{"foo"},
+			want:    nil,
+		},
+		{
+			name:    "Current and desired state don't match",
+			desired: []string{"foo"},
+			current: []string{"bar"},
+			want:    []string{"bar"},
+		},
+		{
+			name:    "No desired state and has current state",
+			desired: nil,
+			current: []string{"foo"},
+			want:    []string{"foo"},
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Equal(tc.want, getDeletions(tc.desired, tc.current), "test: %s", tc.name)
+	}
+}

@@ -94,6 +94,8 @@ func (r repository) Delete(aliases Aliases) error {
 		return nil
 	}
 
+	target := aliases.Target
+
 	var changes []*route53.Change
 	for _, e := range aliases.Entries {
 		recordSets, err := r.existingRecordSets(e)
@@ -105,7 +107,13 @@ func (r repository) Delete(aliases Aliases) error {
 			return fmt.Errorf("ownership TXT record (%s) not found, can't delete address records", e.Name)
 		}
 
-		changes = append(changes, r.newAliasChanges(aliases.Target, route53.ChangeActionDelete, e)...)
+		// we might not have a target present on aliases if the distribution was already deleted
+		// if the record exists take it from there
+		if len(recordSets.addressRecords) > 0 {
+			target = *recordSets.addressRecords[0].AliasTarget.DNSName
+		}
+
+		changes = append(changes, r.newAliasChanges(target, route53.ChangeActionDelete, e)...)
 		changes = append(changes, r.newTXTChangeForDelete(e.Name, recordSets.txtRecord.ResourceRecords...))
 	}
 
