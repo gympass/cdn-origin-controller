@@ -33,7 +33,7 @@ import (
 // DNSStatus provides status regarding the creation of DNS records for aliases
 type DNSStatus struct {
 	Records []string `json:"records,omitempty"`
-	Synced  bool     `json:"synced,omitempty"`
+	Synced  bool     `json:"synced"`
 }
 
 // CDNStatusStatus defines the observed state of CDNStatus
