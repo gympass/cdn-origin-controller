@@ -159,9 +159,10 @@ func (c *CDNStatus) GetIngressKeys() []client.ObjectKey {
 
 // SetDNSSync sets the DNS sync status if there is any DNS status to report
 func (c *CDNStatus) SetDNSSync(synced bool) {
-	if c.Status.DNS != nil {
-		c.Status.DNS.Synced = synced
+	if c.Status.DNS == nil {
+		c.Status.DNS = &DNSStatus{}
 	}
+	c.Status.DNS.Synced = synced
 }
 
 // SetInfo sets Distribution basic info
