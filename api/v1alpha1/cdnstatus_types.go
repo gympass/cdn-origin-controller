@@ -33,7 +33,7 @@ import (
 // DNSStatus provides status regarding the creation of DNS records for aliases
 type DNSStatus struct {
 	Records []string `json:"records,omitempty"`
-	Synced  bool     `json:"synced,omitempty"`
+	Synced  bool     `json:"synced"`
 }
 
 // CDNStatusStatus defines the observed state of CDNStatus
@@ -159,9 +159,10 @@ func (c *CDNStatus) GetIngressKeys() []client.ObjectKey {
 
 // SetDNSSync sets the DNS sync status if there is any DNS status to report
 func (c *CDNStatus) SetDNSSync(synced bool) {
-	if c.Status.DNS != nil {
-		c.Status.DNS.Synced = synced
+	if c.Status.DNS == nil {
+		c.Status.DNS = &DNSStatus{}
 	}
+	c.Status.DNS.Synced = synced
 }
 
 // SetInfo sets Distribution basic info

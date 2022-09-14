@@ -332,6 +332,8 @@ func (s *Service) handleSuccess(ingress client.Object, status *v1alpha1.CDNStatu
 	msg := "Successfully reconciled CDN"
 	s.Recorder.Event(ingress, corev1.EventTypeNormal, reasonSuccess, msg)
 
+	status.SetDNSSync(true)
+
 	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
 	msg = fmt.Sprintf("%s: %s", ingRef, msg)
 	s.Recorder.Event(status, corev1.EventTypeNormal, reasonSuccess, msg)
