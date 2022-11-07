@@ -81,7 +81,7 @@ metadata:
   name: foobar
   annotations:
     cdn-origin-controller.gympass.com/cdn.group: "foobar"
-    cdn-origin-controller.gympass.com/cdn.user-origins: |
+    cdn-origin-controller.gympass.com/cf.user-origins: |
       - host: foo.com
         responseTimeout: 30
         paths:
