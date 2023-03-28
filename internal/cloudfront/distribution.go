@@ -123,9 +123,9 @@ func (b DistributionBuilder) WithLogging(bucketAddress, prefix string) Distribut
 	return b
 }
 
-// WithTags takes in custom tags which should be present at the Distribution
-func (b DistributionBuilder) WithTags(tags map[string]string) DistributionBuilder {
-	b.tags = tags
+// AppendTags takes in custom tags which should be present at the Distribution
+func (b DistributionBuilder) AppendTags(tags map[string]string) DistributionBuilder {
+	b.tags = strhelper.MergeMapString(b.tags, tags)
 	return b
 }
 

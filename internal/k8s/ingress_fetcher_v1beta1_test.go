@@ -181,9 +181,10 @@ func (s *IngressFetcherV1Beta1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 			return ing.Group == "group"
 		}
 
-		expectedParentCDNIng := NewCDNIngressFromV1beta1(parentIng)
-		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)
+		expectedParentCDNIng, err := NewCDNIngressFromV1beta1(parentIng)
+		s.NoError(err, "test: %s", tc.name)
 
+		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)
 		gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
 		s.NoError(err, "test: %s", tc.name)
 		s.ElementsMatch(expectedIngs, gotIngs, "test: %s", tc.name)

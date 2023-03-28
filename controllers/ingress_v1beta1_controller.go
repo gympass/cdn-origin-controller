@@ -47,7 +47,7 @@ type V1beta1Reconciler struct {
 // +kubebuilder:rbac:groups=cdn.gympass.com,resources=cdnstatuses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cdn.gympass.com,resources=cdnstatuses/status,verbs=get;update;patch
 
-//Reconcile a v1beta1 Ingress resource
+// Reconcile a v1beta1 Ingress resource
 func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logr.FromContext(ctx)
 	log.Info("Starting reconciliation.")
@@ -63,7 +63,11 @@ func (r *V1beta1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	reconcilingCDNIngress := k8s.NewCDNIngressFromV1beta1(ingress)
+	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1beta1(ingress)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	err = r.CloudFrontService.Reconcile(ctx, reconcilingCDNIngress, ingress)
 	if err == nil {
 		log.Info("Reconciliation successful.")

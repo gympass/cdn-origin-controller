@@ -167,7 +167,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		WithOrigin(Origin{Host: "origin", ResponseTimeout: 30}).
 		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
 		WithWebACL("test web acl").
-		WithTags(map[string]string{"foo": "bar"}).
+		AppendTags(map[string]string{"foo": "bar"}).
 		WithLogging("test s3", "test prefix").
 		WithTLS("test:cert:arn", "test security policy").
 		WithIPv6().

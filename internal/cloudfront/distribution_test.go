@@ -153,14 +153,27 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithCustomTags() {
 		"testKey2": "testValue2",
 	}
 
+	otherTags := map[string]string{
+		"testKey": "testValue",
+		"foo":     "bar",
+	}
+
 	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
-		WithTags(tags).
+		AppendTags(tags).
+		AppendTags(otherTags).
 		Build()
 
 	s.NoError(err)
-	for k, v := range tags {
-		s.Equal(v, dist.Tags[k], "key: %s\tvalue: %s", k, v)
+
+	expected := map[string]string{
+		"cdn-origin-controller.gympass.com/cdn.group": "group",
+		"cdn-origin-controller.gympass.com/owned":     "true",
+		"foo":      "bar",
+		"testKey":  "testValue",
+		"testKey2": "testValue2",
 	}
+
+	s.Equal(expected, dist.Tags)
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithTLS() {

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/yaml.v3"
 	networkingv1 "k8s.io/api/networking/v1"
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,6 +49,7 @@ const (
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 	cfWebACLARNAnnotation            = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
+	cfTagsAnnotation                 = "cdn-origin-controller.gympass.com/cf.tags"
 )
 
 // Path represents a path item within an Ingress
@@ -69,6 +71,7 @@ type CDNIngress struct {
 	AlternateDomainNames []string
 	WebACLARN            string
 	IsBeingRemoved       bool
+	Tags                 map[string]string
 }
 
 // GetNamespace returns the CDNIngress namespace
@@ -104,7 +107,12 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 }
 
 // NewCDNIngressFromV1beta1 creates a CDNIngress from a v1beta1 Ingress
-func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
+func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) (CDNIngress, error) {
+	tags, err := tagsAnnotationValue(ing)
+	if err != nil {
+		return CDNIngress{}, err
+	}
+
 	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
@@ -119,13 +127,14 @@ func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) CDNIngress {
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
 		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
+		Tags:                 tags,
 	}
 
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {
 		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
 	}
 
-	return result
+	return result, nil
 }
 
 func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
@@ -143,7 +152,12 @@ func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
 }
 
 // NewCDNIngressFromV1 creates a new CDNIngress from a v1 Ingress
-func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
+func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
+	tags, err := tagsAnnotationValue(ing)
+	if err != nil {
+		return CDNIngress{}, err
+	}
+
 	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
@@ -158,13 +172,14 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) CDNIngress {
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
 		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
+		Tags:                 tags,
 	}
 
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {
 		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
 	}
 
-	return result
+	return result, nil
 }
 
 func pathsV1(rules []networkingv1.IngressRule) []Path {
@@ -201,6 +216,22 @@ func cachePolicy(obj client.Object) string {
 
 func groupAnnotationValue(obj client.Object) string {
 	return obj.GetAnnotations()[CDNGroupAnnotation]
+}
+
+func tagsAnnotationValue(obj client.Object) (map[string]string, error) {
+	tags := map[string]string{}
+	tagsData, ok := obj.GetAnnotations()[cfTagsAnnotation]
+
+	if !ok {
+		return tags, nil
+	}
+
+	err := yaml.Unmarshal([]byte(tagsData), &tags)
+	if err != nil {
+		return tags, fmt.Errorf("invalid custom tags configuration: %v", err)
+	}
+
+	return tags, nil
 }
 
 func alternateDomainNames(obj client.Object) (domainNames []string) {

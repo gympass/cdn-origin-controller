@@ -42,6 +42,7 @@ func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN strin
 	for _, ing := range ingresses {
 		b = b.WithOrigin(newOrigin(ing))
 		b = b.WithAlternateDomains(ing.AlternateDomainNames)
+		b = b.AppendTags(ing.Tags)
 	}
 
 	if cfg.CloudFrontEnableIPV6 {
@@ -57,7 +58,7 @@ func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN strin
 	}
 
 	if len(cfg.CloudFrontCustomTags) > 0 {
-		b = b.WithTags(cfg.CloudFrontCustomTags)
+		b = b.AppendTags(cfg.CloudFrontCustomTags)
 	}
 
 	if len(webACLARN) > 0 {
