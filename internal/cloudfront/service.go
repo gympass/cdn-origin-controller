@@ -65,7 +65,7 @@ func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing
 		return s.reconcileFinalizer(ing, false)
 	}
 
-	desiredIngresses, desiredDist, err := s.desiredState(ctx, reconciling, ing)
+	desiredIngresses, desiredDist, err := s.desiredState(ctx, reconciling)
 	if err != nil {
 		return fmt.Errorf("computing desired state: %v", err)
 	}
@@ -103,8 +103,8 @@ func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing
 	return s.handleResult(ing, cdnStatus, errs)
 }
 
-func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress, obj client.Object) ([]k8s.CDNIngress, Distribution, error) {
-	desiredIngresses, err := s.desiredIngresses(ctx, reconciling, obj)
+func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress) ([]k8s.CDNIngress, Distribution, error) {
+	desiredIngresses, err := s.desiredIngresses(ctx, reconciling)
 	if err != nil {
 		return nil, Distribution{}, err
 	}
@@ -127,7 +127,7 @@ func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress, 
 	return desiredIngresses, desiredDist, nil
 }
 
-func (s *Service) desiredIngresses(ctx context.Context, reconciling k8s.CDNIngress, obj client.Object) ([]k8s.CDNIngress, error) {
+func (s *Service) desiredIngresses(ctx context.Context, reconciling k8s.CDNIngress) ([]k8s.CDNIngress, error) {
 	desiredIngresses, err := s.Fetcher.FetchBy(ctx, s.isPartOfDesiredState(reconciling))
 	if err != nil {
 		return nil, fmt.Errorf("listing active Ingresses that belong to group %s: %v", reconciling.Group, err)

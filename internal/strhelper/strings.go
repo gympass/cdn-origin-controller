@@ -66,3 +66,17 @@ func Filter(s []string, predicate func(string) bool) []string {
 	}
 	return filtered
 }
+
+// MergeMapString merge two maps in a new one
+func MergeMapString(m1, m2 map[string]string) map[string]string {
+	nm := make(map[string]string)
+
+	for k, v := range m1 {
+		nm[k] = v
+	}
+
+	for k, v := range m2 {
+		nm[k] = v
+	}
+	return nm
+}

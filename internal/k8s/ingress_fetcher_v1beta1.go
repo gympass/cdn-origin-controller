@@ -44,7 +44,10 @@ func (i ingFetcherV1Beta1) FetchBy(ctx context.Context, predicate func(CDNIngres
 
 	var result []CDNIngress
 	for _, k8sIng := range list.Items {
-		ing := NewCDNIngressFromV1beta1(&k8sIng)
+		ing, err := NewCDNIngressFromV1beta1(&k8sIng)
+		if err != nil {
+			return result, err
+		}
 		if predicate(ing) {
 			result = append(result, ing)
 			userOriginsCDNIngresses, err := cdnIngressesForUserOrigins(&k8sIng)

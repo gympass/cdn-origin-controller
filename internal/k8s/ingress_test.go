@@ -56,8 +56,34 @@ func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithAlternativeDomainNames() {
 			},
 		},
 	}
-	ip := NewCDNIngressFromV1(ing)
+	ip, _ := NewCDNIngressFromV1(ing)
 	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.AlternateDomainNames)
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithValidTags() {
+	tags := `
+area: platform
+product-domain: operators
+foo: bar
+`
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				"cdn-origin-controller.gympass.com/cf.tags": tags,
+			},
+		},
+	}
+
+	expected := map[string]string{
+		"area":           "platform",
+		"product-domain": "operators",
+		"foo":            "bar",
+	}
+
+	ip, _ := NewCDNIngressFromV1(ing)
+	s.Equal(expected, ip.Tags)
 }
 
 func (s *CDNIngressSuite) Test_sharedIngressParams_Valid() {
