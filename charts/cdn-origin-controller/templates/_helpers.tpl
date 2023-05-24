@@ -3,7 +3,23 @@
 Expand the name of the chart.
 */}}
 {{- define "cdn-origin-controller.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- if .Values.nameOverride -}}
+{{- .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Chart.Name  .Values.cdnClass  | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Expand the name of the chart without adding cdnClass value. This is used to maintain backwards
+compatibility with older clusters during the service account creation 
+*/}}
+{{- define "cdn-origin-controller.name-without-cdn-class" -}}
+{{- if .Values.nameOverride -}}
+{{- .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s" .Chart.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -49,7 +65,7 @@ Create the name of the service account to use
 */}}
 {{- define "cdn-origin-controller.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-    {{ default (include "cdn-origin-controller.name" .) .Values.serviceAccount.name }}
+    {{ default (include "cdn-origin-controller.name-without-cdn-class" .) .Values.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
