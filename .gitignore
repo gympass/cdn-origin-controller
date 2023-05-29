@@ -12,14 +12,19 @@
 *.out
 
 # Dependency directories (remove the comment below to include it)
-# vendor/
+/app
+vendor/
 
 # binaries
 bin/
+testbin/
 
 # Goland
 .idea/
 
+
+# editor and IDE paraphernalia
+.vscode
 .env
 
 # files for demoing the controller
