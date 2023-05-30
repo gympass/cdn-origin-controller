@@ -32,7 +32,6 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
 	networkingv1 "k8s.io/api/networking/v1"
-	k8sdisc "k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -53,7 +52,6 @@ import (
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
-	"github.com/Gympass/cdn-origin-controller/internal/discovery"
 	"github.com/Gympass/cdn-origin-controller/internal/route53"
 )
 
@@ -130,12 +128,6 @@ func leaderElectionID(cdnClass string) string {
 }
 
 func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
-	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
-	v1Available, err := discovery.HasV1Ingress(discClient)
-	if err != nil {
-		setupLog.Error(err, "Could not discover if v1 Ingresses are available")
-	}
-
 	s := session.Must(session.NewSession())
 
 	callerRefFn := func() string { return time.Now().String() }
@@ -149,11 +141,10 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 	}
 
 	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
-	if v1Available {
-		setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-		cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
-		mustSetupV1Controller(mgr, cfService)
-	}
+
+	setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
+	cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
+	mustSetupV1Controller(mgr, cfService)
 }
 
 func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
