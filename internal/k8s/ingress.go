@@ -70,6 +70,7 @@ type CDNIngress struct {
 	AlternateDomainNames []string
 	WebACLARN            string
 	IsBeingRemoved       bool
+	OriginAccess         string
 	Tags                 map[string]string
 }
 

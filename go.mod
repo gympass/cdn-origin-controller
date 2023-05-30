@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/aws/aws-sdk-go v1.44.271
+	github.com/creasty/defaults v1.7.0
 	github.com/go-logr/logr v1.2.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.5.1

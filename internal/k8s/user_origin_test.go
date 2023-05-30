@@ -47,6 +47,39 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 			expectedIngs:    nil,
 		},
 		{
+			name: "Set default origin access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*`,
+			expectedIngs: []CDNIngress{
+				{
+					Group:            "group",
+					LoadBalancerHost: "foo.com",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Public",
+				},
+			},
+		},
+		{
+			name: "Has origin access entry",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: Bucket`,
+			expectedIngs: []CDNIngress{
+				{
+					Group:            "group",
+					LoadBalancerHost: "foo.com",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Bucket",
+				},
+			},
+		},
+		{
 			name: "Has a single user origin",
 			annotationValue: `
                                 - host: foo.com
@@ -64,6 +97,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					OriginRespTimeout: int64(35),
 					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -75,6 +109,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                     - /foo
                                   viewerFunctionARN: foo
                                   originRequestPolicy: None
+                                  originAccess: Bucket
                                 - host: bar.com
                                   responseTimeout: 35
                                   paths:
@@ -86,12 +121,14 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					Paths:            []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
 					ViewerFnARN:      "foo",
+					OriginAccess:     "Bucket",
 				},
 				{
 					Group:             "group",
 					LoadBalancerHost:  "bar.com",
 					Paths:             []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -128,6 +165,15 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue
 		{
 			name:            "Invalid YAML",
 			annotationValue: "*",
+		},
+		{
+			name: "Invalid Origin Access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: invalid`,
 		},
 	}
 
