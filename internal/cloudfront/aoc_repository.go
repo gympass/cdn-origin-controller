@@ -32,15 +32,6 @@ import (
 
 var errNoSuchAOC = errors.New("aoc does not exist")
 
-type AOC struct {
-	ID                            string `json:"id"`
-	Name                          string `json:"name"`
-	OriginName                    string `json:"originName"`
-	OriginAccessControlOriginType string `json:"originAccessControlOriginType"`
-	SigningBehavior               string `json:"signingBehavior"`
-	SigningProtocol               string `json:"signingProtocol"`
-}
-
 type AOCRepository interface {
 	// Sync updates or creates a desired AOC. If successful, returns current AOC
 	Sync(desired AOC) (AOC, error)
