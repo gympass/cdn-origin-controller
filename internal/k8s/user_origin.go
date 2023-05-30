@@ -22,12 +22,15 @@ package k8s
 import (
 	"fmt"
 
+	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const cfUserOriginsAnnotation = "cdn-origin-controller.gympass.com/cf.user-origins"
+const cfUserOriginAccessPublic = "Public"
+const cfUserOriginAccessBucket = "Bucket"
 
 func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 	userOriginsMarkup, ok := obj.GetAnnotations()[cfUserOriginsAnnotation]
@@ -53,6 +56,7 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 			CachePolicy:       o.CachePolicy,
 			OriginRespTimeout: o.ResponseTimeout,
 			WebACLARN:         o.WebACLARN,
+			OriginAccess:      o.OriginAccess,
 		}
 		result = append(result, ing)
 	}
@@ -68,6 +72,7 @@ type userOrigin struct {
 	RequestPolicy     string   `yaml:"originRequestPolicy"`
 	CachePolicy       string   `yaml:"cachePolicy"`
 	WebACLARN         string   `yaml:"webACLARN"`
+	OriginAccess      string   `yaml:"originAccess" default:"Public"`
 }
 
 func (o userOrigin) paths() []Path {
@@ -79,7 +84,7 @@ func (o userOrigin) paths() []Path {
 }
 
 func (o userOrigin) isValid() bool {
-	return len(o.Host) > 0 && len(o.Paths) > 0
+	return len(o.Host) > 0 && len(o.Paths) > 0 && (o.OriginAccess == cfUserOriginAccessPublic || o.OriginAccess == cfUserOriginAccessBucket)
 }
 
 func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
@@ -89,10 +94,18 @@ func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
 		return nil, err
 	}
 
-	for _, o := range origins {
-		if !o.isValid() {
-			return nil, fmt.Errorf("user origin invalid. Must have at lease one path and must have a host: has %d paths and the host is %q", len(o.Paths), o.Host)
+	for i, o := range origins {
+		err = defaults.Set(&o)
+
+		if err != nil {
+			return nil, err
 		}
+
+		if !o.isValid() {
+			return nil, fmt.Errorf("user origin invalid. Must have at lease one path, must have a host, and origin access must be Public or Bucket: has %d paths and the host is %q", len(o.Paths), o.Host)
+		}
+
+		origins[i] = o
 	}
 
 	return origins, nil

@@ -64,6 +64,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					OriginRespTimeout: int64(35),
 					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -75,6 +76,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                     - /foo
                                   viewerFunctionARN: foo
                                   originRequestPolicy: None
+                                  originAccess: Bucket
                                 - host: bar.com
                                   responseTimeout: 35
                                   paths:
@@ -86,12 +88,14 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					Paths:            []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
 					ViewerFnARN:      "foo",
+					OriginAccess:     "Bucket",
 				},
 				{
 					Group:             "group",
 					LoadBalancerHost:  "bar.com",
 					Paths:             []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -128,6 +132,15 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue
 		{
 			name:            "Invalid YAML",
 			annotationValue: "*",
+		},
+		{
+			name: "Invalid Origin Access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: invalid`,
 		},
 	}
 

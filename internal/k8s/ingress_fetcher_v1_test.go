@@ -103,6 +103,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					OriginRespTimeout: int64(35),
 					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -114,6 +115,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                     - /foo
                                   viewerFunctionARN: foo
                                   originRequestPolicy: None
+                                  originAccess: Bucket
                                 - host: host
                                   responseTimeout: 35
                                   paths:
@@ -126,6 +128,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					Paths:            []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
 					ViewerFnARN:      "foo",
+					OriginAccess:     "Bucket",
 				},
 				{
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
@@ -133,6 +136,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					LoadBalancerHost:  "host",
 					Paths:             []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -181,6 +185,15 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 		{
 			name:            "Invalid YAML",
 			annotationValue: "*",
+		},
+		{
+			name: "Invalid Origin Access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: invalid`,
 		},
 	}
 
