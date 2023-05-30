@@ -77,7 +77,7 @@ func renderDescription(template, group string) string {
 }
 
 func newOrigin(ing k8s.CDNIngress) Origin {
-	builder := NewOriginBuilder(ing.LoadBalancerHost, ing.OriginAccess).
+	builder := NewOriginBuilder(ing.Group, ing.LoadBalancerHost, ing.OriginAccess).
 		WithViewerFunction(ing.ViewerFnARN).
 		WithResponseTimeout(ing.OriginRespTimeout).
 		WithRequestPolicy(ing.OriginReqPolicy).

@@ -35,28 +35,28 @@ type OriginTestSuite struct {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_DefaultsForPublicOrigin() {
-	o := NewOriginBuilder("origin", "Public").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Public").WithBehavior("/*").Build()
 
 	s.Equal(int64(30), o.ResponseTimeout)
 	s.Equal(allViewerOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_DefaultsForBucketOrigin() {
-	o := NewOriginBuilder("origin", "Bucket").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Bucket").WithBehavior("/*").Build()
 
 	s.Equal(int64(30), o.ResponseTimeout)
 	s.Equal(allViewerExceptHostHeaderOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_SingleBehavior() {
-	o := NewOriginBuilder("origin", "Public").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Public").WithBehavior("/*").Build()
 	s.Equal("origin", o.Host)
 	s.Len(o.Behaviors, 1)
 	s.Equal("/*", o.Behaviors[0].PathPattern)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() {
-	o := NewOriginBuilder("origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public").
 		WithBehavior("/*").
 		WithBehavior("/foo").
 		WithBehavior("/bar").
@@ -79,7 +79,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() 
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
-	o := NewOriginBuilder("origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public").
 		WithBehavior("/").
 		WithBehavior("/").
 		Build()
@@ -90,7 +90,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
-	o := NewOriginBuilder("origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public").
 		WithBehavior("/").
 		WithBehavior("/foo").
 		WithViewerFunction("some-arn").
@@ -102,7 +102,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
-	o := NewOriginBuilder("origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public").
 		WithBehavior("/").
 		WithBehavior("/foo").
 		WithRequestPolicy("some-policy").
