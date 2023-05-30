@@ -15,9 +15,9 @@ Please note we have a [code of conduct](https://github.com/Gympass/cdn-origin-co
 
 ### Requirements to run locally
 
-* Go 1.19
+* Go 1.20
 * Operator SDK 1.10
-* Local Kubernetes 1.25 e.g.: [minikube](https://minikube.sigs.k8s.io/), [k3d](https://k3d.io/), [kind](https://kind.sigs.k8s.io/)
+* Local Kubernetes 1.27 e.g.: [minikube](https://minikube.sigs.k8s.io/), [k3d](https://k3d.io/), [kind](https://kind.sigs.k8s.io/)
 
 ### Running tests
 To run tests locally, run the following command:
