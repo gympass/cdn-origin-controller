@@ -5,7 +5,7 @@ on:
       - main
       - develop
 env:
-  GO_VERSION: 1.20
+  GO_VERSION: '1.20'
 jobs:
   codacy-coverage-reporter:
     name: Codacy coverage report
