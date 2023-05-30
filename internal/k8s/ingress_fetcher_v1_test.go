@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -212,8 +211,8 @@ func newIngressV1WithLB(namespace, name string, annotations map[string]string) *
 			Namespace:   namespace,
 			Annotations: annotations,
 		},
-		Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
+		Status: networkingv1.IngressStatus{LoadBalancer: networkingv1.IngressLoadBalancerStatus{
+			Ingress: []networkingv1.IngressLoadBalancerIngress{
 				{
 					Hostname: "host",
 				},

@@ -20,8 +20,7 @@
 package k8s
 
 import (
-	"k8s.io/api/networking/v1"
-	"k8s.io/api/networking/v1beta1"
+	v1 "k8s.io/api/networking/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -63,11 +62,6 @@ func HasGroupAnnotation(o client.Object) bool {
 
 // HasLoadBalancer returns whether the given Ingress has been provisioned
 func HasLoadBalancer(o client.Object) bool {
-	ingv1beta1, ok := o.(*v1beta1.Ingress)
-	if ok {
-		return len(ingv1beta1.Status.LoadBalancer.Ingress) > 0 && len(ingv1beta1.Status.LoadBalancer.Ingress[0].Hostname) > 0
-	}
-
 	ingv1, ok := o.(*v1.Ingress)
 	if !ok {
 		return false

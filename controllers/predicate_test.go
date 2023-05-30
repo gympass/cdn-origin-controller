@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -44,26 +43,26 @@ type PredicateSuite struct {
 }
 
 var (
-	baseIngress      = &networkingv1beta1.Ingress{}
-	annotatedIngress = func() *networkingv1beta1.Ingress {
+	baseIngress      = &networkingv1.Ingress{}
+	annotatedIngress = func() *networkingv1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = make(map[string]string)
 		i.Annotations[k8s.CDNGroupAnnotation] = "some value"
 		i.Annotations[k8s.CDNClassAnnotation] = "default"
 		return i
 	}()
-	provisionedIngress = func() *networkingv1beta1.Ingress {
+	provisionedIngress = func() *networkingv1.Ingress {
 		i := baseIngress.DeepCopy()
-		i.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{{Hostname: "some value"}}
+		i.Status.LoadBalancer.Ingress = []networkingv1.IngressLoadBalancerIngress{{Hostname: "some value"}}
 		return i
 	}()
-	annotatedAndProvisionedIngress = func() *networkingv1beta1.Ingress {
+	annotatedAndProvisionedIngress = func() *networkingv1.Ingress {
 		i := baseIngress.DeepCopy()
 		i.Annotations = annotatedIngress.Annotations
 		i.Status = provisionedIngress.Status
 		return i
 	}()
-	hasFinalizerIngress = func() *networkingv1beta1.Ingress {
+	hasFinalizerIngress = func() *networkingv1.Ingress {
 		i := annotatedIngress.DeepCopy()
 		i.Finalizers = []string{k8s.CDNFinalizer}
 		return i

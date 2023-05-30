@@ -11,7 +11,7 @@ Currently, the controller only supports adding origins to AWS CloudFront. Other 
 
 Requirements:
 
-- Kubernetes with Ingress support for networking.k8s.io/v1 or networking.k8s.io/v1beta1
+- Kubernetes with Ingress support for networking.k8s.io/v1
 
 ## AWS CloudFront
 
@@ -26,7 +26,7 @@ The following annotation controls how origins and behaviors are attached to Clou
 - `cdn-origin-controller.gympass.com/cdn.group`: a CDN group should be used to bind Ingress resources together under the same distribution. Required. If the group does not exist yet a new distribution will be provisioned. Example: `cdn-origin-controller.gympass.com/cdn.group: customer-portal`
 - `cdn-origin-controller.gympass.com/cdn.class`: the [CDN class](#cdn-classes) this Ingress resource belongs to. Required. Must match the CDN Class configured for the controller deployment that is meant to manage this Ingress.
 - `cdn-origin-controller.gympass.com/cf.alternate-domain-names`: a comma-separated list of alternate domains to be configured on the CloudFront distribution. Duplicates on the same or different Ingress resources from the same group cause no harm. Example: `alias1.foo,alias2.foo`
-- `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3). If set to `"None"` no policy will be associated.  
+- `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3). If set to `"None"` no policy will be associated.
 - `cdn-origin-controller.gympass.com/cf.cache-policy`: the ID of the cache policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "CachingDisabled" (ID: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad). More details about managed cache policies [see](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
 - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
@@ -46,7 +46,7 @@ The controller needs permission to manipulate the CloudFront distributions. A [s
 
 The controller has several [infrastructure configurations](#configuration). In order to support different controller configurations running in the same cluster it's possible to make each of them responsible for a class. This is done using the `CDN_CLASS` environment variable.
 
-For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need to set different values for the `CF_ROUTE53_HOSTED_ZONE_ID` variable. Additionally, you need each deployment to have a unique CDN class, so you can tell them apart. 
+For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need to set different values for the `CF_ROUTE53_HOSTED_ZONE_ID` variable. Additionally, you need each deployment to have a unique CDN class, so you can tell them apart.
 
 For this example, let's say the first deployment will have:
 ```
@@ -117,11 +117,11 @@ The table below maps remaining available fields of an entry in this list to an a
 
 The controller provides a [custom Kubernetes resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) for providing user feedback on a managed CDN. It's a cluster-scoped resource, meaning it's unique across the entire cluster and is part of no namespace.
 
-The controller automatically creates these resources based on the Ingresses it reconciles. The name of the resource is equal to the Ingresses `cdn-origin-controller.gympass.com/cdn.group` annotation, meaning there is a 1:1 mapping between CDNStatus resources and provisioned CDNs. 
+The controller automatically creates these resources based on the Ingresses it reconciles. The name of the resource is equal to the Ingresses `cdn-origin-controller.gympass.com/cdn.group` annotation, meaning there is a 1:1 mapping between CDNStatus resources and provisioned CDNs.
 
 For example, if there was a group of Ingresses with this annotation set to `"foo"` and another group of Ingresses set to `"bar"`, you would end up with two CDNStatus resources. To list them:
 ```bash
-$ kubectl get cdnstatus 
+$ kubectl get cdnstatus
 NAME    ID               ALIASES                       ADDRESS
 foo     A4NX3S1AJ7ZGH7   ["alias1.com","alias2.com"]   k7zxergbqey2lg.cloudfront.net
 bar     BH0C38HF34OFT6   ["alias3.com","alias4.com"]   kg3gwck75ewn98.cloudfront.net
@@ -132,7 +132,7 @@ You can also get more information by describing a particular resource, including
 ```bash
 $ kubectl describe cdnstatus foo
 Name:         foo
-Namespace:    
+Namespace:
 Labels:       <none>
 Annotations:  <none>
 API Version:  cdn.gympass.com/v1alpha1
@@ -159,7 +159,7 @@ Events:
   Normal  SuccessfullyReconciled  20s   cdn-origin-controller     default/app1: Successfully reconciled CDN
   Normal  SuccessfullyReconciled  19s   cdn-origin-controller     default/app2: Successfully reconciled CDN
   Warning FailedToReconcile       12s   cdn-origin-controller     default/app3: Unable to reconcile CDN: some error
-  
+
 ```
 
 The events are also replicated to the specific Ingress resources which were being reconciled.

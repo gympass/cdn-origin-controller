@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -33,8 +32,6 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap/zapcore"
 	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
-	k8sdisc "k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -55,7 +52,6 @@ import (
 	"github.com/Gympass/cdn-origin-controller/controllers"
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
-	"github.com/Gympass/cdn-origin-controller/internal/discovery"
 	"github.com/Gympass/cdn-origin-controller/internal/route53"
 )
 
@@ -132,22 +128,6 @@ func leaderElectionID(cdnClass string) string {
 }
 
 func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
-	discClient := k8sdisc.NewDiscoveryClientForConfigOrDie(mgr.GetConfig())
-	v1Available, err := discovery.HasV1Ingress(discClient)
-	if err != nil {
-		setupLog.Error(err, "Could not discover if v1 Ingresses are available")
-	}
-
-	v1beta1Available, err := discovery.HasV1beta1Ingress(discClient)
-	if err != nil {
-		setupLog.Error(err, "Could not discover if v1beta1 Ingresses are available")
-	}
-
-	if !v1Available && !v1beta1Available {
-		setupLog.Error(errors.New("ingress is not available on cluster"), "Could not set up controllers")
-		os.Exit(1)
-	}
-
 	s := session.Must(session.NewSession())
 
 	callerRefFn := func() string { return time.Now().String() }
@@ -161,18 +141,10 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 	}
 
 	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
-	if v1beta1Available {
-		setupLog.V(1).Info(networkingv1beta1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-		cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
-		mustSetupV1beta1Controller(mgr, cfService)
-		return
-	}
 
-	if v1Available {
-		setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-		cfService.Fetcher = k8s.NewIngressFetcherV1Beta1(mgr.GetClient())
-		mustSetupV1Controller(mgr, cfService)
-	}
+	setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
+	cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
+	mustSetupV1Controller(mgr, cfService)
 }
 
 func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
@@ -183,18 +155,6 @@ func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to set up v1 ingress controller")
-		os.Exit(1)
-	}
-}
-
-func mustSetupV1beta1Controller(mgr manager.Manager, ir *cloudfront.Service) {
-	v1beta1Reconciler := controllers.V1beta1Reconciler{
-		Client:            mgr.GetClient(),
-		CloudFrontService: ir,
-	}
-
-	if err := v1beta1Reconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to set up v1beta1 ingress controller")
 		os.Exit(1)
 	}
 }

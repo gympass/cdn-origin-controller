@@ -22,13 +22,13 @@ package cloudfront
 import (
 	"strings"
 
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
 
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
-const prefixPathType = string(networkingv1beta1.PathTypePrefix)
+const prefixPathType = string(networkingv1.PathTypePrefix)
 
 func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string, cfg config.Config) (Distribution, error) {
 	b := NewDistributionBuilder(

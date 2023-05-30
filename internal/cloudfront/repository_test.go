@@ -20,6 +20,7 @@
 package cloudfront
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -30,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
@@ -684,7 +684,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistribution
 	awsClient.On("GetDistribution", mock.Anything).Return(errors.New("mock err"))
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Microsecond)
-	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), wait.ErrWaitTimeout)
+	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), context.DeadlineExceeded)
 }
 
 func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution() {

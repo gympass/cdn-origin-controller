@@ -25,15 +25,17 @@ import (
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // MockK8sClient is a mocked client.Client to be used during testing
 type MockK8sClient struct {
 	mock.Mock
-	ExpectedStatusWriter client.StatusWriter
-	ExpectedScheme       *runtime.Scheme
-	ExpectedRESTMapper   meta.RESTMapper
+	ExpectedStatusWriter      client.StatusWriter
+	ExpectedScheme            *runtime.Scheme
+	ExpectedRESTMapper        meta.RESTMapper
+	ExpectedSubResourceClient client.SubResourceClient
 }
 
 func (m *MockK8sClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
@@ -56,18 +58,26 @@ func (m *MockK8sClient) Delete(ctx context.Context, obj client.Object, opts ...c
 	return called.Error(0)
 }
 
+func (m *MockK8sClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
+	called := m.Called(ctx, obj, opts)
+	return called.Error(0)
+}
+
 func (m *MockK8sClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	called := m.Called(ctx, obj, opts)
 	return called.Error(0)
 }
 
-func (m *MockK8sClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	called := m.Called(ctx, obj, patch, opts)
-	return called.Error(0)
+func (m *MockK8sClient) GroupVersionKindFor(_ runtime.Object) (schema.GroupVersionKind, error) {
+	return schema.GroupVersionKind{}, nil
 }
 
-func (m *MockK8sClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
-	called := m.Called(ctx, obj, opts)
+func (m *MockK8sClient) IsObjectNamespaced(_ runtime.Object) (bool, error) {
+	return true, nil
+}
+
+func (m *MockK8sClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	called := m.Called(ctx, obj, patch, opts)
 	return called.Error(0)
 }
 
@@ -77,6 +87,10 @@ func (m *MockK8sClient) Status() client.StatusWriter {
 
 func (m *MockK8sClient) Scheme() *runtime.Scheme {
 	return m.ExpectedScheme
+}
+
+func (m *MockK8sClient) SubResource(_ string) client.SubResourceClient {
+	return m.ExpectedSubResourceClient
 }
 
 func (m *MockK8sClient) RESTMapper() meta.RESTMapper {
