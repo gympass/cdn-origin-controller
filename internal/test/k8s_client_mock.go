@@ -36,8 +36,8 @@ type MockK8sClient struct {
 	ExpectedRESTMapper   meta.RESTMapper
 }
 
-func (m *MockK8sClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	called := m.Called(ctx, key, obj)
+func (m *MockK8sClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	called := m.Called(ctx, key, obj, opts)
 	return called.Error(0)
 }
 

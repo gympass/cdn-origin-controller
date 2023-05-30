@@ -18,8 +18,8 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Package v1alpha1 contains API Schema definitions for the cdn v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=cdn.gympass.com
+// +kubebuilder:object:generate=true
+// +groupName=cdn.gympass.com
 package v1alpha1
 
 import (

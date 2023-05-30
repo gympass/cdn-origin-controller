@@ -12,7 +12,7 @@ on:
       - main
       - develop
 env:
-  GO_VERSION: 1.16
+  GO_VERSION: 1.19
 jobs:
   golint:
     name: Lint
