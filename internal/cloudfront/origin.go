@@ -19,7 +19,15 @@
 
 package cloudfront
 
-import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+import (
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
+)
+
+const (
+	OriginTypePublic = k8s.CFUserOriginAccessPublic
+	OriginTypeBucket = k8s.CFUserOriginAccessBucket
+)
 
 const (
 	defaultResponseTimeout = 30
@@ -33,6 +41,10 @@ type Origin struct {
 	Behaviors []Behavior
 	// ResponseTimeout is how long CloudFront will wait for a response from the Origin in seconds
 	ResponseTimeout int64
+	// Type is this Origin's type (s3 bucket, public, etc)
+	Type string
+	// AOC configures Access Origin Control for this Origin
+	AOC AOC
 }
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
@@ -61,18 +73,27 @@ type OriginBuilder struct {
 	requestPolicy string
 	cachePolicy   string
 	respTimeout   int64
+	originType    string
 	paths         strhelper.Set
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
-func NewOriginBuilder(host string) OriginBuilder {
+func NewOriginBuilder(host string, originType string) OriginBuilder {
 	return OriginBuilder{
 		host:          host,
 		respTimeout:   defaultResponseTimeout,
-		requestPolicy: allViewerOriginRequestPolicyID,
+		requestPolicy: defaultRequestPolicyForType(originType),
 		cachePolicy:   cachingDisabledPolicyID,
 		paths:         strhelper.NewSet(),
+		originType:    originType,
 	}
+}
+
+func defaultRequestPolicyForType(originType string) string {
+	if originType == OriginTypeBucket {
+		return allViewerExceptHostHeaderOriginRequestPolicyID
+	}
+	return allViewerOriginRequestPolicyID
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
@@ -127,6 +148,8 @@ func (b OriginBuilder) Build() Origin {
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
+	origin = b.addBucketOriginConfiguration(origin)
+
 	return origin
 }
 
@@ -155,5 +178,14 @@ func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 	for i := range origin.Behaviors {
 		origin.Behaviors[i].CachePolicy = b.cachePolicy
 	}
+	return origin
+}
+
+func (b OriginBuilder) addBucketOriginConfiguration(origin Origin) Origin {
+	if b.originType != OriginTypeBucket {
+		return origin
+	}
+
+	origin.AOC = NewAOC(b.host)
 	return origin
 }
