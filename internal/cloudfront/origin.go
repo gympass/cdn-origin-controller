@@ -83,12 +83,13 @@ type OriginBuilder struct {
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(distributionName, host, originType string) OriginBuilder {
 	return OriginBuilder{
-		host:          host,
-		respTimeout:   defaultResponseTimeout,
-		requestPolicy: defaultRequestPolicyForType(originType),
-		cachePolicy:   cachingDisabledPolicyID,
-		paths:         strhelper.NewSet(),
-		originType:    originType,
+		host:             host,
+		respTimeout:      defaultResponseTimeout,
+		distributionName: distributionName,
+		requestPolicy:    defaultRequestPolicyForType(originType),
+		cachePolicy:      cachingDisabledPolicyID,
+		paths:            strhelper.NewSet(),
+		originType:       originType,
 	}
 }
 

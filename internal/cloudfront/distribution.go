@@ -78,6 +78,25 @@ func (d Distribution) IsEmpty() bool {
 	return len(d.CustomOrigins) == 0
 }
 
+func (d Distribution) AOCs() []AOC {
+	var result []AOC
+	for _, o := range d.CustomOrigins {
+		if o.Type == OriginTypeBucket {
+			result = append(result, o.AOC)
+		}
+	}
+	return result
+}
+
+func (d Distribution) HasOrigin(originID string) bool {
+	for _, o := range d.CustomOrigins {
+		if o.Host == originID {
+			return true
+		}
+	}
+	return false
+}
+
 // DistributionBuilder allows the construction of a Distribution
 type DistributionBuilder struct {
 	id                  string

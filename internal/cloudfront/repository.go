@@ -71,14 +71,15 @@ type DistributionRepository interface {
 
 type repository struct {
 	cloudfrontCli cloudfrontiface.CloudFrontAPI
+	aocRepo       AOCRepository
 	taggingCli    resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
 	callerRef     CallerRefFn
 	waitTimeout   time.Duration
 }
 
 // NewDistributionRepository creates a new AWS CloudFront DistributionRepository
-func NewDistributionRepository(cloudFrontClient cloudfrontiface.CloudFrontAPI, taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI, callerRefFn CallerRefFn, waitTimeout time.Duration) DistributionRepository {
-	return &repository{cloudfrontCli: cloudFrontClient, taggingCli: taggingClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
+func NewDistributionRepository(cloudFrontClient cloudfrontiface.CloudFrontAPI, taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI, callerRefFn CallerRefFn, waitTimeout time.Duration, aocRepo AOCRepository) DistributionRepository {
+	return &repository{cloudfrontCli: cloudFrontClient, taggingCli: taggingClient, callerRef: callerRefFn, waitTimeout: waitTimeout, aocRepo: aocRepo}
 }
 
 func (r repository) ARNByGroup(group string) (string, error) {
@@ -125,6 +126,10 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
 
+	if err := r.createAOCs(d); err != nil {
+		return Distribution{}, fmt.Errorf("creating AOCs: %v", err)
+	}
+
 	d.ID = *output.Distribution.Id
 	d.Address = *output.Distribution.DomainName
 	d.ARN = *output.Distribution.ARN
@@ -163,6 +168,10 @@ func (r repository) Sync(d Distribution) (Distribution, error) {
 		return Distribution{}, fmt.Errorf("updating tags: %v", err)
 	}
 
+	if err := r.syncAOCs(d, output); err != nil {
+		return Distribution{}, fmt.Errorf("syncing AOCs: %v", err)
+	}
+
 	d.ID = *updateOut.Distribution.Id
 	d.ARN = *updateOut.Distribution.ARN
 	d.Address = *updateOut.Distribution.DomainName
@@ -192,7 +201,15 @@ func (r repository) Delete(d Distribution) error {
 		IfMatch: eTag,
 	}
 	_, err = r.cloudfrontCli.DeleteDistribution(input)
-	return cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution)
+	if cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) != nil {
+		return err
+	}
+
+	if err := r.deleteAOCs(d); err != nil {
+		return fmt.Errorf("deleting AOCs: %v", err)
+	}
+
+	return nil
 }
 
 func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
@@ -264,4 +281,58 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 		Id: aws.String(id),
 	}
 	return r.cloudfrontCli.GetDistribution(input)
+}
+
+func (r repository) deleteAOCs(d Distribution) error {
+	for _, o := range d.CustomOrigins {
+		if o.Type == OriginTypeBucket {
+			if _, err := r.aocRepo.Delete(o.AOC); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r repository) createAOCs(d Distribution) error {
+	for _, o := range d.CustomOrigins {
+		if o.Type == OriginTypeBucket {
+			if _, err := r.aocRepo.Sync(o.AOC); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r repository) syncAOCs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) error {
+	toBeSynced, toBeDeleted := r.diffDesiredAndObservedAOCs(desired, observed)
+
+	for _, aoc := range toBeSynced {
+		if _, err := r.aocRepo.Sync(aoc); err != nil {
+			return err
+		}
+	}
+
+	for _, aoc := range toBeDeleted {
+		if _, err := r.aocRepo.Delete(aoc); err != nil {
+			return fmt.Errorf("deleting unused AOC: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (r repository) diffDesiredAndObservedAOCs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) (toBeSynced []AOC, toBeDeleted []AOC) {
+	toBeSynced = desired.AOCs()
+
+	for _, o := range observed.DistributionConfig.Origins.Items {
+		if !desired.HasOrigin(aws.StringValue(o.Id)) {
+			toBeDeleted = append(toBeDeleted, AOC{
+				ID: aws.StringValue(o.Id),
+			})
+		}
+	}
+
+	return toBeSynced, toBeDeleted
 }

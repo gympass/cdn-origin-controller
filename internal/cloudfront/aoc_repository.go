@@ -125,7 +125,7 @@ func (r aocRepository) getAOC(aoc AOC) (AOC, error) {
 
 	err := r.aocLister.ListOriginAccessControlsPages(input, func(output *awscloudfront.ListOriginAccessControlsOutput, lastPage bool) bool {
 		for _, item := range output.OriginAccessControlList.Items {
-			if aws.StringValue(item.Name) == aoc.Name {
+			if aws.StringValue(item.Id) == aoc.ID || aws.StringValue(item.Name) == aoc.Name {
 				observed = newAOCFromOriginAccessControlSummary(item, aoc.OriginName)
 				found = true
 				return false
