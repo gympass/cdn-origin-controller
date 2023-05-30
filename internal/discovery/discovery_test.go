@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sdisc "k8s.io/client-go/discovery"
 
@@ -60,13 +59,7 @@ var (
 )
 
 var (
-	noError              error
-	v1beta1AvailableDisc = func() k8sdisc.DiscoveryInterface {
-		m := discMock{}
-		m.On("ServerResourcesForGroupVersion", networkingv1beta1.SchemeGroupVersion.String()).Return(&ingressAvailableServerResources, noError)
-		m.On("ServerResourcesForGroupVersion", mock.Anything).Return(&ingressNotAvailableServerResources, noError)
-		return &m
-	}()
+	noError error
 
 	v1AvailableDisc = func() k8sdisc.DiscoveryInterface {
 		m := discMock{}
@@ -76,12 +69,6 @@ var (
 	}()
 
 	v1ErrOnServerResourcesDisc = func() k8sdisc.DiscoveryInterface {
-		m := discMock{}
-		m.On("ServerResourcesForGroupVersion", mock.Anything).Return(nil, errors.New("mock err"))
-		return &m
-	}()
-
-	v1beta1ErrOnServerResourcesDisc = func() k8sdisc.DiscoveryInterface {
 		m := discMock{}
 		m.On("ServerResourcesForGroupVersion", mock.Anything).Return(nil, errors.New("mock err"))
 		return &m
@@ -97,40 +84,6 @@ type DiscoveryTestSuite struct {
 	suite.Suite
 }
 
-func (s *DiscoveryTestSuite) TestHasV1beta1Ingress() {
-	testCases := []struct {
-		name    string
-		client  k8sdisc.DiscoveryInterface
-		want    bool
-		wantErr bool
-	}{
-		{
-			"V1beta1 is available",
-			v1beta1AvailableDisc,
-			true,
-			false,
-		},
-		{
-			"V1beta1 is not available",
-			v1AvailableDisc,
-			false,
-			false,
-		},
-		{
-			"error when fetching resources",
-			v1beta1ErrOnServerResourcesDisc,
-			false,
-			true,
-		},
-	}
-
-	for _, tc := range testCases {
-		hasIngress, err := discovery.HasV1beta1Ingress(tc.client)
-		s.Equal(tc.want, hasIngress)
-		s.Equal(tc.wantErr, err != nil)
-	}
-}
-
 func (s *DiscoveryTestSuite) TestHasV1Ingress() {
 	testCases := []struct {
 		name    string
@@ -142,12 +95,6 @@ func (s *DiscoveryTestSuite) TestHasV1Ingress() {
 			"V1 is available",
 			v1AvailableDisc,
 			true,
-			false,
-		},
-		{
-			"V1 is not available",
-			v1beta1AvailableDisc,
-			false,
 			false,
 		},
 		{

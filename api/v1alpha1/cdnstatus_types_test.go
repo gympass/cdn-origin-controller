@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -70,7 +70,7 @@ func (s *CDNStatusTestSuite) Test_SetIngressRef_AddNewIngressToExistingIngresses
 
 func (s *CDNStatusTestSuite) Test_DeleteIngresRef_NoRefsExist() {
 	status := &CDNStatus{}
-	ing := &networkingv1beta1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
+	ing := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
 
 	status.RemoveIngressRef(ing)
 
@@ -83,7 +83,7 @@ func (s *CDNStatusTestSuite) Test_DeleteIngresRef_RefsExistButNotTheOneBeingRemo
 	status := &CDNStatus{Status: CDNStatusStatus{Ingresses: IngressRefs{
 		"namespace/name": failedIngressStatus,
 	}}}
-	ing := &networkingv1beta1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
+	ing := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
 
 	status.RemoveIngressRef(ing)
 
@@ -96,7 +96,7 @@ func (s *CDNStatusTestSuite) Test_DeleteIngresRef_RefBeingRemovedExists() {
 	status := &CDNStatus{Status: CDNStatusStatus{Ingresses: IngressRefs{
 		"foo/bar": failedIngressStatus,
 	}}}
-	ing := &networkingv1beta1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
+	ing := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Namespace: "foo", Name: "bar"}}
 
 	ref := NewIngressRef(ing.Namespace, ing.Name)
 	refStatus, ok := status.Status.Ingresses[ref]
