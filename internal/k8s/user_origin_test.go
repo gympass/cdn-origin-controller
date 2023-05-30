@@ -47,6 +47,39 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 			expectedIngs:    nil,
 		},
 		{
+			name: "Set default origin access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*`,
+			expectedIngs: []CDNIngress{
+				{
+					Group:            "group",
+					LoadBalancerHost: "foo.com",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Public",
+				},
+			},
+		},
+		{
+			name: "Has origin access entry",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: Bucket`,
+			expectedIngs: []CDNIngress{
+				{
+					Group:            "group",
+					LoadBalancerHost: "foo.com",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Bucket",
+				},
+			},
+		},
+		{
 			name: "Has a single user origin",
 			annotationValue: `
                                 - host: foo.com

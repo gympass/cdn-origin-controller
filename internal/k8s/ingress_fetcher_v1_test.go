@@ -85,6 +85,41 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 		expectedIngs    []CDNIngress
 	}{
 		{
+			name: "Set default origin access",
+			annotationValue: `
+                                - host: host
+                                  paths:
+                                    - /foo
+                                    - /foo/*`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:            "group",
+					LoadBalancerHost: "host",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Public",
+				},
+			},
+		},
+		{
+			name: "Has origin access entry",
+			annotationValue: `
+                                - host: host
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: Bucket`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:            "group",
+					LoadBalancerHost: "host",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Bucket",
+				},
+			},
+		},
+		{
 			name: "Has a single user origin",
 			annotationValue: `
                                 - host: host
