@@ -28,9 +28,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	CFUserOriginAccessPublic = "Public"
+	CFUserOriginAccessBucket = "Bucket"
+)
+
 const cfUserOriginsAnnotation = "cdn-origin-controller.gympass.com/cf.user-origins"
-const cfUserOriginAccessPublic = "Public"
-const cfUserOriginAccessBucket = "Bucket"
 
 func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 	userOriginsMarkup, ok := obj.GetAnnotations()[cfUserOriginsAnnotation]
@@ -84,7 +87,7 @@ func (o userOrigin) paths() []Path {
 }
 
 func (o userOrigin) isValid() bool {
-	return len(o.Host) > 0 && len(o.Paths) > 0 && (o.OriginAccess == cfUserOriginAccessPublic || o.OriginAccess == cfUserOriginAccessBucket)
+	return len(o.Host) > 0 && len(o.Paths) > 0 && (o.OriginAccess == CFUserOriginAccessPublic || o.OriginAccess == CFUserOriginAccessBucket)
 }
 
 func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
