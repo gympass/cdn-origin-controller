@@ -20,6 +20,8 @@
 package cloudfront
 
 import (
+	"fmt"
+
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -68,17 +70,18 @@ type Behavior struct {
 
 // OriginBuilder allows the construction of a Origin
 type OriginBuilder struct {
-	host          string
-	viewerFnARN   string
-	requestPolicy string
-	cachePolicy   string
-	respTimeout   int64
-	originType    string
-	paths         strhelper.Set
+	host             string
+	viewerFnARN      string
+	requestPolicy    string
+	distributionName string
+	cachePolicy      string
+	respTimeout      int64
+	originType       string
+	paths            strhelper.Set
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
-func NewOriginBuilder(host string, originType string) OriginBuilder {
+func NewOriginBuilder(distributionName, host, originType string) OriginBuilder {
 	return OriginBuilder{
 		host:          host,
 		respTimeout:   defaultResponseTimeout,
@@ -186,6 +189,8 @@ func (b OriginBuilder) addBucketOriginConfiguration(origin Origin) Origin {
 		return origin
 	}
 
-	origin.AOC = NewAOC(b.host)
+	aocName := fmt.Sprintf("%s-%s", b.distributionName, b.host)
+	origin.AOC = NewAOC(aocName, b.host)
+
 	return origin
 }

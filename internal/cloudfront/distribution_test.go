@@ -44,16 +44,16 @@ func (s *DistributionTestSuite) TestDistribution_CustomBehaviors() {
 	group := "test group"
 
 	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/short").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/longest").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/longer").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/short").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longest").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longer").Build()).
 		Build()
 	s.NoError(err)
 
 	expected := []cloudfront.Behavior{
-		cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/longest").Build().Behaviors[0],
-		cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/longer").Build().Behaviors[0],
-		cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/short").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longest").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longer").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/short").Build().Behaviors[0],
 	}
 	got := dist.SortedCustomBehaviors()
 	s.Equal(expected, got)
@@ -105,9 +105,9 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
 	group := "test group"
 
 	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/path1").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/path2").WithBehavior("/path3").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("host", "Public").WithBehavior("/path4").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path1").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path2").WithBehavior("/path3").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path4").Build()).
 		Build()
 
 	s.NoError(err)
@@ -232,8 +232,8 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithARN() {
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_InvalidDistribution() {
-	origin1 := cloudfront.NewOriginBuilder("host", "Public").WithResponseTimeout(35).Build()
-	origin2 := cloudfront.NewOriginBuilder("host", "Public").WithResponseTimeout(40).Build()
+	origin1 := cloudfront.NewOriginBuilder("dist", "host", "Public").WithResponseTimeout(35).Build()
+	origin2 := cloudfront.NewOriginBuilder("dist", "host", "Public").WithResponseTimeout(40).Build()
 
 	_, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
 		WithOrigin(origin1).
