@@ -20,6 +20,7 @@
 package cloudfront
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -243,8 +244,11 @@ func (r repository) disableDist(config *awscloudfront.DistributionConfig, id, eT
 const cfDeployedStatus = "Deployed"
 
 func (r repository) waitUntilDeployed(id string) (*string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), (time.Second * 60))
+	defer cancel()
+
 	var eTag *string
-	condition := func() (done bool, err error) {
+	condition := func(ctx context.Context) (done bool, err error) {
 		out, err := r.distributionByID(id)
 		if err != nil {
 			if isNoSuchDistributionErr(err) {
@@ -257,7 +261,7 @@ func (r repository) waitUntilDeployed(id string) (*string, error) {
 	}
 
 	interval := time.Second * 10
-	err := wait.PollImmediate(interval, r.waitTimeout, condition)
+	err := wait.PollUntilContextTimeout(ctx, interval, r.waitTimeout, true, condition)
 	if err != nil {
 		return nil, err
 	}
