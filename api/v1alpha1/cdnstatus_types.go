@@ -46,6 +46,10 @@ type CDNStatusStatus struct {
 	// +optional
 	// +nullable
 	DNS *DNSStatus `json:"dns,omitempty"`
+	// Origin represents the location where content is stored, and from which CloudFront gets content to serve to viewers.
+	// +kubebuilder:validation:Enum=Public;Bucket
+	// +kubebuilder:default="Public"
+	OriginAccess string `json:"originAccess,omitempty"`
 }
 
 //+kubebuilder:object:root=true

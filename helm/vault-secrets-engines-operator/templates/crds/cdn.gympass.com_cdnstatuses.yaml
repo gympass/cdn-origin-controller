@@ -73,6 +73,14 @@ spec:
                   type: string
                 description: IngressRefs ingresses map
                 type: object
+              originAccess:
+                default: Public
+                description: Origin represents the location where content is stored,
+                  and from which CloudFront gets content to serve to viewers.
+                enum:
+                - Public
+                - Bucket
+                type: string
             type: object
         type: object
     served: true
