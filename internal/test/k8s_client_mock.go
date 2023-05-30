@@ -68,11 +68,11 @@ func (m *MockK8sClient) Update(ctx context.Context, obj client.Object, opts ...c
 	return called.Error(0)
 }
 
-func (m *MockK8sClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+func (m *MockK8sClient) GroupVersionKindFor(_ runtime.Object) (schema.GroupVersionKind, error) {
 	return schema.GroupVersionKind{}, nil
 }
 
-func (c *MockK8sClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+func (m *MockK8sClient) IsObjectNamespaced(_ runtime.Object) (bool, error) {
 	return true, nil
 }
 
@@ -89,7 +89,7 @@ func (m *MockK8sClient) Scheme() *runtime.Scheme {
 	return m.ExpectedScheme
 }
 
-func (m *MockK8sClient) SubResource(subResource string) client.SubResourceClient {
+func (m *MockK8sClient) SubResource(_ string) client.SubResourceClient {
 	return m.ExpectedSubResourceClient
 }
 

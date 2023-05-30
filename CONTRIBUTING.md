@@ -9,9 +9,9 @@ Please note we have a [code of conduct](https://github.com/Gympass/cdn-origin-co
 
 1. Fork and clone this repo
 2. Create your local branch
-2. Make sure that you have all [requirements](#requirements-to-run-locally) to run the project locally
-3. Always [run tests](#running-tests) before sending a PR to make sure the license headers and the manifests are updated (and of course the unit tests are passing)
-4. Submit a pull request against the upstream source repository
+3. Make sure that you have all [requirements](#requirements-to-run-locally) to run the project locally
+4. Always [run tests](#running-tests) before sending a PR to make sure the license headers and the manifests are updated (and of course the unit tests are passing)
+5. Submit a pull request against the upstream source repository
 
 ### Requirements to run locally
 
@@ -20,6 +20,7 @@ Please note we have a [code of conduct](https://github.com/Gympass/cdn-origin-co
 * Local Kubernetes 1.27 e.g.: [minikube](https://minikube.sigs.k8s.io/), [k3d](https://k3d.io/), [kind](https://kind.sigs.k8s.io/)
 
 ### Running tests
+
 To run tests locally, run the following command:
 
 ```sh
@@ -27,7 +28,9 @@ make test
 ```
 
 ### Running application
+
 To run application, run the following command:
+
 ```sh
 make run
 ```
