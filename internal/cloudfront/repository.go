@@ -27,12 +27,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/cloudfront/cloudfrontiface"
 	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
 	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi/resourcegroupstaggingapiiface"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	cdnaws "github.com/Gympass/cdn-origin-controller/internal/aws"
 )
 
 const (
@@ -168,29 +169,20 @@ func (r repository) Sync(d Distribution) (Distribution, error) {
 
 func (r repository) Delete(d Distribution) error {
 	output, err := r.distributionConfigByID(d.ID)
-	if isNoSuchDistributionErr(err) {
-		return nil
-	}
 	if err != nil {
-		return fmt.Errorf("getting distribution config: %v", err)
+		return cdnaws.IgnoreErrorCodef("getting distribution config: %v", err, awscloudfront.ErrCodeNoSuchDistribution)
 	}
 
 	if *output.DistributionConfig.Enabled {
 		err = r.disableDist(output.DistributionConfig, d.ID, *output.ETag)
-		if isNoSuchDistributionErr(err) {
-			return nil
-		}
 		if err != nil {
-			return fmt.Errorf("disabling distribution: %v", err)
+			return cdnaws.IgnoreErrorCodef("disabling distribution: %v", err, awscloudfront.ErrCodeNoSuchDistribution)
 		}
 	}
 
 	eTag, err := r.waitUntilDeployed(d.ID)
-	if isNoSuchDistributionErr(err) {
-		return nil
-	}
 	if err != nil {
-		return fmt.Errorf("waiting for distribution to be in deployed status: %w", err)
+		return cdnaws.IgnoreErrorCodef("waiting for distribution to be in deployed status: %w", err, awscloudfront.ErrCodeNoSuchDistribution)
 	}
 
 	input := &awscloudfront.DeleteDistributionInput{
@@ -198,10 +190,7 @@ func (r repository) Delete(d Distribution) error {
 		IfMatch: eTag,
 	}
 	_, err = r.cloudfrontCli.DeleteDistribution(input)
-	if isNoSuchDistributionErr(err) {
-		err = nil
-	}
-	return err
+	return cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution)
 }
 
 func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
@@ -251,7 +240,7 @@ func (r repository) waitUntilDeployed(id string) (*string, error) {
 	condition := func(ctx context.Context) (done bool, err error) {
 		out, err := r.distributionByID(id)
 		if err != nil {
-			if isNoSuchDistributionErr(err) {
+			if cdnaws.IsErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) {
 				return false, err
 			}
 			return false, nil
@@ -273,12 +262,4 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 		Id: aws.String(id),
 	}
 	return r.cloudfrontCli.GetDistribution(input)
-}
-
-func isNoSuchDistributionErr(err error) bool {
-	var aerr awserr.Error
-	if ok := errors.As(err, &aerr); !ok {
-		return false
-	}
-	return aerr.Code() == awscloudfront.ErrCodeNoSuchDistribution
 }
