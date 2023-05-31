@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 )
 
-// IsErrorCode returns whether the give error matches an AWS error with the give errCode.
+// IsErrorCode returns whether the given error matches an AWS error with the given errCode.
 // If the input error is not a valid awserr.Error, it returns false
 func IsErrorCode(err error, errCode string) bool {
 	var aerr awserr.Error
