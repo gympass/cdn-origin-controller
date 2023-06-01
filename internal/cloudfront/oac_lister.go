@@ -29,24 +29,24 @@ import (
 )
 
 // This entire file should be moved to the SDK if they accept a feature request.
-// It implements pagination for listing AOCs in the same style of other paginators
+// It implements pagination for listing OACs in the same style of other paginators
 // that are already implemented in the SDK. For example:
 // https://github.com/aws/aws-sdk-go/blob/v1.44.269/service/cloudfront/api.go#L6927
 
-// AOCLister lists AOCs.
+// OACLister lists OACs.
 // Using an interface to make it more testable, since otherwise we'd need to create
 // fake requests, which can't be mocked because they are not interfaces.
-type AOCLister interface {
+type OACLister interface {
 	ListOriginAccessControlsPages(input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool) error
 	ListOriginAccessControlsPagesWithContext(ctx context.Context, input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool, opts ...request.Option) error
 }
 
-type aocLister struct {
+type oacLister struct {
 	client cloudfrontiface.CloudFrontAPI
 }
 
-func NewAOCLister(client cloudfrontiface.CloudFrontAPI) AOCLister {
-	return aocLister{client: client}
+func NewOACLister(client cloudfrontiface.CloudFrontAPI) OACLister {
+	return oacLister{client: client}
 }
 
 // ListOriginAccessControlsPages iterates over the pages of an awscloudfront.ListOriginAccessControlsInput operation,
@@ -66,7 +66,7 @@ func NewAOCLister(client cloudfrontiface.CloudFrontAPI) AOCLister {
 //	        fmt.Println(page)
 //	        return pageNum <= 3
 //	    })
-func (l aocLister) ListOriginAccessControlsPages(input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool) error {
+func (l oacLister) ListOriginAccessControlsPages(input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool) error {
 	return l.ListOriginAccessControlsPagesWithContext(aws.BackgroundContext(), input, fn)
 }
 
@@ -79,7 +79,7 @@ func (l aocLister) ListOriginAccessControlsPages(input *awscloudfront.ListOrigin
 // the context is nil a panic will occur. In the future the SDK may create
 // sub-contexts for http.Requests. See https://golang.org/pkg/context/
 // for more information on using Contexts.
-func (l aocLister) ListOriginAccessControlsPagesWithContext(ctx context.Context, input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool, opts ...request.Option) error {
+func (l oacLister) ListOriginAccessControlsPagesWithContext(ctx context.Context, input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool, opts ...request.Option) error {
 	p := request.Pagination{
 		NewRequest: func() (*request.Request, error) {
 			var inCpy *awscloudfront.ListOriginAccessControlsInput

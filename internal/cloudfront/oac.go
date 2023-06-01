@@ -21,7 +21,7 @@ package cloudfront
 
 import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 
-type AOC struct {
+type OAC struct {
 	ID                            string `json:"id"`
 	Name                          string `json:"name"`
 	OriginName                    string `json:"originName"`
@@ -30,8 +30,8 @@ type AOC struct {
 	SigningProtocol               string `json:"signingProtocol"`
 }
 
-func NewAOC(name, originName string) AOC {
-	return AOC{
+func NewOAC(name, originName string) OAC {
+	return OAC{
 		Name:                          name,
 		OriginName:                    originName,
 		OriginAccessControlOriginType: awscloudfront.OriginAccessControlOriginTypesS3,

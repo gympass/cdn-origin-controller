@@ -32,13 +32,13 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
-type aocListerMock struct {
+type oacListerMock struct {
 	mock.Mock
-	AOCLister
+	OACLister
 	expectedPages []*awscloudfront.ListOriginAccessControlsOutput
 }
 
-func (m *aocListerMock) ListOriginAccessControlsPages(input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool) error {
+func (m *oacListerMock) ListOriginAccessControlsPages(input *awscloudfront.ListOriginAccessControlsInput, fn func(*awscloudfront.ListOriginAccessControlsOutput, bool) bool) error {
 	args := m.Called(input, fn)
 	for i, expectedPage := range m.expectedPages {
 		isLastPage := len(m.expectedPages) == i+1
@@ -50,23 +50,23 @@ func (m *aocListerMock) ListOriginAccessControlsPages(input *awscloudfront.ListO
 	return args.Error(0)
 }
 
-func TestRunAOCRepositoryTestSuite(t *testing.T) {
+func TestRunOACRepositoryTestSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, &aocRepositorySuite{})
+	suite.Run(t, &oacRepositorySuite{})
 }
 
-type aocRepositorySuite struct {
+type oacRepositorySuite struct {
 	suite.Suite
 	client *test.MockCloudFrontAPI
-	lister *aocListerMock
+	lister *oacListerMock
 }
 
-func (s *aocRepositorySuite) SetupTest() {
+func (s *oacRepositorySuite) SetupTest() {
 	s.client = &test.MockCloudFrontAPI{}
-	s.lister = &aocListerMock{}
+	s.lister = &oacListerMock{}
 }
 
-func (s *aocRepositorySuite) TestSync_AOCWillBeCreatedAndOtherAOCsAlreadyExistShouldReturnNoError() {
+func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistShouldReturnNoError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -97,7 +97,7 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeCreatedAndOtherAOCsAlreadyExistSh
 		},
 	}
 
-	got, err := NewAOCRepository(s.client, s.lister).Sync(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
 		Name:                          "name",
 		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
@@ -106,7 +106,7 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeCreatedAndOtherAOCsAlreadyExistSh
 	})
 
 	s.NoError(err)
-	s.Equal(AOC{
+	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
 		OriginName:                    "originName",
@@ -116,7 +116,7 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeCreatedAndOtherAOCsAlreadyExistSh
 	}, got)
 }
 
-func (s *aocRepositorySuite) TestSync_AOCWillBeUpdatedAndShouldReturnNoError() {
+func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -146,7 +146,7 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeUpdatedAndShouldReturnNoError() {
 		},
 	}
 
-	got, err := NewAOCRepository(s.client, s.lister).Sync(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
 		Name:                          "name",
 		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
@@ -155,7 +155,7 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeUpdatedAndShouldReturnNoError() {
 	})
 
 	s.NoError(err)
-	s.Equal(AOC{
+	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
 		OriginName:                    "originName",
@@ -164,11 +164,11 @@ func (s *aocRepositorySuite) TestSync_AOCWillBeUpdatedAndShouldReturnNoError() {
 		SigningProtocol:               "sigv4",
 	}, got)
 }
-func (s *aocRepositorySuite) TestSync_AOCFailsToBeFetchedAndShouldReturnError() {
+func (s *oacRepositorySuite) TestSync_OACFailsToBeFetchedAndShouldReturnError() {
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewAOCRepository(s.client, s.lister).Sync(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
 		Name:                          "name",
 		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
@@ -180,14 +180,14 @@ func (s *aocRepositorySuite) TestSync_AOCFailsToBeFetchedAndShouldReturnError() 
 	s.Empty(got)
 }
 
-func (s *aocRepositorySuite) TestSync_AOCFailsToBeCreatedAndShouldReturnError() {
+func (s *oacRepositorySuite) TestSync_OACFailsToBeCreatedAndShouldReturnError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.client.On("CreateOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewAOCRepository(s.client, s.lister).Sync(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
 		Name:                          "name",
 		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
@@ -199,7 +199,7 @@ func (s *aocRepositorySuite) TestSync_AOCFailsToBeCreatedAndShouldReturnError() 
 	s.Empty(got)
 }
 
-func (s *aocRepositorySuite) TestSync_AOCFailsToBeUpdatedAndShouldReturnError() {
+func (s *oacRepositorySuite) TestSync_OACFailsToBeUpdatedAndShouldReturnError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -217,7 +217,7 @@ func (s *aocRepositorySuite) TestSync_AOCFailsToBeUpdatedAndShouldReturnError() 
 	s.client.On("UpdateOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewAOCRepository(s.client, s.lister).Sync(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
 		Name:                          "name",
 		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
@@ -229,7 +229,7 @@ func (s *aocRepositorySuite) TestSync_AOCFailsToBeUpdatedAndShouldReturnError() 
 	s.Empty(got)
 }
 
-func (s *aocRepositorySuite) TestDelete_AOCWillBeDeletedAndShouldReturnNoError() {
+func (s *oacRepositorySuite) TestDelete_OACWillBeDeletedAndShouldReturnNoError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -250,13 +250,13 @@ func (s *aocRepositorySuite) TestDelete_AOCWillBeDeletedAndShouldReturnNoError()
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(noError)
 
-	got, err := NewAOCRepository(s.client, s.lister).Delete(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
 		Name:       "name",
 		OriginName: "originName",
 	})
 
 	s.NoError(err)
-	s.Equal(AOC{
+	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
 		OriginName:                    "originName",
@@ -266,21 +266,21 @@ func (s *aocRepositorySuite) TestDelete_AOCWillBeDeletedAndShouldReturnNoError()
 	}, got)
 }
 
-func (s *aocRepositorySuite) TestDelete_AOCDoesNotExistAndShouldReturnNoError() {
+func (s *oacRepositorySuite) TestDelete_OACDoesNotExistAndShouldReturnNoError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 
-	got, err := NewAOCRepository(s.client, s.lister).Delete(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
 		Name:       "name",
 		OriginName: "originName",
 	})
 
 	s.NoError(err)
-	s.Equal(AOC{}, got)
+	s.Equal(OAC{}, got)
 }
 
-func (s *aocRepositorySuite) TestDelete_AOCWasDeletedExternallyAfterFetchingAndShouldReturnNoError() {
+func (s *oacRepositorySuite) TestDelete_OACWasDeletedExternallyAfterFetchingAndShouldReturnNoError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -301,13 +301,13 @@ func (s *aocRepositorySuite) TestDelete_AOCWasDeletedExternallyAfterFetchingAndS
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(awserr.New(awscloudfront.ErrCodeNoSuchOriginAccessControl, "msg", nil))
 
-	got, err := NewAOCRepository(s.client, s.lister).Delete(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
 		Name:       "name",
 		OriginName: "originName",
 	})
 
 	s.NoError(err)
-	s.Equal(AOC{
+	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
 		OriginName:                    "originName",
@@ -317,10 +317,10 @@ func (s *aocRepositorySuite) TestDelete_AOCWasDeletedExternallyAfterFetchingAndS
 	}, got)
 }
 
-func (s *aocRepositorySuite) TestDelete_FailedToGetAOCAndShouldReturnError() {
+func (s *oacRepositorySuite) TestDelete_FailedToGetOACAndShouldReturnError() {
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(errors.New("some error"))
-	got, err := NewAOCRepository(s.client, s.lister).Delete(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
 		Name:       "name",
 		OriginName: "originName",
 	})
@@ -329,7 +329,7 @@ func (s *aocRepositorySuite) TestDelete_FailedToGetAOCAndShouldReturnError() {
 	s.Empty(got)
 }
 
-func (s *aocRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
+func (s *oacRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
 	var noError error
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
@@ -350,7 +350,7 @@ func (s *aocRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewAOCRepository(s.client, s.lister).Delete(AOC{
+	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
 		Name:       "name",
 		OriginName: "originName",
 	})

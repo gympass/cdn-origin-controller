@@ -45,8 +45,8 @@ type Origin struct {
 	ResponseTimeout int64
 	// Type is this Origin's type (s3 bucket, public, etc)
 	Type string
-	// AOC configures Access Origin Control for this Origin
-	AOC AOC
+	// OAC configures Access Origin Control for this Origin
+	OAC OAC
 }
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
@@ -83,12 +83,13 @@ type OriginBuilder struct {
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(distributionName, host, originType string) OriginBuilder {
 	return OriginBuilder{
-		host:          host,
-		respTimeout:   defaultResponseTimeout,
-		requestPolicy: defaultRequestPolicyForType(originType),
-		cachePolicy:   cachingDisabledPolicyID,
-		paths:         strhelper.NewSet(),
-		originType:    originType,
+		host:             host,
+		respTimeout:      defaultResponseTimeout,
+		distributionName: distributionName,
+		requestPolicy:    defaultRequestPolicyForType(originType),
+		cachePolicy:      cachingDisabledPolicyID,
+		paths:            strhelper.NewSet(),
+		originType:       originType,
 	}
 }
 
@@ -189,8 +190,8 @@ func (b OriginBuilder) addBucketOriginConfiguration(origin Origin) Origin {
 		return origin
 	}
 
-	aocName := fmt.Sprintf("%s-%s", b.distributionName, b.host)
-	origin.AOC = NewAOC(aocName, b.host)
+	oacName := fmt.Sprintf("%s-%s", b.distributionName, b.host)
+	origin.OAC = NewOAC(oacName, b.host)
 
 	return origin
 }
