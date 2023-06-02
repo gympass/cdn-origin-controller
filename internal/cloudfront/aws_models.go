@@ -122,9 +122,12 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 		aws.String(originSSLProtocolTLSv12),
 	}
 
-	return &cloudfront.Origin{
-		CustomHeaders: &cloudfront.CustomHeaders{Quantity: aws.Int64(0)},
-		CustomOriginConfig: &cloudfront.CustomOriginConfig{
+	var customOriginConfig *cloudfront.CustomOriginConfig
+	var originAccessControlID *string
+	var s3OriginConfig *cloudfront.S3OriginConfig
+
+	if o.Access == OriginAccessPublic {
+		customOriginConfig = &cloudfront.CustomOriginConfig{
 			HTTPPort:               aws.Int64(80),
 			HTTPSPort:              aws.Int64(443),
 			OriginKeepaliveTimeout: aws.Int64(5),
@@ -134,10 +137,22 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 				Items:    SSLProtocols,
 				Quantity: aws.Int64(int64(len(SSLProtocols))),
 			},
-		},
-		DomainName: aws.String(o.Host),
-		Id:         aws.String(o.Host),
-		OriginPath: aws.String(""),
+		}
+	} else {
+		originAccessControlID = &o.OAC.ID
+		s3OriginConfig = &cloudfront.S3OriginConfig{
+			OriginAccessIdentity: aws.String(""),
+		}
+	}
+
+	return &cloudfront.Origin{
+		CustomHeaders:         &cloudfront.CustomHeaders{Quantity: aws.Int64(0)},
+		CustomOriginConfig:    customOriginConfig,
+		DomainName:            aws.String(o.Host),
+		Id:                    aws.String(o.Host),
+		OriginAccessControlId: originAccessControlID,
+		OriginPath:            aws.String(""),
+		S3OriginConfig:        s3OriginConfig,
 	}
 }
 
