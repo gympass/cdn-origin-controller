@@ -138,10 +138,7 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 				Quantity: aws.Int64(int64(len(SSLProtocols))),
 			},
 		}
-		originAccessControlID = nil
-		s3OriginConfig = nil
 	} else {
-		customOriginConfig = nil
 		originAccessControlID = &o.OAC.ID
 		s3OriginConfig = &cloudfront.S3OriginConfig{
 			OriginAccessIdentity: aws.String(""),
