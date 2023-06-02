@@ -51,7 +51,7 @@ type Origin struct {
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
 func (o Origin) HasEqualParameters(o2 Origin) bool {
-	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Type == o2.Type && o.OAC == o2.OAC
+	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Access == o2.Access && o.OAC == o2.OAC
 }
 
 // Behavior represents a CloudFront Cache Behavior
@@ -152,6 +152,8 @@ func (b OriginBuilder) Build() Origin {
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
+	origin.Access = b.accessType
+
 	origin = b.addOriginAccessConfiguration(origin)
 
 	return origin
@@ -186,8 +188,6 @@ func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 }
 
 func (b OriginBuilder) addOriginAccessConfiguration(origin Origin) Origin {
-	origin.Access = b.accessType
-
 	if origin.Access != OriginAccessBucket {
 		return origin
 	}

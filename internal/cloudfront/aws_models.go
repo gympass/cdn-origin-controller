@@ -126,7 +126,7 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 	var originAccessControlID *string
 	var s3OriginConfig *cloudfront.S3OriginConfig
 
-	if o.Type == OriginTypePublic {
+	if o.Access == OriginAccessPublic {
 		customOriginConfig = &cloudfront.CustomOriginConfig{
 			HTTPPort:               aws.Int64(80),
 			HTTPSPort:              aws.Int64(443),

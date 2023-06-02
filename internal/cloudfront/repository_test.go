@@ -871,7 +871,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_SuccessWithBucketOrigin() {
 
 	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
 	dist, err := repo.Create(distribution)
-	s.Equal(dist.CustomOrigins[0].Type, "Bucket")
+	s.Equal(dist.CustomOrigins[0].Access, "Bucket")
 	s.Equal(dist.CustomOrigins[0].OAC.Name, "dist-origin")
 	s.Equal(dist.CustomOrigins[0].OAC.OriginName, "origin")
 	s.Equal(dist.CustomOrigins[0].OAC.OriginAccessControlOriginType, "s3")
