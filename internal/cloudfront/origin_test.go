@@ -112,3 +112,28 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
 	s.Equal("some-policy", o.Behaviors[0].RequestPolicy)
 	s.Equal("some-policy", o.Behaviors[1].RequestPolicy)
 }
+
+func (s *OriginTestSuite) TestNewOriginBuilder_WithOriginAccessIdentity() {
+	o := NewOriginBuilder("dist", "origin", "Bucket").
+		Build()
+	s.Equal("origin", o.Host)
+	s.Equal("dist-origin", o.OAC.Name)
+	s.Equal("origin", o.OAC.OriginName)
+	s.Equal("s3", o.OAC.OriginAccessControlOriginType)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_TestHasDifferentParameters() {
+	o := NewOriginBuilder("dist", "origin", "Bucket").
+		Build()
+	o1 := NewOriginBuilder("foo", "origin", "Bucket").
+		Build()
+	o2 := NewOriginBuilder("dist", "bar", "Bucket").
+		Build()
+	o3 := NewOriginBuilder("dist", "origin", "Public").
+		Build()
+
+	s.False(o.HasEqualParameters(o1))
+	s.False(o.HasEqualParameters(o2))
+	s.False(o.HasEqualParameters(o3))
+	s.True(o.HasEqualParameters(o))
+}

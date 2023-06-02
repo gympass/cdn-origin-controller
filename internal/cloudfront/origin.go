@@ -51,7 +51,7 @@ type Origin struct {
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
 func (o Origin) HasEqualParameters(o2 Origin) bool {
-	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout
+	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Type == o2.Type && o.OAC == o2.OAC
 }
 
 // Behavior represents a CloudFront Cache Behavior
@@ -83,9 +83,9 @@ type OriginBuilder struct {
 // NewOriginBuilder returns an OriginBuilder for a given host
 func NewOriginBuilder(distributionName, host, accessType string) OriginBuilder {
 	return OriginBuilder{
+		distributionName: distributionName,
 		host:             host,
 		respTimeout:      defaultResponseTimeout,
-		distributionName: distributionName,
 		requestPolicy:    defaultRequestPolicyForType(accessType),
 		cachePolicy:      cachingDisabledPolicyID,
 		paths:            strhelper.NewSet(),
