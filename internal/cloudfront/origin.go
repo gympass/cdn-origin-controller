@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	OriginTypePublic = k8s.CFUserOriginAccessPublic
-	OriginTypeBucket = k8s.CFUserOriginAccessBucket
+	OriginAccessPublic = k8s.CFUserOriginAccessPublic
+	OriginAccessBucket = k8s.CFUserOriginAccessBucket
 )
 
 const (
@@ -43,8 +43,8 @@ type Origin struct {
 	Behaviors []Behavior
 	// ResponseTimeout is how long CloudFront will wait for a response from the Origin in seconds
 	ResponseTimeout int64
-	// Type is this Origin's type (s3 bucket, public, etc)
-	Type string
+	// Access is this Origin's access type (Bucket or Public)
+	Access string
 	// OAC configures Access Origin Control for this Origin
 	OAC OAC
 }
@@ -76,25 +76,25 @@ type OriginBuilder struct {
 	distributionName string
 	cachePolicy      string
 	respTimeout      int64
-	originType       string
+	accessType       string
 	paths            strhelper.Set
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
-func NewOriginBuilder(distributionName, host, originType string) OriginBuilder {
+func NewOriginBuilder(distributionName, host, accessType string) OriginBuilder {
 	return OriginBuilder{
 		host:             host,
 		respTimeout:      defaultResponseTimeout,
 		distributionName: distributionName,
-		requestPolicy:    defaultRequestPolicyForType(originType),
+		requestPolicy:    defaultRequestPolicyForType(accessType),
 		cachePolicy:      cachingDisabledPolicyID,
 		paths:            strhelper.NewSet(),
-		originType:       originType,
+		accessType:       accessType,
 	}
 }
 
-func defaultRequestPolicyForType(originType string) string {
-	if originType == OriginTypeBucket {
+func defaultRequestPolicyForType(accessType string) string {
+	if accessType == OriginAccessBucket {
 		return allViewerExceptHostHeaderOriginRequestPolicyID
 	}
 	return allViewerOriginRequestPolicyID
@@ -152,7 +152,7 @@ func (b OriginBuilder) Build() Origin {
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
-	origin = b.addBucketOriginConfiguration(origin)
+	origin = b.addOriginAccessConfiguration(origin)
 
 	return origin
 }
@@ -185,8 +185,8 @@ func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 	return origin
 }
 
-func (b OriginBuilder) addBucketOriginConfiguration(origin Origin) Origin {
-	if b.originType != OriginTypeBucket {
+func (b OriginBuilder) addOriginAccessConfiguration(origin Origin) Origin {
+	if b.accessType != OriginAccessBucket {
 		return origin
 	}
 
