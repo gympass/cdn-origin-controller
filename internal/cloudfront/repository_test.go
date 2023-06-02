@@ -835,3 +835,45 @@ func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone
 	)
 	s.Nil(cb.OriginRequestPolicyId)
 }
+
+func (s *DistributionRepositoryTestSuite) TestCreate_SuccessWithBucketOrigin() {
+	awsClient := &test.MockCloudFrontAPI{
+		ExpectedCreateDistributionWithTagsOutput: &awscloudfront.CreateDistributionWithTagsOutput{
+			Distribution: &awscloudfront.Distribution{
+				Id:         aws.String("L2FB5NP10VU7KL"),
+				ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
+				DomainName: aws.String("aoiweoiwe39d.cloudfront.net"),
+			},
+		},
+	}
+
+	var noError error
+	awsClient.On("CreateDistributionWithTags", mock.Anything).Return(noError).Once()
+
+	origin := NewOriginBuilder("dist", "origin", "Bucket").Build()
+
+	distribution, err := NewDistributionBuilder(
+		"default.origin",
+		"test description",
+		awscloudfront.PriceClassPriceClass100,
+		"test group",
+		"default-web-acl",
+	).
+		WithOrigin(origin).
+		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
+		WithWebACL("test web acl").
+		AppendTags(map[string]string{"foo": "bar"}).
+		WithLogging("test s3", "test prefix").
+		WithTLS("test:cert:arn", "test security policy").
+		WithIPv6().
+		Build()
+	s.NoError(err)
+
+	repo := NewDistributionRepository(awsClient, &test.MockResourceTaggingAPI{}, testCallerRefFn, time.Minute)
+	dist, err := repo.Create(distribution)
+	s.Equal(dist.CustomOrigins[0].Type, "Bucket")
+	s.Equal(dist.CustomOrigins[0].OAC.Name, "dist-origin")
+	s.Equal(dist.CustomOrigins[0].OAC.OriginName, "origin")
+	s.Equal(dist.CustomOrigins[0].OAC.OriginAccessControlOriginType, "s3")
+	s.NoError(err)
+}
