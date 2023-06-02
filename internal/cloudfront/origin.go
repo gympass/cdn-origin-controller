@@ -186,7 +186,9 @@ func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 }
 
 func (b OriginBuilder) addOriginAccessConfiguration(origin Origin) Origin {
-	if b.accessType != OriginAccessBucket {
+	origin.Access = b.accessType
+
+	if origin.Access != OriginAccessBucket {
 		return origin
 	}
 

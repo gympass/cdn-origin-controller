@@ -37,6 +37,7 @@ type OriginTestSuite struct {
 func (s *OriginTestSuite) TestNewOriginBuilder_DefaultsForPublicOrigin() {
 	o := NewOriginBuilder("dist", "origin", "Public").WithBehavior("/*").Build()
 
+	s.Equal("Public", o.Type)
 	s.Equal(int64(30), o.ResponseTimeout)
 	s.Equal(allViewerOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
 }
@@ -113,10 +114,11 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
 	s.Equal("some-policy", o.Behaviors[1].RequestPolicy)
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_WithOriginAccessIdentity() {
+func (s *OriginTestSuite) TestNewOriginBuilder_WithBucketType() {
 	o := NewOriginBuilder("dist", "origin", "Bucket").
 		Build()
 	s.Equal("origin", o.Host)
+	s.Equal("Bucket", o.Type)
 	s.Equal("dist-origin", o.OAC.Name)
 	s.Equal("origin", o.OAC.OriginName)
 	s.Equal("s3", o.OAC.OriginAccessControlOriginType)
