@@ -181,7 +181,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 		ARN:              b.arn,
 		Address:          b.address,
 		CustomOrigins:    b.customOrigins,
-		DefaultOrigin:    NewOriginBuilder(b.defaultOriginDomain).Build(),
+		DefaultOrigin:    NewOriginBuilder("dist", b.defaultOriginDomain, OriginAccessBucket).Build(),
 		Description:      b.description,
 		Group:            b.group,
 		PriceClass:       b.priceClass,

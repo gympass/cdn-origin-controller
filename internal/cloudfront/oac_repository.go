@@ -30,68 +30,59 @@ import (
 	cdnaws "github.com/Gympass/cdn-origin-controller/internal/aws"
 )
 
-var errNoSuchAOC = errors.New("aoc does not exist")
+var errNoSuchOAC = errors.New("oac does not exist")
 
-type AOC struct {
-	ID                            string `json:"id"`
-	Name                          string `json:"name"`
-	OriginName                    string `json:"originName"`
-	OriginAccessControlOriginType string `json:"originAccessControlOriginType"`
-	SigningBehavior               string `json:"signingBehavior"`
-	SigningProtocol               string `json:"signingProtocol"`
+type OACRepository interface {
+	// Sync updates or creates a desired OAC. If successful, returns current OAC
+	Sync(desired OAC) (OAC, error)
+	// Delete deletes the OAC of given id. If successful, returns deleted OAC
+	Delete(toBeDeleted OAC) (OAC, error)
 }
 
-type AOCRepository interface {
-	// Sync updates or creates a desired AOC. If successful, returns current AOC
-	Sync(desired AOC) (AOC, error)
-	// Delete deletes the AOC of given id. If successful, returns deleted AOC
-	Delete(toBeDeleted AOC) (AOC, error)
+func NewOACRepository(client cloudfrontiface.CloudFrontAPI, oacLister OACLister) OACRepository {
+	return oacRepository{client: client, oacLister: oacLister}
 }
 
-func NewAOCRepository(client cloudfrontiface.CloudFrontAPI, aocLister AOCLister) AOCRepository {
-	return aocRepository{client: client, aocLister: aocLister}
-}
+var _ OACRepository = oacRepository{}
 
-var _ AOCRepository = aocRepository{}
-
-type aocRepository struct {
+type oacRepository struct {
 	client    cloudfrontiface.CloudFrontAPI
-	aocLister AOCLister
+	oacLister OACLister
 }
 
-func (r aocRepository) Sync(desired AOC) (AOC, error) {
-	observed, err := r.getAOC(desired)
+func (r oacRepository) Sync(desired OAC) (OAC, error) {
+	observed, err := r.getOAC(desired)
 	if err == nil {
-		return r.updateAOC(desired, observed)
+		return r.updateOAC(desired, observed)
 	}
 
-	if errors.Is(err, errNoSuchAOC) {
-		return r.createAOC(desired)
+	if errors.Is(err, errNoSuchOAC) {
+		return r.createOAC(desired)
 	}
 
-	return AOC{}, fmt.Errorf("fetching existing AOC: %v", err)
+	return OAC{}, fmt.Errorf("fetching existing OAC: %v", err)
 }
 
-func (r aocRepository) Delete(toBeDeleted AOC) (AOC, error) {
-	existingAOC, err := r.getAOC(toBeDeleted)
+func (r oacRepository) Delete(toBeDeleted OAC) (OAC, error) {
+	existingOAC, err := r.getOAC(toBeDeleted)
 	if err != nil {
-		return AOC{}, ignoreNoSuchAOC(err)
+		return OAC{}, ignoreNoSuchOAC(err)
 	}
 
 	_, err = r.client.DeleteOriginAccessControl(&awscloudfront.DeleteOriginAccessControlInput{
-		Id: aws.String(existingAOC.ID),
+		Id: aws.String(existingOAC.ID),
 	})
 	if cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchOriginAccessControl) != nil {
-		return AOC{}, err
+		return OAC{}, err
 	}
 
-	return existingAOC, nil
+	return existingOAC, nil
 }
 
-func (r aocRepository) createAOC(desired AOC) (AOC, error) {
+func (r oacRepository) createOAC(desired OAC) (OAC, error) {
 	out, err := r.client.CreateOriginAccessControl(
 		&awscloudfront.CreateOriginAccessControlInput{OriginAccessControlConfig: &awscloudfront.OriginAccessControlConfig{
-			Description:                   aws.String(fmt.Sprintf("AOC for %s, managed by cdn-desired-controller", desired.OriginName)),
+			Description:                   aws.String(fmt.Sprintf("OAC for %s, managed by cdn-desired-controller", desired.OriginName)),
 			Name:                          aws.String(desired.Name),
 			OriginAccessControlOriginType: aws.String(awscloudfront.OriginAccessControlOriginTypesS3),
 			SigningBehavior:               aws.String(awscloudfront.OriginAccessControlSigningBehaviorsAlways),
@@ -99,19 +90,19 @@ func (r aocRepository) createAOC(desired AOC) (AOC, error) {
 		}},
 	)
 	if err != nil {
-		return AOC{}, err
+		return OAC{}, err
 	}
 
-	aoc := out.OriginAccessControl.OriginAccessControlConfig
-	return newAOCFromOriginAccessControlConfig(aoc, out.OriginAccessControl.Id, desired.OriginName), nil
+	oac := out.OriginAccessControl.OriginAccessControlConfig
+	return newOACFromOriginAccessControlConfig(oac, out.OriginAccessControl.Id, desired.OriginName), nil
 }
 
-func (r aocRepository) updateAOC(desired AOC, observed AOC) (AOC, error) {
+func (r oacRepository) updateOAC(desired OAC, observed OAC) (OAC, error) {
 	out, err := r.client.UpdateOriginAccessControl(
 		&awscloudfront.UpdateOriginAccessControlInput{
 			Id: aws.String(observed.ID),
 			OriginAccessControlConfig: &awscloudfront.OriginAccessControlConfig{
-				Description:                   aws.String(fmt.Sprintf("AOC for %s, managed by cdn-desired-controller", desired.OriginName)),
+				Description:                   aws.String(fmt.Sprintf("OAC for %s, managed by cdn-desired-controller", desired.OriginName)),
 				Name:                          aws.String(desired.Name),
 				OriginAccessControlOriginType: aws.String(awscloudfront.OriginAccessControlOriginTypesS3),
 				SigningBehavior:               aws.String(awscloudfront.OriginAccessControlSigningBehaviorsAlways),
@@ -119,23 +110,23 @@ func (r aocRepository) updateAOC(desired AOC, observed AOC) (AOC, error) {
 			}},
 	)
 	if err != nil {
-		return AOC{}, err
+		return OAC{}, err
 	}
 
-	aoc := out.OriginAccessControl.OriginAccessControlConfig
-	return newAOCFromOriginAccessControlConfig(aoc, out.OriginAccessControl.Id, desired.OriginName), nil
+	oac := out.OriginAccessControl.OriginAccessControlConfig
+	return newOACFromOriginAccessControlConfig(oac, out.OriginAccessControl.Id, desired.OriginName), nil
 }
 
-func (r aocRepository) getAOC(aoc AOC) (AOC, error) {
+func (r oacRepository) getOAC(oac OAC) (OAC, error) {
 	input := &awscloudfront.ListOriginAccessControlsInput{}
 
-	var observed AOC
+	var observed OAC
 	found := false
 
-	err := r.aocLister.ListOriginAccessControlsPages(input, func(output *awscloudfront.ListOriginAccessControlsOutput, lastPage bool) bool {
+	err := r.oacLister.ListOriginAccessControlsPages(input, func(output *awscloudfront.ListOriginAccessControlsOutput, lastPage bool) bool {
 		for _, item := range output.OriginAccessControlList.Items {
-			if aws.StringValue(item.Name) == aoc.Name {
-				observed = newAOCFromOriginAccessControlSummary(item, aoc.OriginName)
+			if aws.StringValue(item.Name) == oac.Name {
+				observed = newOACFromOriginAccessControlSummary(item, oac.OriginName)
 				found = true
 				return false
 			}
@@ -144,18 +135,18 @@ func (r aocRepository) getAOC(aoc AOC) (AOC, error) {
 	})
 
 	if err != nil {
-		return AOC{}, fmt.Errorf("listing AOCs: %v", err)
+		return OAC{}, fmt.Errorf("listing OACs: %v", err)
 	}
 
 	if !found {
-		return AOC{}, errNoSuchAOC
+		return OAC{}, errNoSuchOAC
 	}
 
 	return observed, nil
 }
 
-func newAOCFromOriginAccessControlConfig(cfg *awscloudfront.OriginAccessControlConfig, id *string, originName string) AOC {
-	return AOC{
+func newOACFromOriginAccessControlConfig(cfg *awscloudfront.OriginAccessControlConfig, id *string, originName string) OAC {
+	return OAC{
 		ID:                            aws.StringValue(id),
 		Name:                          aws.StringValue(cfg.Name),
 		OriginName:                    originName,
@@ -165,8 +156,8 @@ func newAOCFromOriginAccessControlConfig(cfg *awscloudfront.OriginAccessControlC
 	}
 }
 
-func newAOCFromOriginAccessControlSummary(summary *awscloudfront.OriginAccessControlSummary, originName string) AOC {
-	return AOC{
+func newOACFromOriginAccessControlSummary(summary *awscloudfront.OriginAccessControlSummary, originName string) OAC {
+	return OAC{
 		ID:                            aws.StringValue(summary.Id),
 		Name:                          aws.StringValue(summary.Name),
 		OriginName:                    originName,
@@ -176,8 +167,8 @@ func newAOCFromOriginAccessControlSummary(summary *awscloudfront.OriginAccessCon
 	}
 }
 
-func ignoreNoSuchAOC(err error) error {
-	if errors.Is(err, errNoSuchAOC) {
+func ignoreNoSuchOAC(err error) error {
+	if errors.Is(err, errNoSuchOAC) {
 		return nil
 	}
 	return err
