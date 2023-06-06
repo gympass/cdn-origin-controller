@@ -139,7 +139,7 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
 
-	if err := r.createAOCs(d); err != nil {
+	if err := r.createOACs(d); err != nil {
 		return Distribution{}, fmt.Errorf("creating OACs: %v", err)
 	}
 
@@ -156,7 +156,7 @@ func (r repository) Sync(d Distribution) (Distribution, error) {
 		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
 
-	syncedOACs, err := r.syncAOCs(d, output)
+	syncedOACs, err := r.syncOACs(d, output)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("syncing OACs: %v", err)
 	}
@@ -227,8 +227,8 @@ func (r repository) Delete(d Distribution) error {
 		return err
 	}
 
-	if err := r.deleteAOCs(output.DistributionConfig); err != nil {
-		return fmt.Errorf("deleting AOCs: %v", err)
+	if err := r.deleteOACs(output.DistributionConfig); err != nil {
+		return fmt.Errorf("deleting OACs: %v", err)
 	}
 
 	return nil
@@ -304,7 +304,7 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 	}
 	return r.cloudfrontCli.GetDistribution(input)
 }
-func (r repository) createAOCs(d Distribution) error {
+func (r repository) createOACs(d Distribution) error {
 	for _, o := range d.OACs() {
 		if _, err := r.oacRepo.Sync(o); err != nil {
 			return err
@@ -313,8 +313,8 @@ func (r repository) createAOCs(d Distribution) error {
 	return nil
 }
 
-func (r repository) syncAOCs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) (synced []OAC, err error) {
-	toBeSynced, toBeDeleted := r.diffDesiredAndObservedAOCs(desired, observed.DistributionConfig)
+func (r repository) syncOACs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) (synced []OAC, err error) {
+	toBeSynced, toBeDeleted := r.diffDesiredAndObservedOACs(desired, observed.DistributionConfig)
 
 	for i, oac := range toBeSynced {
 		syncedOAC, err := r.oacRepo.Sync(oac)
@@ -334,7 +334,7 @@ func (r repository) syncAOCs(desired Distribution, observed *awscloudfront.GetDi
 	return toBeSynced, nil
 }
 
-func (r repository) deleteAOCs(cfg *awscloudfront.DistributionConfig) error {
+func (r repository) deleteOACs(cfg *awscloudfront.DistributionConfig) error {
 	toBeDeleted := r.filterOACs(cfg, func(o *awscloudfront.Origin) bool {
 		return !strhelper.IsEmptyOrNil(o.OriginAccessControlId)
 	})
@@ -348,7 +348,7 @@ func (r repository) deleteAOCs(cfg *awscloudfront.DistributionConfig) error {
 	return nil
 }
 
-func (r repository) diffDesiredAndObservedAOCs(desired Distribution, observed *awscloudfront.DistributionConfig) (toBeSynced []OAC, toBeDeleted []OAC) {
+func (r repository) diffDesiredAndObservedOACs(desired Distribution, observed *awscloudfront.DistributionConfig) (toBeSynced []OAC, toBeDeleted []OAC) {
 	toBeSynced = desired.OACs()
 
 	toBeDeleted = r.filterOACs(observed, func(o *awscloudfront.Origin) bool {
