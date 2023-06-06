@@ -54,6 +54,10 @@ func (o Origin) HasEqualParameters(o2 Origin) bool {
 	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Access == o2.Access && o.OAC == o2.OAC
 }
 
+func (o Origin) isBucketBased() bool {
+	return o.Access == OriginAccessBucket
+}
+
 // Behavior represents a CloudFront Cache Behavior
 type Behavior struct {
 	// PathPattern is the path pattern used when configuring the Behavior

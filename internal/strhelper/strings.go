@@ -80,3 +80,11 @@ func MergeMapString(m1, m2 map[string]string) map[string]string {
 	}
 	return nm
 }
+
+// IsEmptyOrNil returns whether str is empty or nil
+func IsEmptyOrNil(str *string) bool {
+	if str == nil {
+		return true
+	}
+	return *str == ""
+}

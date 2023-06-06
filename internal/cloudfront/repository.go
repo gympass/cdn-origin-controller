@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	cdnaws "github.com/Gympass/cdn-origin-controller/internal/aws"
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 const (
@@ -71,14 +72,27 @@ type DistributionRepository interface {
 
 type repository struct {
 	cloudfrontCli cloudfrontiface.CloudFrontAPI
+	oacRepo       OACRepository
 	taggingCli    resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
 	callerRef     CallerRefFn
 	waitTimeout   time.Duration
 }
 
 // NewDistributionRepository creates a new AWS CloudFront DistributionRepository
-func NewDistributionRepository(cloudFrontClient cloudfrontiface.CloudFrontAPI, taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI, callerRefFn CallerRefFn, waitTimeout time.Duration) DistributionRepository {
-	return &repository{cloudfrontCli: cloudFrontClient, taggingCli: taggingClient, callerRef: callerRefFn, waitTimeout: waitTimeout}
+func NewDistributionRepository(
+	cloudFrontClient cloudfrontiface.CloudFrontAPI,
+	taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI,
+	oacRepo OACRepository,
+	callerRefFn CallerRefFn,
+	waitTimeout time.Duration,
+) DistributionRepository {
+	return &repository{
+		cloudfrontCli: cloudFrontClient,
+		taggingCli:    taggingClient,
+		oacRepo:       oacRepo,
+		callerRef:     callerRefFn,
+		waitTimeout:   waitTimeout,
+	}
 }
 
 func (r repository) ARNByGroup(group string) (string, error) {
@@ -125,6 +139,10 @@ func (r repository) Create(d Distribution) (Distribution, error) {
 		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
 
+	if err := r.createAOCs(d); err != nil {
+		return Distribution{}, fmt.Errorf("creating OACs: %v", err)
+	}
+
 	d.ID = *output.Distribution.Id
 	d.Address = *output.Distribution.DomainName
 	d.ARN = *output.Distribution.ARN
@@ -137,6 +155,19 @@ func (r repository) Sync(d Distribution) (Distribution, error) {
 	if err != nil {
 		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
+
+	syncedOACs, err := r.syncAOCs(d, output)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("syncing OACs: %v", err)
+	}
+
+	r.forEachOrigin(config, func(o *awscloudfront.Origin) {
+		for _, oac := range syncedOACs {
+			if aws.StringValue(o.Id) == oac.OriginName {
+				o.SetOriginAccessControlId(oac.ID)
+			}
+		}
+	})
 
 	config.SetCallerReference(*output.DistributionConfig.CallerReference)
 	config.SetDefaultRootObject(*output.DistributionConfig.DefaultRootObject)
@@ -192,7 +223,15 @@ func (r repository) Delete(d Distribution) error {
 		IfMatch: eTag,
 	}
 	_, err = r.cloudfrontCli.DeleteDistribution(input)
-	return cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution)
+	if cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) != nil {
+		return err
+	}
+
+	if err := r.deleteAOCs(output.DistributionConfig); err != nil {
+		return fmt.Errorf("deleting AOCs: %v", err)
+	}
+
+	return nil
 }
 
 func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
@@ -264,4 +303,91 @@ func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionO
 		Id: aws.String(id),
 	}
 	return r.cloudfrontCli.GetDistribution(input)
+}
+func (r repository) createAOCs(d Distribution) error {
+	for _, o := range d.OACs() {
+		if _, err := r.oacRepo.Sync(o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r repository) syncAOCs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) (synced []OAC, err error) {
+	toBeSynced, toBeDeleted := r.diffDesiredAndObservedAOCs(desired, observed.DistributionConfig)
+
+	for i, oac := range toBeSynced {
+		syncedOAC, err := r.oacRepo.Sync(oac)
+		if err != nil {
+			return nil, err
+		}
+		toBeSynced[i] = syncedOAC
+	}
+
+	for _, oac := range toBeDeleted {
+		_, err := r.oacRepo.Delete(oac)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return toBeSynced, nil
+}
+
+func (r repository) deleteAOCs(cfg *awscloudfront.DistributionConfig) error {
+	toBeDeleted := r.filterOACs(cfg, func(o *awscloudfront.Origin) bool {
+		return !strhelper.IsEmptyOrNil(o.OriginAccessControlId)
+	})
+
+	for _, o := range toBeDeleted {
+		if _, err := r.oacRepo.Delete(o); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r repository) diffDesiredAndObservedAOCs(desired Distribution, observed *awscloudfront.DistributionConfig) (toBeSynced []OAC, toBeDeleted []OAC) {
+	toBeSynced = desired.OACs()
+
+	toBeDeleted = r.filterOACs(observed, func(o *awscloudfront.Origin) bool {
+		originHasOAC := !strhelper.IsEmptyOrNil(o.OriginAccessControlId)
+		originIsDesired := desired.HasOrigin(aws.StringValue(o.Id))
+
+		return originHasOAC && !originIsDesired
+	})
+
+	return toBeSynced, toBeDeleted
+}
+
+func (r repository) filterOACs(cfg *awscloudfront.DistributionConfig, shouldInclude func(*awscloudfront.Origin) bool) []OAC {
+	if !cfgHasOrigins(cfg) {
+		return nil
+	}
+
+	var result []OAC
+	for _, awsOrigin := range cfg.Origins.Items {
+		if shouldInclude(awsOrigin) {
+			result = append(result, OAC{
+				ID: aws.StringValue(awsOrigin.OriginAccessControlId),
+			})
+		}
+	}
+
+	return result
+}
+
+func (r repository) forEachOrigin(cfg *awscloudfront.DistributionConfig, do func(*awscloudfront.Origin)) {
+	if !cfgHasOrigins(cfg) {
+		return
+	}
+
+	for _, o := range cfg.Origins.Items {
+		do(o)
+	}
+}
+
+func cfgHasOrigins(cfg *awscloudfront.DistributionConfig) bool {
+	return cfg.Origins != nil && len(cfg.Origins.Items) > 0
 }
