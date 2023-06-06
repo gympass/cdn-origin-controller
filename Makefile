@@ -269,6 +269,6 @@ test-cov: test
 	go tool cover -html=cover.out
 
 copy-crds-to-chart:
-	mkdir -p helm/vault-secrets-engines-operator/templates/crds               # ensure the dir exists
-	rm -rf  helm/vault-secrets-engines-operator/templates/crds/*              # ensure there aren't any CRDs that shouldn't be there
-	cp config/crd/bases/* helm/vault-secrets-engines-operator/templates/crds/ # ensure all desired CRDs are there
+	mkdir -p charts/cdn-origin-controller/templates/crds               # ensure the dir exists
+	rm -rf  charts/cdn-origin-controller/templates/crds/*              # ensure there aren't any CRDs that shouldn't be there
+	cp config/crd/bases/* charts/cdn-origin-controller/templates/crds/ # ensure all desired CRDs are there
