@@ -78,6 +78,25 @@ func (d Distribution) IsEmpty() bool {
 	return len(d.CustomOrigins) == 0
 }
 
+func (d Distribution) OACs() []OAC {
+	var result []OAC
+	for _, o := range d.CustomOrigins {
+		if o.isBucketBased() {
+			result = append(result, o.OAC)
+		}
+	}
+	return result
+}
+
+func (d Distribution) HasOrigin(originHost string) bool {
+	for _, o := range d.CustomOrigins {
+		if o.Host == originHost {
+			return true
+		}
+	}
+	return false
+}
+
 // DistributionBuilder allows the construction of a Distribution
 type DistributionBuilder struct {
 	id                  string
