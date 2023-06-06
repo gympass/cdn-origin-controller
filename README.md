@@ -32,6 +32,7 @@ The following annotation controls how origins and behaviors are attached to Clou
 - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
 - `cdn-origin-controller.gympass.com/cf.web-acl-arn`: A unique identifier that specifies the AWS WAF web ACL, if any, to associate with this distribution. To specify a web ACL created using the latest version of AWS WAF, use the ACL ARN, for example `arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a`. To specify a web ACL created using AWS WAF Classic, use the ACL ID, for example `473e64fd-f30b-4765-81a0-62ad96dd167a`.
 - `cdn-origin-controller.gympass.com/cf.tags`: A map of key/value strings to be configured in Cloudfront distribution. The value of this annotation should be given as a YAML map. Example:
+
   ```yaml
   cdn-origin-controller.gympass.com/cf.tags: |
     mykey1: myvalue1
@@ -49,14 +50,16 @@ The controller has several [infrastructure configurations](#configuration). In o
 For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need to set different values for the `CF_ROUTE53_HOSTED_ZONE_ID` variable. Additionally, you need each deployment to have a unique CDN class, so you can tell them apart.
 
 For this example, let's say the first deployment will have:
-```
-CF_ROUTE53_HOSTED_ZONE_ID=<ID of the foo.com zone>
+
+```bash
+CF_ROUTE53_HOSTED_ZONE_ID="<ID of the foo.com zone>"
 CDN_CLASS="foo-com"
 ```
 
 While the other deployment is defined with:
-```
-CF_ROUTE53_HOSTED_ZONE_ID=<ID of the bar.com zone>
+
+```bash
+CF_ROUTE53_HOSTED_ZONE_ID="<ID of the bar.com zone>"
 CDN_CLASS="bar-com"
 ```
 
@@ -64,13 +67,13 @@ In order for Ingresses to be part of one class or the other they must have cdn c
 
 Ingresses that serve as origins for the CloudFront at the `foo.com` zone should have the following annotation:
 
-```
+``` yaml
 cdn-origin-controller.gympass.com/cdn.class: foo-com
 ```
 
 While Ingresses that serve as origins for CloudFronts at the `bar.com` zone should have:
 
-```
+``` yaml
 cdn-origin-controller.gympass.com/cdn.class: bar-com
 ```
 
@@ -80,7 +83,7 @@ If you need additional origin/behavior configuration that you can't express via 
 
 The value for this annotation is a YAML list, with each item representing a single origin with all cache behavior-related configuration associated to that origin. For example:
 
-```
+```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -89,10 +92,12 @@ metadata:
     cdn-origin-controller.gympass.com/cdn.group: "foobar"
     cdn-origin-controller.gympass.com/cf.user-origins: |
       - host: foo.com
+        originAccess: Bucket
         responseTimeout: 30
         paths:
           - /foo
       - host: bar.com
+        originAccess: Public
         originRequestPolicy: None
         viewerFunctionARN: "bar:arn"
         webACLARN: "arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a"
@@ -101,7 +106,16 @@ metadata:
           - /bar/*
 ```
 
-The `.host` is the hostname of the origin you're configuring. The `.paths` field is a list of strings representing the cache behavior paths that should be configured. Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront).
+The `.host` is the hostname of the origin you're configuring.
+
+The `.paths` field is a list of strings representing the cache behavior paths that should be configured.
+
+The `.originAccess` field allows for different origin access configurations:
+
+- Public, the default value if the field is omitted, should be used when the origin is publicly accessible, such as an Amazon S3 bucket that is configured with static website hosting;
+- Bucket should be used if the origin is an S3 bucket that is not configured with static website hosting, see the [additional configuration section](#bucket-origin-access);
+
+Each remaining field has a corresponding annotation value, [documented in a dedicated section](#aws-cloudfront).
 
 The table below maps remaining available fields of an entry in this list to an annotation:
 
@@ -113,6 +127,14 @@ The table below maps remaining available fields of an entry in this list to an a
 | .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            |
 | .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             |
 
+### Bucket origin access
+
+When `.originAccess` is set to `Bucket`, the `.host` should be the Bucket endpoint following the pattern \<bucket-name>.s3.\<region>.amazonaws.com. Check the [AWS documentation on using S3 as a CloudFront origin](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistS3AndCustomOrigins.html#using-s3-as-origin).
+
+When using S3 as an origin, all requests sent from CloudFront to the S3 bucket will be authenticated. Origin Access Control (OAC) will be configured automatically by this controller, but the user will have to configure a policy, in the S3 bucket, to allow access to CloudFront. Please check the [AWS documentation on the required bucket policy](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html#create-oac-overview-s3).
+
+NOTE: When using Origin Access Control, CloudFront will always override the client's authorization header, in order to be able to authenticate with S3. Make sure your specific S3 bucket doesn't have any additional custom authentication layer, which could break CloudFront access.
+
 ## CDNStatus custom resource
 
 The controller provides a [custom Kubernetes resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) for providing user feedback on a managed CDN. It's a cluster-scoped resource, meaning it's unique across the entire cluster and is part of no namespace.
@@ -120,6 +142,7 @@ The controller provides a [custom Kubernetes resource](https://kubernetes.io/doc
 The controller automatically creates these resources based on the Ingresses it reconciles. The name of the resource is equal to the Ingresses `cdn-origin-controller.gympass.com/cdn.group` annotation, meaning there is a 1:1 mapping between CDNStatus resources and provisioned CDNs.
 
 For example, if there was a group of Ingresses with this annotation set to `"foo"` and another group of Ingresses set to `"bar"`, you would end up with two CDNStatus resources. To list them:
+
 ```bash
 $ kubectl get cdnstatus
 NAME    ID               ALIASES                       ADDRESS
