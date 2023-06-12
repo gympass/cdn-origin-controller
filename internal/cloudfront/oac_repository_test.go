@@ -102,7 +102,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistSh
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -112,7 +112,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistSh
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -158,7 +158,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -168,7 +168,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -180,7 +180,7 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeFetchedAndShouldReturnError() 
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -199,7 +199,7 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeCreatedAndShouldReturnError() 
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -236,7 +236,7 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeUpdatedAndShouldReturnError() 
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -276,14 +276,14 @@ func (s *oacRepositorySuite) TestDelete_OACWillBeDeletedAndShouldReturnNoError()
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "OriginName",
+		OriginName: "originName",
 	})
 
 	s.NoError(err)
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -297,7 +297,7 @@ func (s *oacRepositorySuite) TestDelete_OACDoesNotExistAndShouldReturnNoError() 
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "OriginName",
+		OriginName: "originName",
 	})
 
 	s.NoError(err)
@@ -334,14 +334,14 @@ func (s *oacRepositorySuite) TestDelete_OACWasDeletedExternallyAfterFetchingAndS
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "OriginName",
+		OriginName: "originName",
 	})
 
 	s.NoError(err)
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "OriginName",
+		OriginName:                    "originName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -353,7 +353,7 @@ func (s *oacRepositorySuite) TestDelete_FailedToGetOACAndShouldReturnError() {
 		Return(errors.New("some error"))
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "OriginName",
+		OriginName: "originName",
 	})
 
 	s.Error(err)
@@ -390,7 +390,7 @@ func (s *oacRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
 
 	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "OriginName",
+		OriginName: "originName",
 	})
 
 	s.Error(err)
