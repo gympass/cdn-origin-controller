@@ -56,7 +56,7 @@ const (
 // ErrDistNotFound represents failure when finding/fetching a distribution
 var ErrDistNotFound = errors.New("distribution not found")
 
-// DistributionRepository provides a repository for manipulating CloudFront distributions to match desired configuration
+// DistributionRepository provides a DistRepository for manipulating CloudFront distributions to match desired configuration
 type DistributionRepository interface {
 	// ARNByGroup fetches the ARN from an existing Distribution in AWS that is owned by the operator and was created for
 	// the given group.
@@ -70,32 +70,21 @@ type DistributionRepository interface {
 	Delete(Distribution) error
 }
 
-type repository struct {
-	cloudfrontCli cloudfrontiface.CloudFrontAPI
-	oacRepo       OACRepository
-	taggingCli    resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
-	callerRef     CallerRefFn
-	waitTimeout   time.Duration
+// PostCreationOperationsFunc executes necessary operations on a recently-created Distribution.
+// Useful for stuff that requires the Distribution to already exist in the first place, like
+// attaching OACs to origins.
+type PostCreationOperationsFunc func(Distribution) (Distribution, error)
+
+type DistRepository struct {
+	CloudFrontClient          cloudfrontiface.CloudFrontAPI
+	OACRepo                   OACRepository
+	TaggingClient             resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI
+	CallerRef                 CallerRefFn
+	WaitTimeout               time.Duration
+	RunPostCreationOperations PostCreationOperationsFunc
 }
 
-// NewDistributionRepository creates a new AWS CloudFront DistributionRepository
-func NewDistributionRepository(
-	cloudFrontClient cloudfrontiface.CloudFrontAPI,
-	taggingClient resourcegroupstaggingapiiface.ResourceGroupsTaggingAPIAPI,
-	oacRepo OACRepository,
-	callerRefFn CallerRefFn,
-	waitTimeout time.Duration,
-) DistributionRepository {
-	return &repository{
-		cloudfrontCli: cloudFrontClient,
-		taggingCli:    taggingClient,
-		oacRepo:       oacRepo,
-		callerRef:     callerRefFn,
-		waitTimeout:   waitTimeout,
-	}
-}
-
-func (r repository) ARNByGroup(group string) (string, error) {
+func (r DistRepository) ARNByGroup(group string) (string, error) {
 	input := &resourcegroupstaggingapi.GetResourcesInput{
 		ResourceTypeFilters: []*string{aws.String("cloudfront:distribution")},
 		TagFilters: []*resourcegroupstaggingapi.TagFilter{
@@ -110,7 +99,7 @@ func (r repository) ARNByGroup(group string) (string, error) {
 		},
 	}
 
-	out, err := r.taggingCli.GetResources(input)
+	out, err := r.TaggingClient.GetResources(input)
 	if err != nil {
 		return "", fmt.Errorf("listing CloudFronts: %v", err)
 	}
@@ -126,37 +115,37 @@ func (r repository) ARNByGroup(group string) (string, error) {
 	return aws.StringValue(out.ResourceTagMappingList[0].ResourceARN), nil
 }
 
-func (r repository) Create(d Distribution) (Distribution, error) {
-	config := newAWSDistributionConfig(d, r.callerRef)
+func (r DistRepository) Create(d Distribution) (Distribution, error) {
+	config := newAWSDistributionConfig(d, r.CallerRef)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
 			DistributionConfig: config,
 			Tags:               r.distributionTags(d),
 		},
 	}
-	output, err := r.cloudfrontCli.CreateDistributionWithTags(createInput)
+	out, err := r.CloudFrontClient.CreateDistributionWithTags(createInput)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("creating distribution: %v", err)
 	}
 
-	if err := r.createOACs(d); err != nil {
-		return Distribution{}, fmt.Errorf("creating OACs: %v", err)
+	observed, err := r.prepareAndRunPostCreationOperations(d, out)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("running distribution post-creation operations: %v", err)
 	}
 
-	d.ID = *output.Distribution.Id
-	d.Address = *output.Distribution.DomainName
-	d.ARN = *output.Distribution.ARN
-	return d, nil
+	return observed, nil
 }
 
-func (r repository) Sync(d Distribution) (Distribution, error) {
-	config := newAWSDistributionConfig(d, r.callerRef)
+func (r DistRepository) Sync(d Distribution) (Distribution, error) {
+	config := newAWSDistributionConfig(d, r.CallerRef)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
 
-	syncedOACs, err := r.syncOACs(d, output)
+	oacsToBeSynced, oacsToBeDeleted := r.diffDesiredAndObservedOACs(d, output.DistributionConfig)
+
+	syncedOACs, err := r.syncOACs(oacsToBeSynced)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("syncing OACs: %v", err)
 	}
@@ -180,27 +169,20 @@ func (r repository) Sync(d Distribution) (Distribution, error) {
 		Id:                 aws.String(d.ID),
 	}
 
-	updateOut, err := r.cloudfrontCli.UpdateDistribution(updateInput)
+	updateOut, err := r.CloudFrontClient.UpdateDistribution(updateInput)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("updating distribution: %v", err)
 	}
 
-	tagsInput := &awscloudfront.TagResourceInput{
-		Resource: aws.String(d.ARN),
-		Tags:     r.distributionTags(d),
+	observed, err := r.runPostUpdateOperations(d, oacsToBeDeleted, updateOut)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("running distribution post-update operations: %v", err)
 	}
 
-	if _, err = r.cloudfrontCli.TagResource(tagsInput); err != nil {
-		return Distribution{}, fmt.Errorf("updating tags: %v", err)
-	}
-
-	d.ID = *updateOut.Distribution.Id
-	d.ARN = *updateOut.Distribution.ARN
-	d.Address = *updateOut.Distribution.DomainName
-	return d, nil
+	return observed, nil
 }
 
-func (r repository) Delete(d Distribution) error {
+func (r DistRepository) Delete(d Distribution) error {
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return cdnaws.IgnoreErrorCodef("getting distribution config: %v", err, awscloudfront.ErrCodeNoSuchDistribution)
@@ -222,19 +204,48 @@ func (r repository) Delete(d Distribution) error {
 		Id:      aws.String(d.ID),
 		IfMatch: eTag,
 	}
-	_, err = r.cloudfrontCli.DeleteDistribution(input)
+	_, err = r.CloudFrontClient.DeleteDistribution(input)
 	if cdnaws.IgnoreErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) != nil {
 		return err
 	}
 
-	if err := r.deleteOACs(output.DistributionConfig); err != nil {
+	if err := r.deleteAllOACs(output.DistributionConfig); err != nil {
 		return fmt.Errorf("deleting OACs: %v", err)
 	}
 
 	return nil
 }
 
-func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
+func (r DistRepository) prepareAndRunPostCreationOperations(d Distribution, out *awscloudfront.CreateDistributionWithTagsOutput) (Distribution, error) {
+	d.ID = aws.StringValue(out.Distribution.Id)
+	d.ARN = aws.StringValue(out.Distribution.ARN)
+	d.Address = aws.StringValue(out.Distribution.DomainName)
+	return r.RunPostCreationOperations(d)
+}
+
+func (r DistRepository) runPostUpdateOperations(d Distribution, oacsToBeDeleted []OAC, updateOut *awscloudfront.UpdateDistributionOutput) (Distribution, error) {
+	// we must only delete OACs after updating the Distribution, so that they're
+	// no longer in use
+	if err := r.deleteOACs(oacsToBeDeleted); err != nil {
+		return Distribution{}, fmt.Errorf("deleting unused OACs: %v", err)
+	}
+
+	tagsInput := &awscloudfront.TagResourceInput{
+		Resource: aws.String(d.ARN),
+		Tags:     r.distributionTags(d),
+	}
+
+	if _, err := r.CloudFrontClient.TagResource(tagsInput); err != nil {
+		return Distribution{}, fmt.Errorf("updating tags: %v", err)
+	}
+
+	d.ID = *updateOut.Distribution.Id
+	d.ARN = *updateOut.Distribution.ARN
+	d.Address = *updateOut.Distribution.DomainName
+	return Distribution{}, nil
+}
+
+func (r DistRepository) distributionTags(d Distribution) *awscloudfront.Tags {
 	var awsTags awscloudfront.Tags
 	for k, v := range d.Tags {
 		awsTags.Items = append(awsTags.Items, &awscloudfront.Tag{
@@ -247,11 +258,11 @@ func (r repository) distributionTags(d Distribution) *awscloudfront.Tags {
 	return &awsTags
 }
 
-func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error) {
+func (r DistRepository) distributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error) {
 	input := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String(id),
 	}
-	output, err := r.cloudfrontCli.GetDistributionConfig(input)
+	output, err := r.CloudFrontClient.GetDistributionConfig(input)
 
 	if err != nil {
 		return nil, err
@@ -259,7 +270,7 @@ func (r repository) distributionConfigByID(id string) (*awscloudfront.GetDistrib
 	return output, nil
 }
 
-func (r repository) disableDist(config *awscloudfront.DistributionConfig, id, eTag string) error {
+func (r DistRepository) disableDist(config *awscloudfront.DistributionConfig, id, eTag string) error {
 	config.Enabled = aws.Bool(false)
 	updateInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: config,
@@ -267,13 +278,13 @@ func (r repository) disableDist(config *awscloudfront.DistributionConfig, id, eT
 		Id:                 aws.String(id),
 	}
 
-	_, err := r.cloudfrontCli.UpdateDistribution(updateInput)
+	_, err := r.CloudFrontClient.UpdateDistribution(updateInput)
 	return err
 }
 
 const cfDeployedStatus = "Deployed"
 
-func (r repository) waitUntilDeployed(id string) (*string, error) {
+func (r DistRepository) waitUntilDeployed(id string) (*string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), (time.Second * 60))
 	defer cancel()
 
@@ -291,64 +302,49 @@ func (r repository) waitUntilDeployed(id string) (*string, error) {
 	}
 
 	interval := time.Second * 10
-	err := wait.PollUntilContextTimeout(ctx, interval, r.waitTimeout, true, condition)
+	err := wait.PollUntilContextTimeout(ctx, interval, r.WaitTimeout, true, condition)
 	if err != nil {
 		return nil, err
 	}
 	return eTag, nil
 }
-
-func (r repository) distributionByID(id string) (*awscloudfront.GetDistributionOutput, error) {
+func (r DistRepository) distributionByID(id string) (*awscloudfront.GetDistributionOutput, error) {
 	input := &awscloudfront.GetDistributionInput{
 		Id: aws.String(id),
 	}
-	return r.cloudfrontCli.GetDistribution(input)
-}
-func (r repository) createOACs(d Distribution) error {
-	for _, o := range d.OACs() {
-		if _, err := r.oacRepo.Sync(o); err != nil {
-			return err
-		}
-	}
-	return nil
+	return r.CloudFrontClient.GetDistribution(input)
 }
 
-func (r repository) syncOACs(desired Distribution, observed *awscloudfront.GetDistributionConfigOutput) (synced []OAC, err error) {
-	toBeSynced, toBeDeleted := r.diffDesiredAndObservedOACs(desired, observed.DistributionConfig)
-
-	for i, oac := range toBeSynced {
-		syncedOAC, err := r.oacRepo.Sync(oac)
+func (r DistRepository) syncOACs(oacs []OAC) ([]OAC, error) {
+	for i, oac := range oacs {
+		syncedOAC, err := r.OACRepo.Sync(oac)
 		if err != nil {
 			return nil, err
 		}
-		toBeSynced[i] = syncedOAC
+		oacs[i] = syncedOAC
 	}
 
-	for _, oac := range toBeDeleted {
-		_, err := r.oacRepo.Delete(oac)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return toBeSynced, nil
+	return oacs, nil
 }
 
-func (r repository) deleteOACs(cfg *awscloudfront.DistributionConfig) error {
+func (r DistRepository) deleteAllOACs(cfg *awscloudfront.DistributionConfig) error {
 	toBeDeleted := r.filterOACs(cfg, func(o *awscloudfront.Origin) bool {
 		return !strhelper.IsEmptyOrNil(o.OriginAccessControlId)
 	})
 
+	return r.deleteOACs(toBeDeleted)
+}
+
+func (r DistRepository) deleteOACs(toBeDeleted []OAC) error {
 	for _, o := range toBeDeleted {
-		if _, err := r.oacRepo.Delete(o); err != nil {
+		if _, err := r.OACRepo.Delete(o); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func (r repository) diffDesiredAndObservedOACs(desired Distribution, observed *awscloudfront.DistributionConfig) (toBeSynced []OAC, toBeDeleted []OAC) {
+func (r DistRepository) diffDesiredAndObservedOACs(desired Distribution, observed *awscloudfront.DistributionConfig) (toBeSynced []OAC, toBeDeleted []OAC) {
 	toBeSynced = desired.OACs()
 
 	toBeDeleted = r.filterOACs(observed, func(o *awscloudfront.Origin) bool {
@@ -361,7 +357,7 @@ func (r repository) diffDesiredAndObservedOACs(desired Distribution, observed *a
 	return toBeSynced, toBeDeleted
 }
 
-func (r repository) filterOACs(cfg *awscloudfront.DistributionConfig, shouldInclude func(*awscloudfront.Origin) bool) []OAC {
+func (r DistRepository) filterOACs(cfg *awscloudfront.DistributionConfig, shouldInclude func(*awscloudfront.Origin) bool) []OAC {
 	if !cfgHasOrigins(cfg) {
 		return nil
 	}
@@ -378,7 +374,7 @@ func (r repository) filterOACs(cfg *awscloudfront.DistributionConfig, shouldIncl
 	return result
 }
 
-func (r repository) forEachOrigin(cfg *awscloudfront.DistributionConfig, do func(*awscloudfront.Origin)) {
+func (r DistRepository) forEachOrigin(cfg *awscloudfront.DistributionConfig, do func(*awscloudfront.Origin)) {
 	if !cfgHasOrigins(cfg) {
 		return
 	}

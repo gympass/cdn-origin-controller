@@ -132,18 +132,19 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 
 	cfClient := awscloudfront.New(s)
 
-	callerRefFn := func() string { return time.Now().String() }
-	waitTimeout := time.Minute * 10
+	distRepo := cloudfront.DistRepository{
+		CloudFrontClient: cfClient,
+		OACRepo:          cloudfront.NewOACRepository(cfClient, cloudfront.NewOACLister(cfClient), cfg),
+		TaggingClient:    resourcegroupstaggingapi.New(s),
+		CallerRef:        func() string { return time.Now().String() },
+		WaitTimeout:      time.Minute * 10,
+	}
+	distRepo.RunPostCreationOperations = distRepo.Sync
+
 	cfService := &cloudfront.Service{
-		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorderFor("cdn-origin-controller"),
-		DistRepo: cloudfront.NewDistributionRepository(
-			cfClient,
-			resourcegroupstaggingapi.New(s),
-			cloudfront.NewOACRepository(cfClient, cloudfront.NewOACLister(cfClient)),
-			callerRefFn,
-			waitTimeout,
-		),
+		Client:    mgr.GetClient(),
+		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
+		DistRepo:  distRepo,
 		AliasRepo: route53.NewAliasRepository(awsroute53.New(s), cfg),
 		Config:    cfg,
 	}
