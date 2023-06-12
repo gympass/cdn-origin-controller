@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
@@ -59,11 +60,13 @@ type oacRepositorySuite struct {
 	suite.Suite
 	client *test.MockCloudFrontAPI
 	lister *oacListerMock
+	cfg    config.Config
 }
 
 func (s *oacRepositorySuite) SetupTest() {
 	s.client = &test.MockCloudFrontAPI{}
 	s.lister = &oacListerMock{}
+	s.cfg = config.Config{DeletionEnabled: true}
 }
 
 func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistShouldReturnNoError() {
@@ -97,9 +100,9 @@ func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistSh
 		},
 	}
 
-	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -109,7 +112,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistSh
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -118,6 +121,13 @@ func (s *oacRepositorySuite) TestSync_OACWillBeCreatedAndOtherOACsAlreadyExistSh
 
 func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 	var noError error
+
+	s.client.On("GetOriginAccessControl", mock.Anything).
+		Return(noError)
+	s.client.ExpectedGetOriginAccessControlOutput = &awscloudfront.GetOriginAccessControlOutput{
+		ETag: aws.String("eTag"),
+	}
+
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.lister.expectedPages = []*awscloudfront.ListOriginAccessControlsOutput{
@@ -146,9 +156,9 @@ func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 		},
 	}
 
-	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -158,7 +168,7 @@ func (s *oacRepositorySuite) TestSync_OACWillBeUpdatedAndShouldReturnNoError() {
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -168,9 +178,9 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeFetchedAndShouldReturnError() 
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -187,9 +197,9 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeCreatedAndShouldReturnError() 
 	s.client.On("CreateOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -201,6 +211,13 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeCreatedAndShouldReturnError() 
 
 func (s *oacRepositorySuite) TestSync_OACFailsToBeUpdatedAndShouldReturnError() {
 	var noError error
+
+	s.client.On("GetOriginAccessControl", mock.Anything).
+		Return(noError)
+	s.client.ExpectedGetOriginAccessControlOutput = &awscloudfront.GetOriginAccessControlOutput{
+		ETag: aws.String("eTag"),
+	}
+
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.lister.expectedPages = []*awscloudfront.ListOriginAccessControlsOutput{
@@ -217,9 +234,9 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeUpdatedAndShouldReturnError() 
 	s.client.On("UpdateOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewOACRepository(s.client, s.lister).Sync(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Sync(OAC{
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -231,6 +248,13 @@ func (s *oacRepositorySuite) TestSync_OACFailsToBeUpdatedAndShouldReturnError() 
 
 func (s *oacRepositorySuite) TestDelete_OACWillBeDeletedAndShouldReturnNoError() {
 	var noError error
+
+	s.client.On("GetOriginAccessControl", mock.Anything).
+		Return(noError)
+	s.client.ExpectedGetOriginAccessControlOutput = &awscloudfront.GetOriginAccessControlOutput{
+		ETag: aws.String("eTag"),
+	}
+
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.lister.expectedPages = []*awscloudfront.ListOriginAccessControlsOutput{
@@ -250,16 +274,16 @@ func (s *oacRepositorySuite) TestDelete_OACWillBeDeletedAndShouldReturnNoError()
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(noError)
 
-	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "originName",
+		OriginName: "OriginName",
 	})
 
 	s.NoError(err)
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -271,9 +295,9 @@ func (s *oacRepositorySuite) TestDelete_OACDoesNotExistAndShouldReturnNoError() 
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 
-	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "originName",
+		OriginName: "OriginName",
 	})
 
 	s.NoError(err)
@@ -282,6 +306,13 @@ func (s *oacRepositorySuite) TestDelete_OACDoesNotExistAndShouldReturnNoError() 
 
 func (s *oacRepositorySuite) TestDelete_OACWasDeletedExternallyAfterFetchingAndShouldReturnNoError() {
 	var noError error
+
+	s.client.On("GetOriginAccessControl", mock.Anything).
+		Return(noError)
+	s.client.ExpectedGetOriginAccessControlOutput = &awscloudfront.GetOriginAccessControlOutput{
+		ETag: aws.String("eTag"),
+	}
+
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.lister.expectedPages = []*awscloudfront.ListOriginAccessControlsOutput{
@@ -301,16 +332,16 @@ func (s *oacRepositorySuite) TestDelete_OACWasDeletedExternallyAfterFetchingAndS
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(awserr.New(awscloudfront.ErrCodeNoSuchOriginAccessControl, "msg", nil))
 
-	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "originName",
+		OriginName: "OriginName",
 	})
 
 	s.NoError(err)
 	s.Equal(OAC{
 		ID:                            "id",
 		Name:                          "name",
-		OriginName:                    "originName",
+		OriginName:                    "OriginName",
 		OriginAccessControlOriginType: "s3",
 		SigningBehavior:               "always",
 		SigningProtocol:               "sigv4",
@@ -320,9 +351,9 @@ func (s *oacRepositorySuite) TestDelete_OACWasDeletedExternallyAfterFetchingAndS
 func (s *oacRepositorySuite) TestDelete_FailedToGetOACAndShouldReturnError() {
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(errors.New("some error"))
-	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "originName",
+		OriginName: "OriginName",
 	})
 
 	s.Error(err)
@@ -331,6 +362,13 @@ func (s *oacRepositorySuite) TestDelete_FailedToGetOACAndShouldReturnError() {
 
 func (s *oacRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
 	var noError error
+
+	s.client.On("GetOriginAccessControl", mock.Anything).
+		Return(noError)
+	s.client.ExpectedGetOriginAccessControlOutput = &awscloudfront.GetOriginAccessControlOutput{
+		ETag: aws.String("eTag"),
+	}
+
 	s.lister.On("ListOriginAccessControlsPages", mock.Anything, mock.Anything).
 		Return(noError)
 	s.lister.expectedPages = []*awscloudfront.ListOriginAccessControlsOutput{
@@ -350,9 +388,9 @@ func (s *oacRepositorySuite) TestDelete_FailedToDeleteAndShouldReturnError() {
 	s.client.On("DeleteOriginAccessControl", mock.Anything).
 		Return(errors.New("some error"))
 
-	got, err := NewOACRepository(s.client, s.lister).Delete(OAC{
+	got, err := NewOACRepository(s.client, s.lister, s.cfg).Delete(OAC{
 		Name:       "name",
-		OriginName: "originName",
+		OriginName: "OriginName",
 	})
 
 	s.Error(err)
