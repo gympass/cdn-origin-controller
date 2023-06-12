@@ -20,8 +20,6 @@
 package cloudfront
 
 import (
-	"fmt"
-
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -196,8 +194,6 @@ func (b OriginBuilder) addOriginAccessConfiguration(origin Origin) Origin {
 		return origin
 	}
 
-	oacName := fmt.Sprintf("%s-%s", b.distributionName, b.host)
-	origin.OAC = NewOAC(oacName, b.host)
-
+	origin.OAC = NewOAC(b.distributionName, b.host)
 	return origin
 }

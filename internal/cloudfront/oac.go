@@ -19,7 +19,12 @@
 
 package cloudfront
 
-import awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+import (
+	"fmt"
+	"strings"
+
+	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+)
 
 type OAC struct {
 	ID                            string `json:"id"`
@@ -30,12 +35,17 @@ type OAC struct {
 	SigningProtocol               string `json:"signingProtocol"`
 }
 
-func NewOAC(name, originName string) OAC {
+func NewOAC(distribution, originName string) OAC {
 	return OAC{
-		Name:                          name,
+		Name:                          oacName(distribution, originName),
 		OriginName:                    originName,
 		OriginAccessControlOriginType: awscloudfront.OriginAccessControlOriginTypesS3,
 		SigningBehavior:               awscloudfront.OriginAccessControlSigningBehaviorsAlways,
 		SigningProtocol:               awscloudfront.OriginAccessControlSigningProtocolsSigv4,
 	}
+}
+
+func oacName(distributionName, s3Host string) string {
+	s3Name := strings.Split(s3Host, ".")[0]
+	return fmt.Sprintf("%s-%s", distributionName, s3Name)
 }
