@@ -128,6 +128,7 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
 		WebACLARN:            webACLARN(ing),
 		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 		Tags:                 tags,
+		OriginAccess:         CFUserOriginAccessPublic,
 	}
 
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {

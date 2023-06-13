@@ -62,6 +62,10 @@ var (
 	testCallerRefFn = func() string { return "test caller ref" }
 )
 
+var noOpPostCreationFunc PostCreationOperationsFunc = func(distribution Distribution) (Distribution, error) {
+	return distribution, nil
+}
+
 var _ OACRepository = &mockOACRepo{}
 
 type mockOACRepo struct {
@@ -92,7 +96,7 @@ type DistributionRepositoryTestSuite struct {
 	oacRepo       *mockOACRepo
 }
 
-func (s *DistributionRepositoryTestSuite) SetupSuite() {
+func (s *DistributionRepositoryTestSuite) SetupTest() {
 	s.taggingClient = &test.MockResourceTaggingAPI{}
 	s.cfClient = &test.MockCloudFrontAPI{}
 	s.oacRepo = &mockOACRepo{}
@@ -110,7 +114,13 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
 	var noError error
 	s.taggingClient.On("GetResources", mock.Anything).Return(noError)
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 
 	arn, err := repo.ARNByGroup("group")
 	s.NoError(err)
@@ -120,7 +130,13 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
 func (s *DistributionRepositoryTestSuite) TestARNByGroup_ErrorGettingResources() {
 	s.taggingClient.On("GetResources", mock.Anything).Return(errors.New("mock err"))
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 
 	id, err := repo.ARNByGroup("group")
 	s.Error(err)
@@ -133,7 +149,13 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_DistributionDoesNotExis
 	var noError error
 	s.taggingClient.On("GetResources", mock.Anything).Return(noError)
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 
 	arn, err := repo.ARNByGroup("group")
 	s.ErrorIs(err, ErrDistNotFound)
@@ -155,7 +177,13 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_MoreThanOneCloudFrontEx
 	var noError error
 	s.taggingClient.On("GetResources", mock.Anything).Return(noError)
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 
 	arn, err := repo.ARNByGroup("group")
 	s.Error(err)
@@ -191,11 +219,19 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		Build()
 	s.NoError(err)
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient:          s.cfClient,
+		OACRepo:                   s.oacRepo,
+		TaggingClient:             s.taggingClient,
+		CallerRef:                 testCallerRefFn,
+		WaitTimeout:               time.Second,
+		RunPostCreationOperations: noOpPostCreationFunc,
+	}
+
 	dist, err := repo.Create(distribution)
-	s.Equal(dist.ID, "L2FB5NP10VU7KL")
-	s.Equal(dist.ARN, "arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL")
-	s.Equal(dist.Address, "aoiweoiwe39d.cloudfront.net")
+	s.Equal("L2FB5NP10VU7KL", dist.ID)
+	s.Equal("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL", dist.ARN)
+	s.Equal("aoiweoiwe39d.cloudfront.net", dist.Address)
 	s.NoError(err)
 }
 
@@ -216,7 +252,13 @@ func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistributi
 		},
 	}
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	dist, err := repo.Create(distribution)
 	s.Equal(Distribution{}, dist)
 	s.Error(err)
@@ -225,7 +267,13 @@ func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistributi
 func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
 	s.Equal(Distribution{}, gotDist)
@@ -249,7 +297,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
 	s.Equal(Distribution{}, gotDist)
@@ -274,7 +328,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
 	s.Equal(Distribution{}, gotDist)
@@ -319,7 +379,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 		},
 	}
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
 }
@@ -364,7 +430,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 		},
 	}
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
 }
@@ -460,7 +532,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 		},
 	}
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
 }
@@ -516,7 +594,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 
 	s.oacRepo.On("Sync", mock.Anything).Return(noError)
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 
 	distribution := Distribution{
 		ID: "mock id",
@@ -579,7 +663,13 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 		Tags: map[string]string{"foo": "bar"},
 	}
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
 }
@@ -617,7 +707,13 @@ func (s *DistributionRepositoryTestSuite) TestUpdate_ShouldSyncOneOACAndDeleteOn
 	s.oacRepo.On("Delete", mock.Anything).Return(noError).Once()
 	s.oacRepo.On("Sync", mock.Anything).Return(noError).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	_, err := repo.Sync(Distribution{
 		ID: "id",
 		CustomOrigins: []Origin{{
@@ -655,7 +751,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_SuccessWithPublicOrigins() 
 	s.cfClient.On("GetDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("DeleteDistribution", mock.Anything).Return(noError).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -694,7 +796,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_SuccessWithS3Origins() {
 
 	s.oacRepo.On("Delete", mock.Anything).Return(noError).Twice()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -733,7 +841,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteOACs() {
 
 	s.oacRepo.On("Delete", mock.Anything).Return(errors.New("some err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -743,7 +857,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfi
 	}
 	s.cfClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -768,7 +888,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution(
 	s.cfClient.On("GetDistributionConfig", expectedGetDistributionConfigInput).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", expectedUpdateDistributionInput).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -796,7 +922,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistribution
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistribution", mock.Anything).Return(errors.New("mock err"))
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), context.DeadlineExceeded)
 }
 
@@ -825,7 +957,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution()
 	s.cfClient.On("GetDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("DeleteDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -833,7 +971,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingCo
 	awsErr := awserr.New(awscloudfront.ErrCodeNoSuchDistribution, "msg", nil)
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -854,7 +998,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisabling
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -883,7 +1033,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingFo
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -913,7 +1069,13 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingI
 	s.cfClient.On("GetDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("DeleteDistribution", mock.Anything).Return(awsErr).Once()
 
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
+	repo := DistRepository{
+		CloudFrontClient: s.cfClient,
+		OACRepo:          s.oacRepo,
+		TaggingClient:    s.taggingClient,
+		CallerRef:        testCallerRefFn,
+		WaitTimeout:      time.Second,
+	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
 
@@ -937,85 +1099,4 @@ func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone
 		},
 	)
 	s.Nil(cb.OriginRequestPolicyId)
-}
-
-func (s *DistributionRepositoryTestSuite) TestCreate_SuccessWithBucketOrigin() {
-	s.cfClient.ExpectedCreateDistributionWithTagsOutput = &awscloudfront.CreateDistributionWithTagsOutput{
-		Distribution: &awscloudfront.Distribution{
-			Id:         aws.String("L2FB5NP10VU7KL"),
-			ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
-			DomainName: aws.String("aoiweoiwe39d.cloudfront.net"),
-		},
-	}
-
-	var noError error
-	s.cfClient.On("CreateDistributionWithTags", mock.Anything).Return(noError).Once()
-
-	s.oacRepo.On("Sync", mock.Anything).Return(noError).Once()
-
-	origin := NewOriginBuilder("dist", "origin", "Bucket").Build()
-
-	distribution, err := NewDistributionBuilder(
-		"default.origin",
-		"test description",
-		awscloudfront.PriceClassPriceClass100,
-		"test group",
-		"default-web-acl",
-	).
-		WithOrigin(origin).
-		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
-		WithWebACL("test web acl").
-		AppendTags(map[string]string{"foo": "bar"}).
-		WithLogging("test s3", "test prefix").
-		WithTLS("test:cert:arn", "test security policy").
-		WithIPv6().
-		Build()
-	s.NoError(err)
-
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
-	dist, err := repo.Create(distribution)
-	s.Equal(dist.CustomOrigins[0].Access, "Bucket")
-	s.Equal(dist.CustomOrigins[0].OAC.Name, "dist-origin")
-	s.Equal(dist.CustomOrigins[0].OAC.OriginName, "origin")
-	s.Equal(dist.CustomOrigins[0].OAC.OriginAccessControlOriginType, "s3")
-	s.NoError(err)
-}
-
-func (s *DistributionRepositoryTestSuite) TestCreate_FailsToCreateOAC() {
-	s.cfClient.ExpectedCreateDistributionWithTagsOutput = &awscloudfront.CreateDistributionWithTagsOutput{
-		Distribution: &awscloudfront.Distribution{
-			Id:         aws.String("L2FB5NP10VU7KL"),
-			ARN:        aws.String("arn:aws:cloudfront::123456789012:distribution/L2FB5NP10VU7KL"),
-			DomainName: aws.String("aoiweoiwe39d.cloudfront.net"),
-		},
-	}
-
-	var noError error
-	s.cfClient.On("CreateDistributionWithTags", mock.Anything).Return(noError).Once()
-
-	s.oacRepo.On("Sync", mock.Anything).Return(errors.New("some err")).Once()
-
-	origin := NewOriginBuilder("dist", "origin", "Bucket").Build()
-
-	distribution, err := NewDistributionBuilder(
-		"default.origin",
-		"test description",
-		awscloudfront.PriceClassPriceClass100,
-		"test group",
-		"default-web-acl",
-	).
-		WithOrigin(origin).
-		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
-		WithWebACL("test web acl").
-		AppendTags(map[string]string{"foo": "bar"}).
-		WithLogging("test s3", "test prefix").
-		WithTLS("test:cert:arn", "test security policy").
-		WithIPv6().
-		Build()
-	s.NoError(err)
-
-	repo := NewDistributionRepository(s.cfClient, s.taggingClient, s.oacRepo, testCallerRefFn, time.Second)
-	dist, err := repo.Create(distribution)
-	s.Error(err)
-	s.Equal(Distribution{}, dist)
 }

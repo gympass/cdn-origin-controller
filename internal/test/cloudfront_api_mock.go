@@ -37,6 +37,7 @@ type MockCloudFrontAPI struct {
 	ExpectedCreateOriginAccessControlOutput  *cloudfront.CreateOriginAccessControlOutput
 	ExpectedUpdateOriginAccessControlOutput  *cloudfront.UpdateOriginAccessControlOutput
 	ExpectedDeleteOriginAccessControlOutput  *cloudfront.DeleteOriginAccessControlOutput
+	ExpectedGetOriginAccessControlOutput     *cloudfront.GetOriginAccessControlOutput
 }
 
 func (c *MockCloudFrontAPI) GetDistributionConfig(in *cloudfront.GetDistributionConfigInput) (*cloudfront.GetDistributionConfigOutput, error) {
@@ -81,4 +82,9 @@ func (c *MockCloudFrontAPI) UpdateOriginAccessControl(in *cloudfront.UpdateOrigi
 func (c *MockCloudFrontAPI) DeleteOriginAccessControl(in *cloudfront.DeleteOriginAccessControlInput) (*cloudfront.DeleteOriginAccessControlOutput, error) {
 	args := c.Called(in)
 	return c.ExpectedDeleteOriginAccessControlOutput, args.Error(0)
+}
+
+func (c *MockCloudFrontAPI) GetOriginAccessControl(in *cloudfront.GetOriginAccessControlInput) (*cloudfront.GetOriginAccessControlOutput, error) {
+	args := c.Called(in)
+	return c.ExpectedGetOriginAccessControlOutput, args.Error(0)
 }
