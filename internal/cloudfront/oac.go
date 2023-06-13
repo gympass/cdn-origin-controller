@@ -29,6 +29,7 @@ import (
 type OAC struct {
 	ID                            string `json:"id"`
 	Name                          string `json:"name"`
+	Description                   string `json:"description"`
 	OriginName                    string `json:"originName"`
 	OriginAccessControlOriginType string `json:"originAccessControlOriginType"`
 	SigningBehavior               string `json:"signingBehavior"`
@@ -39,6 +40,7 @@ func NewOAC(distribution, originName string) OAC {
 	return OAC{
 		Name:                          oacName(distribution, originName),
 		OriginName:                    originName,
+		Description:                   oacDescription(originName),
 		OriginAccessControlOriginType: awscloudfront.OriginAccessControlOriginTypesS3,
 		SigningBehavior:               awscloudfront.OriginAccessControlSigningBehaviorsAlways,
 		SigningProtocol:               awscloudfront.OriginAccessControlSigningProtocolsSigv4,
@@ -48,4 +50,8 @@ func NewOAC(distribution, originName string) OAC {
 func oacName(distributionName, s3Host string) string {
 	s3Name := strings.Split(s3Host, ".")[0]
 	return fmt.Sprintf("%s-%s", distributionName, s3Name)
+}
+
+func oacDescription(originName string) string {
+	return fmt.Sprintf("OAC for %s, managed by cdn-origin-controller", originName)
 }

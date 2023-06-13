@@ -88,13 +88,9 @@ func (r oacRepository) Delete(toBeDeleted OAC) (OAC, error) {
 
 func (r oacRepository) createOAC(desired OAC) (OAC, error) {
 	out, err := r.client.CreateOriginAccessControl(
-		&awscloudfront.CreateOriginAccessControlInput{OriginAccessControlConfig: &awscloudfront.OriginAccessControlConfig{
-			Description:                   aws.String(r.oacDescription(desired)),
-			Name:                          aws.String(desired.Name),
-			OriginAccessControlOriginType: aws.String(awscloudfront.OriginAccessControlOriginTypesS3),
-			SigningBehavior:               aws.String(awscloudfront.OriginAccessControlSigningBehaviorsAlways),
-			SigningProtocol:               aws.String(awscloudfront.OriginAccessControlSigningProtocolsSigv4),
-		}},
+		&awscloudfront.CreateOriginAccessControlInput{
+			OriginAccessControlConfig: newOACConfig(desired),
+		},
 	)
 	if err != nil {
 		return OAC{}, err
@@ -107,15 +103,10 @@ func (r oacRepository) createOAC(desired OAC) (OAC, error) {
 func (r oacRepository) updateOAC(desired, observed OAC, eTag *string) (OAC, error) {
 	out, err := r.client.UpdateOriginAccessControl(
 		&awscloudfront.UpdateOriginAccessControlInput{
-			Id:      aws.String(observed.ID),
-			IfMatch: eTag,
-			OriginAccessControlConfig: &awscloudfront.OriginAccessControlConfig{
-				Description:                   aws.String(r.oacDescription(desired)),
-				Name:                          aws.String(desired.Name),
-				OriginAccessControlOriginType: aws.String(awscloudfront.OriginAccessControlOriginTypesS3),
-				SigningBehavior:               aws.String(awscloudfront.OriginAccessControlSigningBehaviorsAlways),
-				SigningProtocol:               aws.String(awscloudfront.OriginAccessControlSigningProtocolsSigv4),
-			}},
+			Id:                        aws.String(observed.ID),
+			IfMatch:                   eTag,
+			OriginAccessControlConfig: newOACConfig(desired),
+		},
 	)
 	if err != nil {
 		return OAC{}, err
@@ -123,10 +114,6 @@ func (r oacRepository) updateOAC(desired, observed OAC, eTag *string) (OAC, erro
 
 	oac := out.OriginAccessControl.OriginAccessControlConfig
 	return newOACFromOriginAccessControlConfig(oac, out.OriginAccessControl.Id, desired.OriginName), nil
-}
-
-func (r oacRepository) oacDescription(desired OAC) string {
-	return fmt.Sprintf("OAC for %s, managed by cdn-origin-controller", desired.OriginName)
 }
 
 func (r oacRepository) getOAC(oac OAC) (observed OAC, eTag *string, err error) {
@@ -169,6 +156,16 @@ func (r oacRepository) getETag(id string) (eTag *string, err error) {
 	}
 
 	return out.ETag, nil
+}
+
+func newOACConfig(desired OAC) *awscloudfront.OriginAccessControlConfig {
+	return &awscloudfront.OriginAccessControlConfig{
+		Description:                   aws.String(desired.Description),
+		Name:                          aws.String(desired.Name),
+		OriginAccessControlOriginType: aws.String(awscloudfront.OriginAccessControlOriginTypesS3),
+		SigningBehavior:               aws.String(awscloudfront.OriginAccessControlSigningBehaviorsAlways),
+		SigningProtocol:               aws.String(awscloudfront.OriginAccessControlSigningProtocolsSigv4),
+	}
 }
 
 func newOACFromOriginAccessControlConfig(cfg *awscloudfront.OriginAccessControlConfig, id *string, originName string) OAC {
