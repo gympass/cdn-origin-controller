@@ -34,7 +34,7 @@ type CloudFrontServiceTestSuite struct {
 	suite.Suite
 }
 
-func (s CloudFrontServiceTestSuite) Test_getDeletions() {
+func (s *CloudFrontServiceTestSuite) Test_getDeletions() {
 	testCases := []struct {
 		name             string
 		desired, current []string

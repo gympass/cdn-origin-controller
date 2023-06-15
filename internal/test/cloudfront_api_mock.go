@@ -34,6 +34,10 @@ type MockCloudFrontAPI struct {
 	ExpectedCreateDistributionWithTagsOutput *cloudfront.CreateDistributionWithTagsOutput
 	ExpectedTagResourceOutput                *cloudfront.TagResourceOutput
 	ExpectedGetDistributionOutput            *cloudfront.GetDistributionOutput
+	ExpectedCreateOriginAccessControlOutput  *cloudfront.CreateOriginAccessControlOutput
+	ExpectedUpdateOriginAccessControlOutput  *cloudfront.UpdateOriginAccessControlOutput
+	ExpectedDeleteOriginAccessControlOutput  *cloudfront.DeleteOriginAccessControlOutput
+	ExpectedGetOriginAccessControlOutput     *cloudfront.GetOriginAccessControlOutput
 }
 
 func (c *MockCloudFrontAPI) GetDistributionConfig(in *cloudfront.GetDistributionConfigInput) (*cloudfront.GetDistributionConfigOutput, error) {
@@ -63,4 +67,24 @@ func (c *MockCloudFrontAPI) TagResource(in *cloudfront.TagResourceInput) (*cloud
 func (c *MockCloudFrontAPI) DeleteDistribution(in *cloudfront.DeleteDistributionInput) (*cloudfront.DeleteDistributionOutput, error) {
 	args := c.Called(in)
 	return nil, args.Error(0)
+}
+
+func (c *MockCloudFrontAPI) CreateOriginAccessControl(in *cloudfront.CreateOriginAccessControlInput) (*cloudfront.CreateOriginAccessControlOutput, error) {
+	args := c.Called(in)
+	return c.ExpectedCreateOriginAccessControlOutput, args.Error(0)
+}
+
+func (c *MockCloudFrontAPI) UpdateOriginAccessControl(in *cloudfront.UpdateOriginAccessControlInput) (*cloudfront.UpdateOriginAccessControlOutput, error) {
+	args := c.Called(in)
+	return c.ExpectedUpdateOriginAccessControlOutput, args.Error(0)
+}
+
+func (c *MockCloudFrontAPI) DeleteOriginAccessControl(in *cloudfront.DeleteOriginAccessControlInput) (*cloudfront.DeleteOriginAccessControlOutput, error) {
+	args := c.Called(in)
+	return c.ExpectedDeleteOriginAccessControlOutput, args.Error(0)
+}
+
+func (c *MockCloudFrontAPI) GetOriginAccessControl(in *cloudfront.GetOriginAccessControlInput) (*cloudfront.GetOriginAccessControlOutput, error) {
+	args := c.Called(in)
+	return c.ExpectedGetOriginAccessControlOutput, args.Error(0)
 }

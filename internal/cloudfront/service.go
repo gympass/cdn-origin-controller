@@ -57,7 +57,7 @@ type Service struct {
 
 // Reconcile an Ingress resource of any version
 func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing client.Object) error {
-	log := logr.FromContext(ctx)
+	log, _ := logr.FromContext(ctx)
 
 	if k8s.HasFinalizer(ing) && !k8s.HasGroupAnnotation(ing) {
 		err := errors.New("ingress has no group annotation but has finalizer, can't continue without a group")
@@ -199,7 +199,7 @@ func (s *Service) upsertDistribution(ctx context.Context, dist Distribution, sta
 }
 
 func (s *Service) updateDistribution(ctx context.Context, dist Distribution) (Distribution, error) {
-	log := logr.FromContext(ctx)
+	log, _ := logr.FromContext(ctx)
 	log.V(1).Info("Updating existing Distribution.", "distribution", dist)
 
 	existingDist, err := s.DistRepo.Sync(dist)
@@ -211,7 +211,7 @@ func (s *Service) updateDistribution(ctx context.Context, dist Distribution) (Di
 }
 
 func (s *Service) createDistribution(ctx context.Context, dist Distribution) (Distribution, error) {
-	log := logr.FromContext(ctx)
+	log, _ := logr.FromContext(ctx)
 	log.V(1).Info("Creating Distribution.", "distribution", dist)
 
 	existingDist, err := s.DistRepo.Create(dist)
@@ -227,7 +227,7 @@ func (s *Service) deleteDistribution(ctx context.Context, dist Distribution) err
 		return nil
 	}
 
-	log := logr.FromContext(ctx)
+	log, _ := logr.FromContext(ctx)
 	if !s.Config.DeletionEnabled {
 		log.V(1).Info("In a deletion operation, but configured not to delete Distributions. Will not delete.")
 		return nil
@@ -249,7 +249,7 @@ func (s *Service) upsertCDNStatus(ctx context.Context, status *v1alpha1.CDNStatu
 
 func (s *Service) deleteCDNStatus(ctx context.Context, cdnStatus *v1alpha1.CDNStatus) error {
 	if err := s.Delete(ctx, cdnStatus); err != nil && !k8serrors.IsNotFound(err) {
-		log := logr.FromContext(ctx)
+		log, _ := logr.FromContext(ctx)
 		log.V(1).Error(err, "Could not delete CDNStatus resource", "cdnStatus", cdnStatus)
 		return err
 	}

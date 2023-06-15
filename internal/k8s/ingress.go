@@ -26,7 +26,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 	networkingv1 "k8s.io/api/networking/v1"
-	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,6 +70,7 @@ type CDNIngress struct {
 	AlternateDomainNames []string
 	WebACLARN            string
 	IsBeingRemoved       bool
+	OriginAccess         string
 	Tags                 map[string]string
 }
 
@@ -106,51 +106,6 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 	return SharedIngressParams{WebACLARN: validARN}, nil
 }
 
-// NewCDNIngressFromV1beta1 creates a CDNIngress from a v1beta1 Ingress
-func NewCDNIngressFromV1beta1(ing *networkingv1beta1.Ingress) (CDNIngress, error) {
-	tags, err := tagsAnnotationValue(ing)
-	if err != nil {
-		return CDNIngress{}, err
-	}
-
-	result := CDNIngress{
-		NamespacedName: types.NamespacedName{
-			Namespace: ing.Namespace,
-			Name:      ing.Name,
-		},
-		Group:                groupAnnotationValue(ing),
-		Paths:                pathsV1beta1(ing.Spec.Rules),
-		ViewerFnARN:          viewerFnARN(ing),
-		OriginReqPolicy:      originReqPolicy(ing),
-		CachePolicy:          cachePolicy(ing),
-		OriginRespTimeout:    originRespTimeout(ing),
-		AlternateDomainNames: alternateDomainNames(ing),
-		WebACLARN:            webACLARN(ing),
-		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
-		Tags:                 tags,
-	}
-
-	if len(ing.Status.LoadBalancer.Ingress) > 0 {
-		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
-	}
-
-	return result, nil
-}
-
-func pathsV1beta1(rules []networkingv1beta1.IngressRule) []Path {
-	var paths []Path
-	for _, rule := range rules {
-		for _, p := range rule.HTTP.Paths {
-			newPath := Path{
-				PathPattern: p.Path,
-				PathType:    string(*p.PathType),
-			}
-			paths = append(paths, newPath)
-		}
-	}
-	return paths
-}
-
 // NewCDNIngressFromV1 creates a new CDNIngress from a v1 Ingress
 func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
 	tags, err := tagsAnnotationValue(ing)
@@ -173,6 +128,7 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
 		WebACLARN:            webACLARN(ing),
 		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
 		Tags:                 tags,
+		OriginAccess:         CFUserOriginAccessPublic,
 	}
 
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {

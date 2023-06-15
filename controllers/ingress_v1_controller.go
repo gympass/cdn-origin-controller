@@ -49,7 +49,7 @@ type V1Reconciler struct {
 
 // Reconcile a v1 Ingress resource
 func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logr.FromContext(ctx)
+	log, _ := logr.FromContext(ctx)
 	log.Info("Starting reconciliation.")
 
 	ingress := &networkingv1.Ingress{}

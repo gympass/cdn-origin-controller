@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -86,6 +85,41 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 		expectedIngs    []CDNIngress
 	}{
 		{
+			name: "Set default origin access",
+			annotationValue: `
+                                - host: host
+                                  paths:
+                                    - /foo
+                                    - /foo/*`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:            "group",
+					LoadBalancerHost: "host",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Public",
+				},
+			},
+		},
+		{
+			name: "Has origin access entry",
+			annotationValue: `
+                                - host: host
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: Bucket`,
+			expectedIngs: []CDNIngress{
+				{
+					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:            "group",
+					LoadBalancerHost: "host",
+					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:     "Bucket",
+				},
+			},
+		},
+		{
 			name: "Has a single user origin",
 			annotationValue: `
                                 - host: host
@@ -104,6 +138,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					OriginRespTimeout: int64(35),
 					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -115,6 +150,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                     - /foo
                                   viewerFunctionARN: foo
                                   originRequestPolicy: None
+                                  originAccess: Bucket
                                 - host: host
                                   responseTimeout: 35
                                   paths:
@@ -127,6 +163,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					Paths:            []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
 					ViewerFnARN:      "foo",
+					OriginAccess:     "Bucket",
 				},
 				{
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
@@ -134,6 +171,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					LoadBalancerHost:  "host",
 					Paths:             []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
+					OriginAccess:      "Public",
 				},
 			},
 		},
@@ -183,6 +221,15 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 			name:            "Invalid YAML",
 			annotationValue: "*",
 		},
+		{
+			name: "Invalid Origin Access",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                    - /foo/*
+                                  originAccess: invalid`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -212,8 +259,8 @@ func newIngressV1WithLB(namespace, name string, annotations map[string]string) *
 			Namespace:   namespace,
 			Annotations: annotations,
 		},
-		Status: networkingv1.IngressStatus{LoadBalancer: corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{
+		Status: networkingv1.IngressStatus{LoadBalancer: networkingv1.IngressLoadBalancerStatus{
+			Ingress: []networkingv1.IngressLoadBalancerIngress{
 				{
 					Hostname: "host",
 				},

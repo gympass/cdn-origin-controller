@@ -19,7 +19,15 @@
 
 package cloudfront
 
-import "github.com/Gympass/cdn-origin-controller/internal/strhelper"
+import (
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
+)
+
+const (
+	OriginAccessPublic = k8s.CFUserOriginAccessPublic
+	OriginAccessBucket = k8s.CFUserOriginAccessBucket
+)
 
 const (
 	defaultResponseTimeout = 30
@@ -33,11 +41,19 @@ type Origin struct {
 	Behaviors []Behavior
 	// ResponseTimeout is how long CloudFront will wait for a response from the Origin in seconds
 	ResponseTimeout int64
+	// Access is this Origin's access type (Bucket or Public)
+	Access string
+	// OAC configures Access Origin Control for this Origin
+	OAC OAC
 }
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
 func (o Origin) HasEqualParameters(o2 Origin) bool {
-	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout
+	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Access == o2.Access && o.OAC == o2.OAC
+}
+
+func (o Origin) isBucketBased() bool {
+	return o.Access == OriginAccessBucket
 }
 
 // Behavior represents a CloudFront Cache Behavior
@@ -56,23 +72,34 @@ type Behavior struct {
 
 // OriginBuilder allows the construction of a Origin
 type OriginBuilder struct {
-	host          string
-	viewerFnARN   string
-	requestPolicy string
-	cachePolicy   string
-	respTimeout   int64
-	paths         strhelper.Set
+	host             string
+	viewerFnARN      string
+	requestPolicy    string
+	distributionName string
+	cachePolicy      string
+	respTimeout      int64
+	accessType       string
+	paths            strhelper.Set
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
-func NewOriginBuilder(host string) OriginBuilder {
+func NewOriginBuilder(distributionName, host, accessType string) OriginBuilder {
 	return OriginBuilder{
-		host:          host,
-		respTimeout:   defaultResponseTimeout,
-		requestPolicy: allViewerOriginRequestPolicyID,
-		cachePolicy:   cachingDisabledPolicyID,
-		paths:         strhelper.NewSet(),
+		distributionName: distributionName,
+		host:             host,
+		respTimeout:      defaultResponseTimeout,
+		requestPolicy:    defaultRequestPolicyForType(accessType),
+		cachePolicy:      cachingDisabledPolicyID,
+		paths:            strhelper.NewSet(),
+		accessType:       accessType,
 	}
+}
+
+func defaultRequestPolicyForType(accessType string) string {
+	if accessType == OriginAccessBucket {
+		return allViewerExceptHostHeaderOriginRequestPolicyID
+	}
+	return allViewerOriginRequestPolicyID
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
@@ -127,6 +154,10 @@ func (b OriginBuilder) Build() Origin {
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
+	origin.Access = b.accessType
+
+	origin = b.addOriginAccessConfiguration(origin)
+
 	return origin
 }
 
@@ -155,5 +186,14 @@ func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 	for i := range origin.Behaviors {
 		origin.Behaviors[i].CachePolicy = b.cachePolicy
 	}
+	return origin
+}
+
+func (b OriginBuilder) addOriginAccessConfiguration(origin Origin) Origin {
+	if origin.Access != OriginAccessBucket {
+		return origin
+	}
+
+	origin.OAC = NewOAC(b.distributionName, b.host)
 	return origin
 }

@@ -16,17 +16,17 @@ type IngressRefTestSuite struct {
 	suite.Suite
 }
 
-func (s IngressRefTestSuite) TestGetName() {
+func (s *IngressRefTestSuite) TestGetName() {
 	ref := NewIngressRef("namespace", "name")
 	s.Equal("name", ref.GetName())
 }
 
-func (s IngressRefTestSuite) TestGetNamespace() {
+func (s *IngressRefTestSuite) TestGetNamespace() {
 	ref := NewIngressRef("namespace", "name")
 	s.Equal("namespace", ref.GetNamespace())
 }
 
-func (s IngressRefTestSuite) TestToNamespacedName() {
+func (s *IngressRefTestSuite) TestToNamespacedName() {
 	expected := types.NamespacedName{
 		Namespace: "namespace",
 		Name:      "name",
