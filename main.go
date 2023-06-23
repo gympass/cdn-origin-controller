@@ -138,6 +138,7 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 		TaggingClient:    resourcegroupstaggingapi.New(s),
 		CallerRef:        func() string { return time.Now().String() },
 		WaitTimeout:      time.Minute * 10,
+		Cfg:              cfg,
 	}
 	distRepo.RunPostCreationOperations = distRepo.Sync
 

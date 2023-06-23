@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
@@ -94,12 +95,18 @@ type DistributionRepositoryTestSuite struct {
 	taggingClient *test.MockResourceTaggingAPI
 	cfClient      *test.MockCloudFrontAPI
 	oacRepo       *mockOACRepo
+	cfg           config.Config
 }
 
 func (s *DistributionRepositoryTestSuite) SetupTest() {
 	s.taggingClient = &test.MockResourceTaggingAPI{}
 	s.cfClient = &test.MockCloudFrontAPI{}
 	s.oacRepo = &mockOACRepo{}
+	s.cfg = config.Config{
+		DefaultOriginDomain:  "default.origin",
+		CloudFrontPriceClass: awscloudfront.PriceClassPriceClass100,
+		CloudFrontWAFARN:     "default-web-acl",
+	}
 }
 
 func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
@@ -120,6 +127,7 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_CloudFrontExists() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 
 	arn, err := repo.ARNByGroup("group")
@@ -136,6 +144,7 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_ErrorGettingResources()
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 
 	id, err := repo.ARNByGroup("group")
@@ -155,6 +164,7 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_DistributionDoesNotExis
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 
 	arn, err := repo.ARNByGroup("group")
@@ -183,6 +193,7 @@ func (s *DistributionRepositoryTestSuite) TestARNByGroup_MoreThanOneCloudFrontEx
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 
 	arn, err := repo.ARNByGroup("group")
@@ -203,11 +214,8 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 	s.cfClient.On("CreateDistributionWithTags", mock.Anything).Return(noError).Once()
 
 	distribution, err := NewDistributionBuilder(
-		"default.origin",
-		"test description",
-		awscloudfront.PriceClassPriceClass100,
 		"test group",
-		"default-web-acl",
+		s.cfg,
 	).
 		WithOrigin(Origin{Host: "origin", ResponseTimeout: 30}).
 		WithAlternateDomains([]string{"test.alias.1", "test.alias.2"}).
@@ -226,6 +234,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_Success() {
 		CallerRef:                 testCallerRefFn,
 		WaitTimeout:               time.Second,
 		RunPostCreationOperations: noOpPostCreationFunc,
+		Cfg:                       s.cfg,
 	}
 
 	dist, err := repo.Create(distribution)
@@ -258,6 +267,7 @@ func (s *DistributionRepositoryTestSuite) TestCreate_ErrorWhenCreatingDistributi
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	dist, err := repo.Create(distribution)
 	s.Equal(Distribution{}, dist)
@@ -273,6 +283,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantFetchDistribution() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
@@ -303,6 +314,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
@@ -334,6 +346,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	gotDist, err := repo.Sync(Distribution{})
 	s.Error(err)
@@ -385,6 +398,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
@@ -436,6 +450,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
@@ -538,6 +553,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
@@ -600,6 +616,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 
 	distribution := Distribution{
@@ -669,6 +686,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	_, err := repo.Sync(distribution)
 	s.NoError(err)
@@ -713,6 +731,7 @@ func (s *DistributionRepositoryTestSuite) TestUpdate_ShouldSyncOneOACAndDeleteOn
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	_, err := repo.Sync(Distribution{
 		ID: "id",
@@ -757,6 +776,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_SuccessWithPublicOrigins() 
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
@@ -802,6 +822,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_SuccessWithS3Origins() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
@@ -847,6 +868,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteOACs() {
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
@@ -863,6 +885,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToGetDistributionConfi
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
@@ -894,6 +917,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDisableDistribution(
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
@@ -928,6 +952,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_TimesOutWaitingDistribution
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.ErrorIs(repo.Delete(Distribution{ID: "id"}), context.DeadlineExceeded)
 }
@@ -963,6 +988,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_FailsToDeleteDistribution()
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.Error(repo.Delete(Distribution{ID: "id"}))
 }
@@ -977,6 +1003,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionGettingCo
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
@@ -1004,6 +1031,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDisabling
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
@@ -1039,6 +1067,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionWaitingFo
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }
@@ -1075,6 +1104,7 @@ func (s *DistributionRepositoryTestSuite) TestDelete_NoSuchDistributionDeletingI
 		TaggingClient:    s.taggingClient,
 		CallerRef:        testCallerRefFn,
 		WaitTimeout:      time.Second,
+		Cfg:              s.cfg,
 	}
 	s.NoError(repo.Delete(Distribution{ID: "id"}))
 }

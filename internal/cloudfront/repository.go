@@ -34,16 +34,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	cdnaws "github.com/Gympass/cdn-origin-controller/internal/aws"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
-)
-
-const (
-	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
-	cachingDisabledPolicyID = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
-	allViewerOriginRequestPolicyID = "216adef6-5c7f-47e4-b989-5492eafa07d3"
-	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-all-viewer-except-host-header
-	allViewerExceptHostHeaderOriginRequestPolicyID = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
 )
 
 const (
@@ -82,6 +74,7 @@ type DistRepository struct {
 	CallerRef                 CallerRefFn
 	WaitTimeout               time.Duration
 	RunPostCreationOperations PostCreationOperationsFunc
+	Cfg                       config.Config
 }
 
 func (r DistRepository) ARNByGroup(group string) (string, error) {
@@ -116,7 +109,7 @@ func (r DistRepository) ARNByGroup(group string) (string, error) {
 }
 
 func (r DistRepository) Create(d Distribution) (Distribution, error) {
-	config := newAWSDistributionConfig(d, r.CallerRef)
+	config := newAWSDistributionConfig(d, r.CallerRef, r.Cfg)
 	createInput := &awscloudfront.CreateDistributionWithTagsInput{
 		DistributionConfigWithTags: &awscloudfront.DistributionConfigWithTags{
 			DistributionConfig: config,
@@ -137,7 +130,7 @@ func (r DistRepository) Create(d Distribution) (Distribution, error) {
 }
 
 func (r DistRepository) Sync(d Distribution) (Distribution, error) {
-	config := newAWSDistributionConfig(d, r.CallerRef)
+	config := newAWSDistributionConfig(d, r.CallerRef, r.Cfg)
 	output, err := r.distributionConfigByID(d.ID)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
@@ -327,8 +320,8 @@ func (r DistRepository) syncOACs(oacs []OAC) ([]OAC, error) {
 	return oacs, nil
 }
 
-func (r DistRepository) deleteAllOACs(cfg *awscloudfront.DistributionConfig) error {
-	toBeDeleted := r.filterOACs(cfg, func(o *awscloudfront.Origin) bool {
+func (r DistRepository) deleteAllOACs(distCfg *awscloudfront.DistributionConfig) error {
+	toBeDeleted := r.filterOACs(distCfg, func(o *awscloudfront.Origin) bool {
 		return !strhelper.IsEmptyOrNil(o.OriginAccessControlId)
 	})
 
@@ -357,13 +350,13 @@ func (r DistRepository) diffDesiredAndObservedOACs(desired Distribution, observe
 	return toBeSynced, toBeDeleted
 }
 
-func (r DistRepository) filterOACs(cfg *awscloudfront.DistributionConfig, shouldInclude func(*awscloudfront.Origin) bool) []OAC {
-	if !cfgHasOrigins(cfg) {
+func (r DistRepository) filterOACs(distCfg *awscloudfront.DistributionConfig, shouldInclude func(*awscloudfront.Origin) bool) []OAC {
+	if !distCfgHasOrigins(distCfg) {
 		return nil
 	}
 
 	var result []OAC
-	for _, awsOrigin := range cfg.Origins.Items {
+	for _, awsOrigin := range distCfg.Origins.Items {
 		if shouldInclude(awsOrigin) {
 			result = append(result, OAC{
 				ID: aws.StringValue(awsOrigin.OriginAccessControlId),
@@ -374,16 +367,16 @@ func (r DistRepository) filterOACs(cfg *awscloudfront.DistributionConfig, should
 	return result
 }
 
-func (r DistRepository) forEachOrigin(cfg *awscloudfront.DistributionConfig, do func(*awscloudfront.Origin)) {
-	if !cfgHasOrigins(cfg) {
+func (r DistRepository) forEachOrigin(distCfg *awscloudfront.DistributionConfig, do func(*awscloudfront.Origin)) {
+	if !distCfgHasOrigins(distCfg) {
 		return
 	}
 
-	for _, o := range cfg.Origins.Items {
+	for _, o := range distCfg.Origins.Items {
 		do(o)
 	}
 }
 
-func cfgHasOrigins(cfg *awscloudfront.DistributionConfig) bool {
-	return cfg.Origins != nil && len(cfg.Origins.Items) > 0
+func distCfgHasOrigins(distCfg *awscloudfront.DistributionConfig) bool {
+	return distCfg.Origins != nil && len(distCfg.Origins.Items) > 0
 }
