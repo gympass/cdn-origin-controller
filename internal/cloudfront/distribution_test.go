@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/Gympass/cdn-origin-controller/internal/cloudfront"
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunDistributionTestSuite(t *testing.T) {
@@ -34,53 +35,55 @@ func TestRunDistributionTestSuite(t *testing.T) {
 
 type DistributionTestSuite struct {
 	suite.Suite
+	cfg config.Config
+}
+
+func (s *DistributionTestSuite) SetupTest() {
+	s.cfg = config.Config{
+		DefaultOriginDomain:                                "test.default.origin",
+		CloudFrontDescriptionTemplate:                      "test description: {{group}}",
+		CloudFrontPriceClass:                               "test price class",
+		CloudFrontWAFARN:                                   "default-web-acl",
+		CloudFrontDefaultCachingPolicyID:                   "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+		CloudFrontDefaultCacheRequestPolicyID:              "216adef6-5c7f-47e4-b989-5492eafa07d3",
+		CloudFrontDefaultPublicOriginAccessRequestPolicyID: "216adef6-5c7f-47e4-b989-5492eafa07d3",
+		CloudFrontDefaultBucketOriginAccessRequestPolicyID: "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf",
+	}
 }
 
 func (s *DistributionTestSuite) TestDistribution_CustomBehaviors() {
-	defaultOriginDomain := "test.default.origin"
-	defaultWebACL := "default-web-acl"
-	description := "test description"
-	priceClass := "test price class"
 	group := "test group"
 
-	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/short").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longest").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longer").Build()).
+	dist, err := cloudfront.NewDistributionBuilder(group, s.cfg).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/short").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/longest").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/longer").Build()).
 		Build()
 	s.NoError(err)
 
 	expected := []cloudfront.Behavior{
-		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longest").Build().Behaviors[0],
-		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/longer").Build().Behaviors[0],
-		cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/short").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/longest").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/longer").Build().Behaviors[0],
+		cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/short").Build().Behaviors[0],
 	}
 	got := dist.SortedCustomBehaviors()
 	s.Equal(expected, got)
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_New() {
-	defaultOriginDomain := "test.default.origin"
-	defaultWebACL := "default-web-acl"
-	description := "test description"
-	priceClass := "test price class"
 	group := "test group"
 
-	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).Build()
+	dist, err := cloudfront.NewDistributionBuilder(group, s.cfg).Build()
 	s.NoError(err)
 	s.Equal("test.default.origin", dist.DefaultOrigin.Host)
-	s.Equal("test description", dist.Description)
+	s.Equal("test description: test group", dist.Description)
 	s.Equal("test price class", dist.PriceClass)
-	s.Equal("default-web-acl", defaultWebACL)
+	s.Equal("default-web-acl", dist.WebACLID)
 	s.Equal("true", dist.Tags["cdn-origin-controller.gympass.com/owned"])
 	s.Equal("test group", dist.Tags["cdn-origin-controller.gympass.com/cdn.group"])
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
-	defaultOriginDomain := "test.default.origin"
-	defaultWebACL := "default-web-acl"
-	description := "test description"
-	priceClass := "test price class"
 	group := "test group"
 	origin := cloudfront.Origin{
 		Host:            "test.custom.origin",
@@ -88,7 +91,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 		ResponseTimeout: 30,
 	}
 
-	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
+	dist, err := cloudfront.NewDistributionBuilder(group, config.Parse()).
 		WithOrigin(origin).
 		Build()
 
@@ -98,16 +101,12 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
-	defaultOriginDomain := "test.default.origin"
-	defaultWebACL := "default-web-acl"
-	description := "test description"
-	priceClass := "test price class"
 	group := "test group"
 
-	dist, err := cloudfront.NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACL).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path1").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path2").WithBehavior("/path3").Build()).
-		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public").WithBehavior("/path4").Build()).
+	dist, err := cloudfront.NewDistributionBuilder(group, s.cfg).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/path1").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/path2").WithBehavior("/path3").Build()).
+		WithOrigin(cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithBehavior("/path4").Build()).
 		Build()
 
 	s.NoError(err)
@@ -137,7 +136,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
 func (s *DistributionTestSuite) TestDistributionBuilder_WithLogging() {
 	bucketAddr := "test.bucket.address"
 	prefix := "test prefix"
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithLogging(bucketAddr, prefix).
 		Build()
 
@@ -158,7 +157,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithCustomTags() {
 		"foo":     "bar",
 	}
 
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		AppendTags(tags).
 		AppendTags(otherTags).
 		Build()
@@ -180,7 +179,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithTLS() {
 	certARN := "test:arn"
 	securityPolicyID := "test-policy"
 
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithTLS(certARN, securityPolicyID).
 		Build()
 
@@ -191,7 +190,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithTLS() {
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithIPv6() {
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithIPv6().
 		Build()
 
@@ -202,7 +201,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithIPv6() {
 func (s *DistributionTestSuite) TestDistributionBuilder_WithAlternateDomains() {
 	domains := []string{"test.domain", "test2.domain"}
 
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithAlternateDomains(domains).
 		Build()
 
@@ -213,7 +212,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithAlternateDomains() {
 func (s *DistributionTestSuite) TestDistributionBuilder_WithWebACL() {
 	aclID := "test:acl"
 
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithWebACL(aclID).
 		Build()
 
@@ -222,7 +221,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithWebACL() {
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_WithARN() {
-	dist, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	dist, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithARN("arn:aws:cloudfront::000000000000:distribution/AAAAAAAAAAAAAA").
 		Build()
 
@@ -232,10 +231,10 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithARN() {
 }
 
 func (s *DistributionTestSuite) TestDistributionBuilder_InvalidDistribution() {
-	origin1 := cloudfront.NewOriginBuilder("dist", "host", "Public").WithResponseTimeout(35).Build()
-	origin2 := cloudfront.NewOriginBuilder("dist", "host", "Public").WithResponseTimeout(40).Build()
+	origin1 := cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithResponseTimeout(35).Build()
+	origin2 := cloudfront.NewOriginBuilder("dist", "host", "Public", s.cfg).WithResponseTimeout(40).Build()
 
-	_, err := cloudfront.NewDistributionBuilder("domain", "description", "priceClass", "group", "default-web-acl").
+	_, err := cloudfront.NewDistributionBuilder("group", s.cfg).
 		WithOrigin(origin1).
 		WithOrigin(origin2).
 		Build()

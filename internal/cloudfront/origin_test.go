@@ -22,6 +22,7 @@ package cloudfront
 import (
 	"testing"
 
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -32,32 +33,40 @@ func TestRunOriginTestSuite(t *testing.T) {
 
 type OriginTestSuite struct {
 	suite.Suite
+	cfg config.Config
+}
+
+func (s *OriginTestSuite) SetupTest() {
+	s.cfg = config.Config{
+		CloudFrontDefaultPublicOriginAccessRequestPolicyID: "216adef6-5c7f-47e4-b989-5492eafa07d3",
+		CloudFrontDefaultBucketOriginAccessRequestPolicyID: "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf",
+	}
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_DefaultsForPublicOrigin() {
-	o := NewOriginBuilder("dist", "origin", "Public").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).WithBehavior("/*").Build()
 
 	s.Equal("Public", o.Access)
 	s.Equal(int64(30), o.ResponseTimeout)
-	s.Equal(allViewerOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
+	s.Equal(s.cfg.CloudFrontDefaultPublicOriginAccessRequestPolicyID, o.Behaviors[0].RequestPolicy)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_DefaultsForBucketOrigin() {
-	o := NewOriginBuilder("dist", "origin", "Bucket").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Bucket", s.cfg).WithBehavior("/*").Build()
 
 	s.Equal(int64(30), o.ResponseTimeout)
-	s.Equal(allViewerExceptHostHeaderOriginRequestPolicyID, o.Behaviors[0].RequestPolicy)
+	s.Equal(s.cfg.CloudFrontDefaultBucketOriginAccessRequestPolicyID, o.Behaviors[0].RequestPolicy)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_SingleBehavior() {
-	o := NewOriginBuilder("dist", "origin", "Public").WithBehavior("/*").Build()
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).WithBehavior("/*").Build()
 	s.Equal("origin", o.Host)
 	s.Len(o.Behaviors, 1)
 	s.Equal("/*", o.Behaviors[0].PathPattern)
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() {
-	o := NewOriginBuilder("dist", "origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
 		WithBehavior("/*").
 		WithBehavior("/foo").
 		WithBehavior("/bar").
@@ -80,7 +89,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_MultipleBehaviors() 
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
-	o := NewOriginBuilder("dist", "origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
 		WithBehavior("/").
 		WithBehavior("/").
 		Build()
@@ -91,7 +100,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
-	o := NewOriginBuilder("dist", "origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
 		WithBehavior("/").
 		WithBehavior("/foo").
 		WithViewerFunction("some-arn").
@@ -103,7 +112,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
-	o := NewOriginBuilder("dist", "origin", "Public").
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
 		WithBehavior("/").
 		WithBehavior("/foo").
 		WithRequestPolicy("some-policy").
@@ -115,7 +124,7 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBucketType() {
-	o := NewOriginBuilder("dist", "origin", "Bucket").
+	o := NewOriginBuilder("dist", "origin", "Bucket", s.cfg).
 		Build()
 	s.Equal("origin", o.Host)
 	s.Equal("Bucket", o.Access)
@@ -125,13 +134,13 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBucketType() {
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_TestHasDifferentParameters() {
-	o := NewOriginBuilder("dist", "origin", "Bucket").
+	o := NewOriginBuilder("dist", "origin", "Bucket", s.cfg).
 		Build()
-	o1 := NewOriginBuilder("foo", "origin", "Bucket").
+	o1 := NewOriginBuilder("foo", "origin", "Bucket", s.cfg).
 		Build()
-	o2 := NewOriginBuilder("dist", "bar", "Bucket").
+	o2 := NewOriginBuilder("dist", "bar", "Bucket", s.cfg).
 		Build()
-	o3 := NewOriginBuilder("dist", "origin", "Public").
+	o3 := NewOriginBuilder("dist", "origin", "Public", s.cfg).
 		Build()
 
 	s.False(o.HasEqualParameters(o1))

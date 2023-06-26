@@ -20,6 +20,7 @@
 package cloudfront
 
 import (
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudfront"
 )
@@ -29,7 +30,7 @@ import (
 // https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_CreateDistribution.html
 type CallerRefFn func() string
 
-func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn) *cloudfront.DistributionConfig {
+func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn, cfg config.Config) *cloudfront.DistributionConfig {
 	var allCacheBehaviors []*cloudfront.CacheBehavior
 	allOrigins := []*cloudfront.Origin{newAWSOrigin(d.DefaultOrigin)}
 
@@ -61,11 +62,11 @@ func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn) *cloudfront
 					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
 					Quantity: aws.Int64(2),
 				},
-			}, CachePolicyId: aws.String(cachingDisabledPolicyID),
+			}, CachePolicyId: aws.String(cfg.CloudFrontDefaultCachingPolicyID),
 			Compress:                   aws.Bool(true),
 			FieldLevelEncryptionId:     aws.String(""),
 			FunctionAssociations:       nil,
-			OriginRequestPolicyId:      aws.String(allViewerOriginRequestPolicyID),
+			OriginRequestPolicyId:      aws.String(cfg.CloudFrontDefaultCacheRequestPolicyID),
 			LambdaFunctionAssociations: &cloudfront.LambdaFunctionAssociations{Quantity: aws.Int64(0)},
 			RealtimeLogConfigArn:       nil,
 			SmoothStreaming:            aws.Bool(false),
