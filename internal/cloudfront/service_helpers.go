@@ -32,15 +32,12 @@ const prefixPathType = string(networkingv1.PathTypePrefix)
 
 func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string, cfg config.Config) (Distribution, error) {
 	b := NewDistributionBuilder(
-		cfg.DefaultOriginDomain,
-		renderDescription(cfg.CloudFrontDescriptionTemplate, group),
-		cfg.CloudFrontPriceClass,
 		group,
-		cfg.CloudFrontWAFARN,
+		cfg,
 	)
 
 	for _, ing := range ingresses {
-		b = b.WithOrigin(newOrigin(ing))
+		b = b.WithOrigin(newOrigin(ing, cfg))
 		b = b.WithAlternateDomains(ing.AlternateDomainNames)
 		b = b.AppendTags(ing.Tags)
 	}
@@ -76,8 +73,8 @@ func renderDescription(template, group string) string {
 	return strings.ReplaceAll(template, "{{group}}", group)
 }
 
-func newOrigin(ing k8s.CDNIngress) Origin {
-	builder := NewOriginBuilder(ing.Group, ing.LoadBalancerHost, ing.OriginAccess).
+func newOrigin(ing k8s.CDNIngress, cfg config.Config) Origin {
+	builder := NewOriginBuilder(ing.Group, ing.LoadBalancerHost, ing.OriginAccess, cfg).
 		WithViewerFunction(ing.ViewerFnARN).
 		WithResponseTimeout(ing.OriginRespTimeout).
 		WithRequestPolicy(ing.OriginReqPolicy).

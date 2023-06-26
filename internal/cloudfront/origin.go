@@ -20,6 +20,7 @@
 package cloudfront
 
 import (
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
@@ -83,23 +84,23 @@ type OriginBuilder struct {
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
-func NewOriginBuilder(distributionName, host, accessType string) OriginBuilder {
+func NewOriginBuilder(distributionName, host, accessType string, cfg config.Config) OriginBuilder {
 	return OriginBuilder{
 		distributionName: distributionName,
 		host:             host,
 		respTimeout:      defaultResponseTimeout,
-		requestPolicy:    defaultRequestPolicyForType(accessType),
-		cachePolicy:      cachingDisabledPolicyID,
+		requestPolicy:    defaultRequestPolicyForType(accessType, cfg),
+		cachePolicy:      cfg.CloudFrontDefaultCachingPolicyID,
 		paths:            strhelper.NewSet(),
 		accessType:       accessType,
 	}
 }
 
-func defaultRequestPolicyForType(accessType string) string {
+func defaultRequestPolicyForType(accessType string, cfg config.Config) string {
 	if accessType == OriginAccessBucket {
-		return allViewerExceptHostHeaderOriginRequestPolicyID
+		return cfg.CloudFrontDefaultBucketOriginAccessRequestPolicyID
 	}
-	return allViewerOriginRequestPolicyID
+	return cfg.CloudFrontDefaultPublicOriginAccessRequestPolicyID
 }
 
 // WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for

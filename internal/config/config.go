@@ -28,23 +28,27 @@ import (
 
 const (
 	// CDNClassKey is the env var key that controls class
-	CDNClassKey              = "cdn_class"
-	logLevelKey              = "log_level"
-	devModeKey               = "dev_mode"
-	enableDeletionKey        = "enable_deletion"
-	cfDefaultOriginDomainKey = "cf_default_origin_domain"
-	cfPriceClassKey          = "cf_price_class"
-	cfWafArnKey              = "cf_aws_waf"
-	cfCustomSSLCertArnKey    = "cf_custom_ssl_cert"
-	cfSecurityPolicyKey      = "cf_security_policy"
-	cfEnableLoggingKey       = "cf_enable_logging"
-	cfS3BucketLogKey         = "cf_s3_bucket_log"
-	cfEnableIPV6Key          = "cf_enable_ipv6"
-	cfDescriptionTemplateKey = "cf_description_template"
-	cfAliasCreationKey       = "cf_route53_create_alias"
-	cfRoute53HostedZoneKey   = "cf_route53_hosted_zone_id"
-	cfRoute53TxtOwnerValKey  = "cf_route53_txt_owner_value"
-	cfCustomTagsKey          = "cf_custom_tags"
+	CDNClassKey                                   = "cdn_class"
+	logLevelKey                                   = "log_level"
+	devModeKey                                    = "dev_mode"
+	enableDeletionKey                             = "enable_deletion"
+	cfDefaultOriginDomainKey                      = "cf_default_origin_domain"
+	cfPriceClassKey                               = "cf_price_class"
+	cfWafArnKey                                   = "cf_aws_waf"
+	cfCustomSSLCertArnKey                         = "cf_custom_ssl_cert"
+	cfSecurityPolicyKey                           = "cf_security_policy"
+	cfEnableLoggingKey                            = "cf_enable_logging"
+	cfS3BucketLogKey                              = "cf_s3_bucket_log"
+	cfEnableIPV6Key                               = "cf_enable_ipv6"
+	cfDescriptionTemplateKey                      = "cf_description_template"
+	cfAliasCreationKey                            = "cf_route53_create_alias"
+	cfRoute53HostedZoneKey                        = "cf_route53_hosted_zone_id"
+	cfRoute53TxtOwnerValKey                       = "cf_route53_txt_owner_value"
+	cfCustomTagsKey                               = "cf_custom_tags"
+	cfDefaultCachingPolicyIDKey                   = "cf_default_caching_policy_id"
+	cfDefaultCacheRequestPolicyIDKey              = "cf_default_cache_request_policy_id"
+	cfDefaultPublicOriginAccessRequestPolicyIDKey = "cf_default_public_origin_access_request_policy_id"
+	cfDefaultBucketOriginAccessRequestPolicyIDKey = "cf_default_bucket_origin_access_request_policy_id"
 )
 
 func init() {
@@ -65,6 +69,18 @@ func init() {
 	viper.SetDefault(cfRoute53HostedZoneKey, "")
 	viper.SetDefault(cfRoute53TxtOwnerValKey, "")
 	viper.SetDefault(cfCustomTagsKey, "")
+	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+	// Default is caching disabled
+	viper.SetDefault(cfDefaultCachingPolicyIDKey, "4135ea2d-6df8-44a3-9df3-4b5a84be39ad")
+	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-all-viewer
+	// Default is all viewer
+	viper.SetDefault(cfDefaultCacheRequestPolicyIDKey, "216adef6-5c7f-47e4-b989-5492eafa07d3")
+	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-all-viewer
+	// Default is all viewer
+	viper.SetDefault(cfDefaultPublicOriginAccessRequestPolicyIDKey, "216adef6-5c7f-47e4-b989-5492eafa07d3")
+	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-cors-s3
+	// Default is CORS S3
+	viper.SetDefault(cfDefaultBucketOriginAccessRequestPolicyIDKey, "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf")
 	viper.AutomaticEnv()
 }
 
@@ -106,6 +122,14 @@ type Config struct {
 	CloudFrontRoute53TxtOwnerValue string
 	// CloudFrontCustomTags all custom tags that will be persisted to distribution.
 	CloudFrontCustomTags map[string]string
+	// CloudFrontDefaultCachingPolicyID is the default caching policy ID.
+	CloudFrontDefaultCachingPolicyID string
+	// CloudFrontDefaultDistributionRequestPolicyID is the default request policy for distributions.
+	CloudFrontDefaultCacheRequestPolicyID string
+	// CloudFrontDefaultPublicOriginAccessRequestPolicyID is the default request policy for public origin access.
+	CloudFrontDefaultPublicOriginAccessRequestPolicyID string
+	// CloudFrontDefaultBucketOriginAccessRequestPolicyID is the default request policy for bucket origin access.
+	CloudFrontDefaultBucketOriginAccessRequestPolicyID string
 }
 
 // Parse environment variables into a config struct
@@ -117,23 +141,27 @@ func Parse() Config {
 	}
 
 	return Config{
-		LogLevel:                       logLvl,
-		DevMode:                        devMode,
-		DefaultOriginDomain:            viper.GetString(cfDefaultOriginDomainKey),
-		CDNClass:                       viper.GetString(CDNClassKey),
-		DeletionEnabled:                viper.GetBool(enableDeletionKey),
-		CloudFrontPriceClass:           viper.GetString(cfPriceClassKey),
-		CloudFrontWAFARN:               viper.GetString(cfWafArnKey),
-		CloudFrontCustomSSLCertARN:     viper.GetString(cfCustomSSLCertArnKey),
-		CloudFrontSecurityPolicy:       viper.GetString(cfSecurityPolicyKey),
-		CloudFrontEnableLogging:        viper.GetBool(cfEnableLoggingKey),
-		CloudFrontS3BucketLog:          viper.GetString(cfS3BucketLogKey),
-		CloudFrontEnableIPV6:           viper.GetBool(cfEnableIPV6Key),
-		CloudFrontDescriptionTemplate:  viper.GetString(cfDescriptionTemplateKey),
-		CloudFrontRoute53CreateAlias:   viper.GetBool(cfAliasCreationKey),
-		CloudFrontRoute53HostedZoneID:  viper.GetString(cfRoute53HostedZoneKey),
-		CloudFrontRoute53TxtOwnerValue: viper.GetString(cfRoute53TxtOwnerValKey),
-		CloudFrontCustomTags:           extractTags(viper.GetString(cfCustomTagsKey)),
+		LogLevel:                              logLvl,
+		DevMode:                               devMode,
+		DefaultOriginDomain:                   viper.GetString(cfDefaultOriginDomainKey),
+		CDNClass:                              viper.GetString(CDNClassKey),
+		DeletionEnabled:                       viper.GetBool(enableDeletionKey),
+		CloudFrontPriceClass:                  viper.GetString(cfPriceClassKey),
+		CloudFrontWAFARN:                      viper.GetString(cfWafArnKey),
+		CloudFrontCustomSSLCertARN:            viper.GetString(cfCustomSSLCertArnKey),
+		CloudFrontSecurityPolicy:              viper.GetString(cfSecurityPolicyKey),
+		CloudFrontEnableLogging:               viper.GetBool(cfEnableLoggingKey),
+		CloudFrontS3BucketLog:                 viper.GetString(cfS3BucketLogKey),
+		CloudFrontEnableIPV6:                  viper.GetBool(cfEnableIPV6Key),
+		CloudFrontDescriptionTemplate:         viper.GetString(cfDescriptionTemplateKey),
+		CloudFrontRoute53CreateAlias:          viper.GetBool(cfAliasCreationKey),
+		CloudFrontRoute53HostedZoneID:         viper.GetString(cfRoute53HostedZoneKey),
+		CloudFrontRoute53TxtOwnerValue:        viper.GetString(cfRoute53TxtOwnerValKey),
+		CloudFrontCustomTags:                  extractTags(viper.GetString(cfCustomTagsKey)),
+		CloudFrontDefaultCachingPolicyID:      viper.GetString(cfDefaultCachingPolicyIDKey),
+		CloudFrontDefaultCacheRequestPolicyID: viper.GetString(cfDefaultCacheRequestPolicyIDKey),
+		CloudFrontDefaultPublicOriginAccessRequestPolicyID: viper.GetString(cfDefaultPublicOriginAccessRequestPolicyIDKey),
+		CloudFrontDefaultBucketOriginAccessRequestPolicyID: viper.GetString(cfDefaultBucketOriginAccessRequestPolicyIDKey),
 	}
 }
 

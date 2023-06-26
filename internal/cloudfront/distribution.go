@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
@@ -113,16 +114,18 @@ type DistributionBuilder struct {
 	tags                map[string]string
 	tls                 tlsConfig
 	webACLID            string
+	cfg                 config.Config
 }
 
 // NewDistributionBuilder takes required arguments for a distribution and returns a DistributionBuilder
-func NewDistributionBuilder(defaultOriginDomain, description, priceClass, group, defaultWebACLID string) DistributionBuilder {
+func NewDistributionBuilder(group string, cfg config.Config) DistributionBuilder {
 	return DistributionBuilder{
-		description:         description,
-		defaultOriginDomain: defaultOriginDomain,
-		priceClass:          priceClass,
+		description:         renderDescription(cfg.CloudFrontDescriptionTemplate, group),
+		defaultOriginDomain: cfg.DefaultOriginDomain,
+		priceClass:          cfg.CloudFrontPriceClass,
 		group:               group,
-		webACLID:            defaultWebACLID,
+		webACLID:            cfg.CloudFrontWAFARN,
+		cfg:                 cfg,
 	}
 }
 
@@ -200,7 +203,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 		ARN:              b.arn,
 		Address:          b.address,
 		CustomOrigins:    b.customOrigins,
-		DefaultOrigin:    NewOriginBuilder("dist", b.defaultOriginDomain, OriginAccessPublic).Build(),
+		DefaultOrigin:    NewOriginBuilder("dist", b.defaultOriginDomain, OriginAccessPublic, b.cfg).Build(),
 		Description:      b.description,
 		Group:            b.group,
 		PriceClass:       b.priceClass,
