@@ -33,14 +33,16 @@ type Entry struct {
 
 // Aliases represents all aliases which should be bound to a CF distribution
 type Aliases struct {
-	Target  string
-	Entries []Entry
+	Target       string
+	HostedZoneID string
+	Entries      []Entry
 }
 
 // NewAliases builds a new Aliases
-func NewAliases(target string, domains []string, ipv6Enabled bool) Aliases {
+func NewAliases(target, hostedZoneID string, domains []string, ipv6Enabled bool) Aliases {
 	aliases := Aliases{
-		Target: target,
+		Target:       target,
+		HostedZoneID: hostedZoneID,
 	}
 
 	types := []string{awsroute53.RRTypeA}

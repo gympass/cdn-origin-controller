@@ -33,7 +33,7 @@ type ingressPredicate struct{}
 var _ predicate.Predicate = &ingressPredicate{}
 
 func (p ingressPredicate) Create(event event.CreateEvent) bool {
-	cdnClassOK := k8s.CDNClassMatches(k8s.CDNClassAnnotationValue(event.Object))
+	cdnClassOK := k8s.CDNClassNotEmpty(k8s.CDNClassAnnotationValue(event.Object))
 	finalizerOK := k8s.HasFinalizer(event.Object)
 	groupOK := k8s.HasGroupAnnotation(event.Object)
 	lbOK := k8s.HasLoadBalancer(event.Object)
@@ -43,7 +43,7 @@ func (p ingressPredicate) Create(event event.CreateEvent) bool {
 }
 
 func (p ingressPredicate) Delete(event event.DeleteEvent) bool {
-	cdnClassOK := k8s.CDNClassMatches(k8s.CDNClassAnnotationValue(event.Object))
+	cdnClassOK := k8s.CDNClassNotEmpty(k8s.CDNClassAnnotationValue(event.Object))
 	finalizerOK := k8s.HasFinalizer(event.Object)
 	groupOK := k8s.HasGroupAnnotation(event.Object)
 	lbOK := k8s.HasLoadBalancer(event.Object)
@@ -53,7 +53,7 @@ func (p ingressPredicate) Delete(event event.DeleteEvent) bool {
 }
 
 func (p ingressPredicate) Update(event event.UpdateEvent) bool {
-	cdnClassOK := k8s.CDNClassMatches(k8s.CDNClassAnnotationValue(event.ObjectNew))
+	cdnClassOK := k8s.CDNClassNotEmpty(k8s.CDNClassAnnotationValue(event.ObjectNew))
 	objectsAreEqual := reflect.DeepEqual(event.ObjectNew, event.ObjectOld)
 	finalizerOK := k8s.HasFinalizer(event.ObjectNew)
 	groupOK := k8s.HasGroupAnnotation(event.ObjectNew)

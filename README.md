@@ -45,22 +45,32 @@ The controller needs permission to manipulate the CloudFront distributions. A [s
 
 ## CDN Classes
 
-The controller has several [infrastructure configurations](#configuration). In order to support different controller configurations running in the same cluster it's possible to make each of them responsible for a class. This is done using the `CDN_CLASS` environment variable.
+The controller has several [infrastructure configurations](#configuration). In order to support different controller configurations running in the same cluster it's possible to make each of them responsible for a class. This is done using the `CDNClass` Kubernetes kind.
 
-For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need to set different values for the `CF_ROUTE53_HOSTED_ZONE_ID` variable. Additionally, you need each deployment to have a unique CDN class, so you can tell them apart.
+For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID` and `certificateArn` parameters.
 
-For this example, let's say the first deployment will have:
+For this example, for the first kind we should have:
 
-```bash
-CF_ROUTE53_HOSTED_ZONE_ID="<ID of the foo.com zone>"
-CDN_CLASS="foo-com"
+```yaml
+apiVersion: cdn.gympass.com/v1alpha1
+kind: CDNClass
+metadata:
+  name: foo-com
+spec:
+  certificateArn: "<Certificate ARN from given hosted zone>"
+  hostedZoneID: "<foo-com hosted zone ID>"
 ```
 
-While the other deployment is defined with:
+While the other kind is defined with:
 
-```bash
-CF_ROUTE53_HOSTED_ZONE_ID="<ID of the bar.com zone>"
-CDN_CLASS="bar-com"
+```yaml
+apiVersion: cdn.gympass.com/v1alpha1
+kind: CDNClass
+metadata:
+  name: bar-com
+spec:
+  certificateArn: "<Certificate ARN from given hosted zone>"
+  hostedZoneID: "<bar-com hosted zone ID>"
 ```
 
 In order for Ingresses to be part of one class or the other they must have cdn class annotation set the respective value.

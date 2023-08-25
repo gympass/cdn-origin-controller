@@ -74,26 +74,25 @@ type AliasRepositoryTestSuite struct {
 
 func (s *AliasRepositoryTestSuite) TestUpsert_NoEntriesOnAliases() {
 	r := route53.NewAliasRepository(&awsClientMock{}, config.Config{})
-	a := route53.NewAliases("target.foo.bar.", nil, false)
+	a := route53.NewAliases("target.foo.bar.", "zone id", nil, false)
 	s.NoError(r.Upsert(a))
 }
 
 func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingAddressRecords() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
 	mockClient.On("ListResourceRecordSets", expectedListRRSInputForAddresses).Return(errors.New("mock err")).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Upsert(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "mock err")
@@ -102,12 +101,11 @@ func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingAddressRecords() {
 func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingTXTRecord() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -119,7 +117,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingTXTRecord() {
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -127,7 +125,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingTXTRecord() {
 	mockClient.On("ListResourceRecordSets", expectedListRRSInputForTXT).Return(errors.New("mock err")).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Upsert(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "mock err")
@@ -136,12 +134,11 @@ func (s *AliasRepositoryTestSuite) TestUpsert_FailureListingTXTRecord() {
 func (s *AliasRepositoryTestSuite) TestUpsert_EntriesDontExist() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -153,7 +150,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_EntriesDontExist() {
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -200,19 +197,18 @@ func (s *AliasRepositoryTestSuite) TestUpsert_EntriesDontExist() {
 	mockClient.On("ChangeResourceRecordSets", expectedChangeRRSInput).Return(noError).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.NoError(repo.Upsert(aliases))
 }
 
 func (s *AliasRepositoryTestSuite) TestUpsert_TXTExists_HasOtherValues() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -224,7 +220,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_TXTExists_HasOtherValues() {
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -285,19 +281,18 @@ func (s *AliasRepositoryTestSuite) TestUpsert_TXTExists_HasOtherValues() {
 	mockClient.On("ChangeResourceRecordSets", expectedChangeRRSInput).Return(noError).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.NoError(repo.Upsert(aliases))
 }
 
 func (s *AliasRepositoryTestSuite) TestUpsert_AddressRecordsExist_OwnedByNoClass() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -320,7 +315,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_AddressRecordsExist_OwnedByNoClass
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -332,7 +327,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_AddressRecordsExist_OwnedByNoClass
 	mockClient.ExpectedListRSSOutForTXTRecord = expectedListRRSOutputForTXT
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Upsert(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "address record (A or AAAA) exists but is not managed by the controller")
@@ -341,12 +336,11 @@ func (s *AliasRepositoryTestSuite) TestUpsert_AddressRecordsExist_OwnedByNoClass
 func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_OwnedByAnotherClass() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -369,7 +363,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_OwnedByAnotherClass()
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -392,7 +386,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_OwnedByAnotherClass()
 	mockClient.ExpectedListRSSOutForTXTRecord = expectedListRRSOutputForTXT
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Upsert(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "is managed by another CDN class")
@@ -401,12 +395,11 @@ func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_OwnedByAnotherClass()
 func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_AlreadyOwnedByThisClass() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -429,7 +422,7 @@ func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_AlreadyOwnedByThisCla
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -493,32 +486,31 @@ func (s *AliasRepositoryTestSuite) TestUpsert_RecordsExist_AlreadyOwnedByThisCla
 	mockClient.On("ChangeResourceRecordSets", expectedChangeRRSInput).Return(noError).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.NoError(repo.Upsert(aliases))
 }
 
 func (s *AliasRepositoryTestSuite) TestDelete_NoEntriesOnAliases() {
 	r := route53.NewAliasRepository(&awsClientMock{}, config.Config{})
-	a := route53.NewAliases("target.foo.bar.", nil, false)
+	a := route53.NewAliases("target.foo.bar.", "zone id", nil, false)
 	s.NoError(r.Delete(a))
 }
 
 func (s *AliasRepositoryTestSuite) TestDelete_FailureListingRecords() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
 	mockClient.On("ListResourceRecordSets", expectedListRRSInputForAddresses).Return(errors.New("mock err")).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Delete(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "mock err")
@@ -527,12 +519,11 @@ func (s *AliasRepositoryTestSuite) TestDelete_FailureListingRecords() {
 func (s *AliasRepositoryTestSuite) TestDelete_RecordsDontExist() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -544,7 +535,7 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsDontExist() {
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -556,19 +547,18 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsDontExist() {
 	mockClient.ExpectedListRSSOutForTXTRecord = expectedListRRSOutputForTXT
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.EqualError(repo.Delete(aliases), "ownership TXT record (alias.foo.bar.) not found, can't delete address records")
 }
 
 func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasNoAdditionalValues() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -591,7 +581,7 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasNoAdditionalVal
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -649,19 +639,18 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasNoAdditionalVal
 	mockClient.On("ChangeResourceRecordSets", expectedChangeRRSInput).Return(noError).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.NoError(repo.Delete(aliases))
 }
 
 func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasAdditionalValues() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -684,7 +673,7 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasAdditionalValue
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -745,19 +734,18 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTHasAdditionalValue
 	mockClient.On("ChangeResourceRecordSets", expectedChangeRRSInput).Return(noError).Once()
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	s.NoError(repo.Delete(aliases))
 }
 
 func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTNotOwnedByThisClass() {
 	cfg := config.Config{
 		CloudFrontRoute53TxtOwnerValue: "owner value",
-		CloudFrontRoute53HostedZoneID:  "zone id",
 	}
 	mockClient := &awsClientMock{}
 
 	expectedListRRSInputForAddresses := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -780,7 +768,7 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTNotOwnedByThisClas
 	mockClient.ExpectedListRRSOutForAddressRecords = expectedListRRSOutputForAddresses
 
 	expectedListRRSInputForTXT := &awsroute53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(cfg.CloudFrontRoute53HostedZoneID),
+		HostedZoneId:    aws.String("zone id"),
 		StartRecordName: aws.String("alias.foo.bar."),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(awsroute53.RRTypeTxt),
@@ -803,7 +791,7 @@ func (s *AliasRepositoryTestSuite) TestDelete_RecordsExist_TXTNotOwnedByThisClas
 	mockClient.ExpectedListRSSOutForTXTRecord = expectedListRRSOutputForTXT
 
 	repo := route53.NewAliasRepository(mockClient, cfg)
-	aliases := route53.NewAliases("target.foo.bar.", []string{"alias.foo.bar."}, false)
+	aliases := route53.NewAliases("target.foo.bar.", "zone id", []string{"alias.foo.bar."}, false)
 	err := repo.Delete(aliases)
 	s.Error(err)
 	s.Contains(err.Error(), "is managed by another CDN class")

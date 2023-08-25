@@ -81,7 +81,7 @@ func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing
 	errs = multierror.Append(errs, err)
 
 	if s.Config.CloudFrontRoute53CreateAlias {
-		err := s.syncAliases(cdnStatus, existingDist)
+		err := s.syncAliases(cdnStatus, existingDist, reconciling.Class)
 		errs = multierror.Append(errs, err)
 	}
 
@@ -256,8 +256,8 @@ func (s *Service) deleteCDNStatus(ctx context.Context, cdnStatus *v1alpha1.CDNSt
 	return nil
 }
 
-func (s *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution) error {
-	upserting, deleting := s.newAliases(dist, cdnStatus)
+func (s *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution, class k8s.CDNClass) error {
+	upserting, deleting := s.newAliases(dist, cdnStatus, class)
 
 	errUpsert := s.AliasRepo.Upsert(upserting)
 	if errUpsert == nil {
@@ -276,7 +276,7 @@ func (s *Service) syncAliases(cdnStatus *v1alpha1.CDNStatus, dist Distribution) 
 	return result.ErrorOrNil()
 }
 
-func (s *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus) (toUpsert route53.Aliases, toDelete route53.Aliases) {
+func (s *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus, class k8s.CDNClass) (route53.Aliases, route53.Aliases) {
 	var deleting []string
 	if status.Status.DNS != nil {
 		desiredDomains := route53.NormalizeDomains(dist.AlternateDomains)
@@ -288,7 +288,10 @@ func (s *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus) (toU
 		deleting = []string{}
 	}
 
-	return route53.NewAliases(dist.Address, dist.AlternateDomains, dist.IPv6Enabled), route53.NewAliases(dist.Address, deleting, dist.IPv6Enabled)
+	toUpsert := route53.NewAliases(dist.Address, class.HostedZoneID, dist.AlternateDomains, dist.IPv6Enabled)
+	toDelete := route53.NewAliases(dist.Address, class.HostedZoneID, deleting, dist.IPv6Enabled)
+
+	return toUpsert, toDelete
 }
 
 func getDeletions(desiredDomains, currentDomains []string) []string {

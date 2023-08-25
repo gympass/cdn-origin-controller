@@ -55,14 +55,13 @@ type AliasRepository interface {
 
 type repository struct {
 	awsClient         route53iface.Route53API
-	hostedZoneID      string
 	ownershipTXTValue string
 }
 
 // NewAliasRepository builds a new AliasRepository
 func NewAliasRepository(awsClient route53iface.Route53API, config config.Config) AliasRepository {
 	txtValue := fmt.Sprintf(`"%s=%s"`, txtOwnerKey, config.CloudFrontRoute53TxtOwnerValue)
-	return &repository{awsClient: awsClient, hostedZoneID: config.CloudFrontRoute53HostedZoneID, ownershipTXTValue: txtValue}
+	return &repository{awsClient: awsClient, ownershipTXTValue: txtValue}
 }
 
 func (r repository) Upsert(aliases Aliases) error {
@@ -72,7 +71,7 @@ func (r repository) Upsert(aliases Aliases) error {
 
 	var changes []*route53.Change
 	for _, e := range aliases.Entries {
-		existingRS, err := r.existingRecordSets(e)
+		existingRS, err := r.existingRecordSets(aliases.HostedZoneID, e)
 		if err != nil {
 			return fmt.Errorf("generating filtered record sets: %v", err)
 		}
@@ -86,7 +85,7 @@ func (r repository) Upsert(aliases Aliases) error {
 		changes = append(changes, r.newTXTChangeForUpsert(e.Name, existingTXTRecords...))
 	}
 
-	return r.requestChanges(changes, "Upserting Alias for CloudFront distribution managed by cdn-origin-controller")
+	return r.requestChanges(changes, aliases.HostedZoneID, "Upserting Alias for CloudFront distribution managed by cdn-origin-controller")
 }
 
 func (r repository) Delete(aliases Aliases) error {
@@ -98,7 +97,7 @@ func (r repository) Delete(aliases Aliases) error {
 
 	var changes []*route53.Change
 	for _, e := range aliases.Entries {
-		recordSets, err := r.existingRecordSets(e)
+		recordSets, err := r.existingRecordSets(aliases.HostedZoneID, e)
 		if err != nil {
 			return err
 		}
@@ -117,29 +116,29 @@ func (r repository) Delete(aliases Aliases) error {
 		changes = append(changes, r.newTXTChangeForDelete(e.Name, recordSets.txtRecord.ResourceRecords...))
 	}
 
-	return r.requestChanges(changes, "Deleting Alias for CloudFront distribution managed by cdn-origin-controller")
+	return r.requestChanges(changes, aliases.HostedZoneID, "Deleting Alias for CloudFront distribution managed by cdn-origin-controller")
 }
 
-func (r repository) requestChanges(changes []*route53.Change, comment string) error {
+func (r repository) requestChanges(changes []*route53.Change, hostedZoneID, comment string) error {
 	input := &route53.ChangeResourceRecordSetsInput{
 		ChangeBatch: &route53.ChangeBatch{
 			Changes: changes,
 			Comment: aws.String(comment),
 		},
-		HostedZoneId: aws.String(r.hostedZoneID),
+		HostedZoneId: aws.String(hostedZoneID),
 	}
 
 	_, err := r.awsClient.ChangeResourceRecordSets(input)
 	return err
 }
 
-func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceRecordSet, error) {
-	sets, err := r.aliasResourceRecordsByEntry(entry)
+func (r repository) resourceRecordSetsByEntry(hostedZoneID string, entry Entry) ([]*route53.ResourceRecordSet, error) {
+	sets, err := r.aliasResourceRecordsByEntry(hostedZoneID, entry)
 	if err != nil {
 		return nil, err
 	}
 
-	txtRS, err := r.txtResourceRecordSetByEntry(entry)
+	txtRS, err := r.txtResourceRecordSetByEntry(hostedZoneID, entry)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +150,9 @@ func (r repository) resourceRecordSetsByEntry(entry Entry) ([]*route53.ResourceR
 	return sets, nil
 }
 
-func (r repository) aliasResourceRecordsByEntry(entry Entry) ([]*route53.ResourceRecordSet, error) {
+func (r repository) aliasResourceRecordsByEntry(hostedZoneID string, entry Entry) ([]*route53.ResourceRecordSet, error) {
 	input := &route53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(r.hostedZoneID),
+		HostedZoneId:    aws.String(hostedZoneID),
 		StartRecordName: aws.String(entry.Name),
 		MaxItems:        aws.String(numberOfSupportedRecordTypes),
 	}
@@ -166,9 +165,9 @@ func (r repository) aliasResourceRecordsByEntry(entry Entry) ([]*route53.Resourc
 	return output.ResourceRecordSets, nil
 }
 
-func (r repository) txtResourceRecordSetByEntry(entry Entry) (*route53.ResourceRecordSet, error) {
+func (r repository) txtResourceRecordSetByEntry(hostedZoneID string, entry Entry) (*route53.ResourceRecordSet, error) {
 	input := &route53.ListResourceRecordSetsInput{
-		HostedZoneId:    aws.String(r.hostedZoneID),
+		HostedZoneId:    aws.String(hostedZoneID),
 		StartRecordName: aws.String(entry.Name),
 		MaxItems:        aws.String("1"),
 		StartRecordType: aws.String(route53.RRTypeTxt),
@@ -203,8 +202,8 @@ func (r repository) filterRecordSets(entry Entry, recordSets []*route53.Resource
 	return filtered
 }
 
-func (r repository) existingRecordSets(e Entry) (filteredRecordSets, error) {
-	allRecordSets, err := r.resourceRecordSetsByEntry(e)
+func (r repository) existingRecordSets(hostedZoneID string, e Entry) (filteredRecordSets, error) {
+	allRecordSets, err := r.resourceRecordSetsByEntry(hostedZoneID, e)
 	if err != nil {
 		return filteredRecordSets{}, err
 	}
