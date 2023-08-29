@@ -14,6 +14,22 @@ rules:
 - apiGroups:
   - cdn.gympass.com
   resources:
+  - cdnclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnclasses/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cdn.gympass.com
+  resources:
   - cdnstatuses
   verbs:
   - create

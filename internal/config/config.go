@@ -33,7 +33,6 @@ const (
 	cfDefaultOriginDomainKey                      = "cf_default_origin_domain"
 	cfPriceClassKey                               = "cf_price_class"
 	cfWafArnKey                                   = "cf_aws_waf"
-	cfCustomSSLCertArnKey                         = "cf_custom_ssl_cert"
 	cfSecurityPolicyKey                           = "cf_security_policy"
 	cfEnableLoggingKey                            = "cf_enable_logging"
 	cfS3BucketLogKey                              = "cf_s3_bucket_log"
@@ -55,7 +54,6 @@ func init() {
 	viper.SetDefault(cfDefaultOriginDomainKey, "")
 	viper.SetDefault(cfPriceClassKey, awscloudfront.PriceClassPriceClassAll)
 	viper.SetDefault(cfWafArnKey, "")
-	viper.SetDefault(cfCustomSSLCertArnKey, "")
 	viper.SetDefault(cfSecurityPolicyKey, "")
 	viper.SetDefault(cfEnableLoggingKey, "false")
 	viper.SetDefault(cfS3BucketLogKey, "")
@@ -94,8 +92,6 @@ type Config struct {
 	CloudFrontPriceClass string
 	// CloudFrontWAFARN the Web ACL ARN.
 	CloudFrontWAFARN string
-	// CloudFrontCustomSSLCertARN the ACM certificate ARN.
-	CloudFrontCustomSSLCertARN string
 	// CloudFrontSecurityPolicy the minimum SSL/TLS protocol that CloudFront can use to communicate with viewers.
 	// ref: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cloudfront-distribution-viewercertificate.html
 	CloudFrontSecurityPolicy string
@@ -138,7 +134,6 @@ func Parse() Config {
 		DeletionEnabled:                                    viper.GetBool(enableDeletionKey),
 		CloudFrontPriceClass:                               viper.GetString(cfPriceClassKey),
 		CloudFrontWAFARN:                                   viper.GetString(cfWafArnKey),
-		CloudFrontCustomSSLCertARN:                         viper.GetString(cfCustomSSLCertArnKey),
 		CloudFrontSecurityPolicy:                           viper.GetString(cfSecurityPolicyKey),
 		CloudFrontEnableLogging:                            viper.GetBool(cfEnableLoggingKey),
 		CloudFrontS3BucketLog:                              viper.GetString(cfS3BucketLogKey),
