@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
-	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
@@ -68,10 +67,6 @@ var (
 		return i
 	}()
 )
-
-func (s *PredicateSuite) SetupTest() {
-	viper.Set(config.CDNClassKey, "default")
-}
 
 func (s *PredicateSuite) TearDownTest() {
 	viper.Reset()

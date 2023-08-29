@@ -27,8 +27,6 @@ import (
 )
 
 const (
-	// CDNClassKey is the env var key that controls class
-	CDNClassKey                                   = "cdn_class"
 	logLevelKey                                   = "log_level"
 	devModeKey                                    = "dev_mode"
 	enableDeletionKey                             = "enable_deletion"
@@ -54,7 +52,6 @@ func init() {
 	viper.SetDefault(logLevelKey, "info")
 	viper.SetDefault(devModeKey, "false")
 	viper.SetDefault(enableDeletionKey, "false")
-	viper.SetDefault(CDNClassKey, "default")
 	viper.SetDefault(cfDefaultOriginDomainKey, "")
 	viper.SetDefault(cfPriceClassKey, awscloudfront.PriceClassPriceClassAll)
 	viper.SetDefault(cfWafArnKey, "")
@@ -92,8 +89,6 @@ type Config struct {
 	DeletionEnabled bool
 	// DefaultOriginDomain represents a valid domain to define in default origin.
 	DefaultOriginDomain string
-	// CDNClass represents the set of resources managed by this deployment of the controller
-	CDNClass string
 	// CloudFrontPriceClass determines how many edge locations CloudFront will use for your distribution.
 	// ref: https://docs.aws.amazon.com/sdk-for-go/api/service/cloudfront/
 	CloudFrontPriceClass string
@@ -157,11 +152,6 @@ func Parse() Config {
 		CloudFrontDefaultPublicOriginAccessRequestPolicyID: viper.GetString(cfDefaultPublicOriginAccessRequestPolicyIDKey),
 		CloudFrontDefaultBucketOriginAccessRequestPolicyID: viper.GetString(cfDefaultBucketOriginAccessRequestPolicyIDKey),
 	}
-}
-
-// CDNClass returns the configured CDN class
-func CDNClass() string {
-	return viper.GetString(CDNClassKey)
 }
 
 func extractTags(customTags string) map[string]string {

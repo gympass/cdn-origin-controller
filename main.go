@@ -68,6 +68,10 @@ func init() {
 	_ = godotenv.Load()
 }
 
+const (
+	leaderElectionID = "cdn-origin.gympass.com"
+)
+
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
@@ -96,7 +100,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       leaderElectionID(cfg.CDNClass),
+		LeaderElectionID:       leaderElectionID,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -121,10 +125,6 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-func leaderElectionID(cdnClass string) string {
-	return fmt.Sprintf("%s.cdn-origin.gympass.com", cdnClass)
 }
 
 func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
