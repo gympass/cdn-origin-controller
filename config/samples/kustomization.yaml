@@ -1,4 +1,5 @@
 ## Append samples you want in your CSV to this file as resources ##
 resources:
 - cdn_v1alpha1_cdnstatus.yaml
+- cdn_v1alpha1_cdnclass.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

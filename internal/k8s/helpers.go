@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
@@ -33,9 +32,9 @@ func CDNClassAnnotationValue(object client.Object) string {
 	return object.GetAnnotations()[CDNClassAnnotation]
 }
 
-// CDNClassMatches returns whether the candidate class matches the one being managed by this controller
-func CDNClassMatches(candidate string) bool {
-	return candidate == config.CDNClass()
+// CDNClassNotEmpty returns a boolean indicating if CDNClass is available
+func CDNClassNotEmpty(candidate string) bool {
+	return len(candidate) > 0
 }
 
 // HasFinalizer returns whether a given Ingress has a finalizer managed by this controller

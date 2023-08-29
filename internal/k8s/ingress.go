@@ -71,6 +71,7 @@ type CDNIngress struct {
 	WebACLARN            string
 	IsBeingRemoved       bool
 	OriginAccess         string
+	Class                CDNClass
 	Tags                 map[string]string
 }
 
@@ -107,7 +108,7 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 }
 
 // NewCDNIngressFromV1 creates a new CDNIngress from a v1 Ingress
-func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
+func NewCDNIngressFromV1(ing *networkingv1.Ingress, class CDNClass) (CDNIngress, error) {
 	tags, err := tagsAnnotationValue(ing)
 	if err != nil {
 		return CDNIngress{}, err
@@ -127,6 +128,7 @@ func NewCDNIngressFromV1(ing *networkingv1.Ingress) (CDNIngress, error) {
 		AlternateDomainNames: alternateDomainNames(ing),
 		WebACLARN:            webACLARN(ing),
 		IsBeingRemoved:       IsBeingRemovedFromDesiredState(ing),
+		Class:                class,
 		Tags:                 tags,
 		OriginAccess:         CFUserOriginAccessPublic,
 	}

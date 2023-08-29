@@ -153,14 +153,16 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."
 
 	setupLog.V(1).Info(networkingv1.SchemeGroupVersion.String() + ingressVersionAvailableMsg)
-	cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient())
-	mustSetupV1Controller(mgr, cfService)
+	cdnClassFetcher := k8s.NewCDNClassFetcher(mgr.GetClient())
+	cfService.Fetcher = k8s.NewIngressFetcherV1(mgr.GetClient(), cdnClassFetcher)
+	mustSetupV1Controller(mgr, cfService, cdnClassFetcher)
 }
 
-func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service) {
+func mustSetupV1Controller(mgr manager.Manager, ir *cloudfront.Service, cdnClassFetcher k8s.CDNClassFetcher) {
 	v1Reconciler := controllers.V1Reconciler{
 		Client:            mgr.GetClient(),
 		CloudFrontService: ir,
+		CDNClassFetcher:   cdnClassFetcher,
 	}
 
 	if err := v1Reconciler.SetupWithManager(mgr); err != nil {

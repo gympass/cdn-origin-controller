@@ -34,6 +34,16 @@ import (
 	"github.com/Gympass/cdn-origin-controller/internal/test"
 )
 
+type CDNClassFetcherMock struct {
+	mock.Mock
+	ExpectedCDNClass CDNClass
+}
+
+func (c *CDNClassFetcherMock) FetchByName(ctx context.Context, name string) (CDNClass, error) {
+	args := c.Called(ctx, name)
+	return c.ExpectedCDNClass, args.Error(0)
+}
+
 func TestRunIngressFetcherV1TestSuite(t *testing.T) {
 	t.Parallel()
 	suite.Run(t, &IngressFetcherV1TestSuite{})
@@ -55,7 +65,11 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
 		}).
 		Build()
 
-	fetcher := NewIngressFetcherV1(client)
+	cdnClassFetcher := &CDNClassFetcherMock{}
+	cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
+	cdnClassFetcher.ExpectedCDNClass = CDNClass{}
+
+	fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
 	predicate := func(ing CDNIngress) bool {
 		return ing.Group == "group"
 	}
@@ -70,7 +84,11 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureToListIngresses() {
 	client := &test.MockK8sClient{}
 	client.On("List", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err"))
 
-	fetcher := NewIngressFetcherV1(client)
+	cdnClassFetcher := &CDNClassFetcherMock{}
+	cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
+	cdnClassFetcher.ExpectedCDNClass = CDNClass{}
+
+	fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
 	predicate := func(CDNIngress) bool { return false }
 
 	gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
@@ -189,12 +207,16 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 			}).
 			Build()
 
-		fetcher := NewIngressFetcherV1(client)
+		cdnClassFetcher := &CDNClassFetcherMock{}
+		cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
+		cdnClassFetcher.ExpectedCDNClass = CDNClass{}
+
+		fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
 		predicate := func(ing CDNIngress) bool {
 			return ing.Group == "group"
 		}
 
-		expectedParentCDNIng, err := NewCDNIngressFromV1(parentIng)
+		expectedParentCDNIng, err := NewCDNIngressFromV1(parentIng, CDNClass{})
 		s.NoError(err, "test: %s", tc.name)
 
 		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)
@@ -243,7 +265,11 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 			}).
 			Build()
 
-		fetcher := NewIngressFetcherV1(client)
+		cdnClassFetcher := &CDNClassFetcherMock{}
+		cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
+		cdnClassFetcher.ExpectedCDNClass = CDNClass{}
+
+		fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
 		predicate := func(ing CDNIngress) bool { return true }
 
 		got, err := fetcher.FetchBy(context.Background(), predicate)

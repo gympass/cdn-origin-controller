@@ -235,7 +235,7 @@ func (r DistRepository) runPostUpdateOperations(d Distribution, oacsToBeDeleted 
 	d.ID = *updateOut.Distribution.Id
 	d.ARN = *updateOut.Distribution.ARN
 	d.Address = *updateOut.Distribution.DomainName
-	return Distribution{}, nil
+	return d, nil
 }
 
 func (r DistRepository) distributionTags(d Distribution) *awscloudfront.Tags {

@@ -1,0 +1,13 @@
+{{ if gt (.Values.cdnClasses | len) 0 }}
+{{- range .Values.cdnClasses }}
+---
+apiVersion: cdn.gympass.com/v1alpha1
+kind: CDNClass
+metadata:
+  name: {{ .name }}
+spec:
+  certificateArn: {{ .certificateArn }}
+  hostedZoneID: {{ .hostedZoneID }}
+{{- end }}
+{{ end }}
+

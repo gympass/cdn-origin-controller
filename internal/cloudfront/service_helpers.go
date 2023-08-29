@@ -40,14 +40,13 @@ func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN strin
 		b = b.WithOrigin(newOrigin(ing, cfg))
 		b = b.WithAlternateDomains(ing.AlternateDomainNames)
 		b = b.AppendTags(ing.Tags)
+		if len(ing.Class.CertificateArn) > 0 && len(cfg.CloudFrontSecurityPolicy) > 0 {
+			b = b.WithTLS(ing.Class.CertificateArn, cfg.CloudFrontSecurityPolicy)
+		}
 	}
 
 	if cfg.CloudFrontEnableIPV6 {
 		b = b.WithIPv6()
-	}
-
-	if len(cfg.CloudFrontCustomSSLCertARN) > 0 && len(cfg.CloudFrontSecurityPolicy) > 0 {
-		b = b.WithTLS(cfg.CloudFrontCustomSSLCertARN, cfg.CloudFrontSecurityPolicy)
 	}
 
 	if cfg.CloudFrontEnableLogging && len(cfg.CloudFrontS3BucketLog) > 0 {
