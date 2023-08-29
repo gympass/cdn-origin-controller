@@ -55,7 +55,7 @@ func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithAlternativeDomainNames() {
 			},
 		},
 	}
-	ip, _ := NewCDNIngressFromV1(ing)
+	ip, _ := NewCDNIngressFromV1(ing, CDNClass{})
 	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.AlternateDomainNames)
 }
 
@@ -81,7 +81,7 @@ foo: bar
 		"foo":            "bar",
 	}
 
-	ip, _ := NewCDNIngressFromV1(ing)
+	ip, _ := NewCDNIngressFromV1(ing, CDNClass{})
 	s.Equal(expected, ip.Tags)
 }
 

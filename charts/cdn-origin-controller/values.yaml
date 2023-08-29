@@ -46,3 +46,8 @@ tolerations: []
 affinity: {}
 
 envs: {}
+
+cdnClasses: []
+# - name: ""
+#   certificateArn: ""
+#   hostedZoneID: ""

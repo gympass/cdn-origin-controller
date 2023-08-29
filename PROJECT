@@ -14,4 +14,12 @@ resources:
   kind: CDNStatus
   path: github.com/Gympass/cdn-origin-controller/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: gympass.com
+  group: cdn
+  kind: CDNClass
+  path: github.com/Gympass/cdn-origin-controller/api/v1alpha1
+  version: v1alpha1
 version: "3"

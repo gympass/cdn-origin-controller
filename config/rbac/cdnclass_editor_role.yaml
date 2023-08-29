@@ -1,0 +1,24 @@
+# permissions for end users to edit cdnclasses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cdnclass-editor-role
+rules:
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cdn.gympass.com
+  resources:
+  - cdnclasses/status
+  verbs:
+  - get

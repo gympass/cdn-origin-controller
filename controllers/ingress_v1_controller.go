@@ -39,6 +39,7 @@ type V1Reconciler struct {
 	client.Client
 
 	CloudFrontService *cloudfront.Service
+	CDNClassFetcher   k8s.CDNClassFetcher
 }
 
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -63,7 +64,13 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
-	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ingress)
+	cdnClassName := k8s.CDNClassAnnotationValue(ingress)
+	cdnClass, err := r.CDNClassFetcher.FetchByName(ctx, cdnClassName)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
+	}
+
+	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ingress, cdnClass)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
