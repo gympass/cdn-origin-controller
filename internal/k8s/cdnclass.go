@@ -19,10 +19,10 @@
 
 package k8s
 
-// CDNClass ...
+// CDNClass represents the domain object
 type CDNClass struct {
-	// CertificateArn ...
+	// CertificateArn of domain name
 	CertificateArn string
-	// HostedZoneID ...
+	// HostedZoneID of domain name
 	HostedZoneID string
 }

@@ -28,19 +28,20 @@ import (
 
 // CDNClassSpec defines the desired state of CDNClass
 type CDNClassSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
+	// CertificateArn represents a valid Certificate ARN for a domain name
 	// +kubebuilder:validation:Required
 	CertificateArn string `json:"certificateArn"`
+	// HostedZoneID represents a valid hosted zone ID for a domain name
 	// +kubebuilder:validation:Required
 	HostedZoneID string `json:"hostedZoneID"`
 }
 
 // CDNClassStatus defines the observed state of CDNClass
 type CDNClassStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// CDNClass resource condition
+	// +optional
+	// +nullable
+	Conditions []metav1.Condition `json:"conditions"`
 }
 
 //+kubebuilder:object:root=true

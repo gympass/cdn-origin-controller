@@ -48,11 +48,11 @@ func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bo
 		cdnClassName := CDNClassAnnotationValue(&k8sIng)
 		cdnClass, err := i.cdnClassFetcher.FetchByName(ctx, cdnClassName)
 		if err != nil {
-			return result, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
+			return []CDNIngress{}, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
 		}
 		ing, err := NewCDNIngressFromV1(&k8sIng, cdnClass)
 		if err != nil {
-			return result, err
+			return []CDNIngress{}, err
 		}
 		if predicate(ing) {
 			result = append(result, ing)
