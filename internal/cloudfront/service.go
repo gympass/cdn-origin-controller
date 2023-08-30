@@ -128,7 +128,7 @@ func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress) 
 }
 
 func (s *Service) desiredIngresses(ctx context.Context, reconciling k8s.CDNIngress) ([]k8s.CDNIngress, error) {
-	desiredIngresses, err := s.Fetcher.FetchBy(ctx, s.isPartOfDesiredState(reconciling))
+	desiredIngresses, err := s.Fetcher.FetchBy(ctx, reconciling.Class, s.isPartOfDesiredState(reconciling))
 	if err != nil {
 		return nil, fmt.Errorf("listing active Ingresses that belong to group %s: %v", reconciling.Group, err)
 	}

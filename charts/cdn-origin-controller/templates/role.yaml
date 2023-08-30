@@ -16,6 +16,7 @@ rules:
   resources:
   - cdnclasses
   verbs:
+  - patch
   - get
   - list
   - watch
@@ -24,6 +25,7 @@ rules:
   resources:
   - cdnclasses/status
   verbs:
+  - patch
   - get
   - list
   - watch

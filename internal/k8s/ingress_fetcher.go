@@ -27,5 +27,5 @@ import (
 type IngressFetcher interface {
 	// FetchBy fetches all Ingresses and returns a slice of the ones matching the given predicate.
 	// User-supplied origins present in annotations of these Ingresses are also included in the output.
-	FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error)
+	FetchBy(ctx context.Context, cdnClass CDNClass, predicate func(CDNIngress) bool) ([]CDNIngress, error)
 }
