@@ -24,7 +24,7 @@ jobs:
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
           version: latest
-          args: --enable=revive --timeout=2m
+          args: --enable=revive --timeout=4m
       - name: Set up Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v4
         with:
