@@ -28,16 +28,15 @@ import (
 )
 
 type ingFetcherV1 struct {
-	k8sClient       client.Client
-	cdnClassFetcher CDNClassFetcher
+	k8sClient client.Client
 }
 
 // NewIngressFetcherV1 creates an IngressFetcher that works with v1 Ingreses
-func NewIngressFetcherV1(k8sClient client.Client, cdnClassFetcher CDNClassFetcher) IngressFetcher {
-	return ingFetcherV1{k8sClient: k8sClient, cdnClassFetcher: cdnClassFetcher}
+func NewIngressFetcherV1(k8sClient client.Client) IngressFetcher {
+	return ingFetcherV1{k8sClient: k8sClient}
 }
 
-func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
+func (i ingFetcherV1) FetchBy(ctx context.Context, cdnClass CDNClass, predicate func(CDNIngress) bool) ([]CDNIngress, error) {
 	list := &networkingv1.IngressList{}
 	if err := i.k8sClient.List(ctx, list); err != nil {
 		return nil, fmt.Errorf("listing Ingresses: %v", err)
@@ -45,11 +44,6 @@ func (i ingFetcherV1) FetchBy(ctx context.Context, predicate func(CDNIngress) bo
 
 	var result []CDNIngress
 	for _, k8sIng := range list.Items {
-		cdnClassName := CDNClassAnnotationValue(&k8sIng)
-		cdnClass, err := i.cdnClassFetcher.FetchByName(ctx, cdnClassName)
-		if err != nil {
-			return []CDNIngress{}, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
-		}
 		ing, err := NewCDNIngressFromV1(&k8sIng, cdnClass)
 		if err != nil {
 			return []CDNIngress{}, err

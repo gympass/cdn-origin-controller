@@ -51,6 +51,14 @@ func TestRunIngressFetcherV1TestSuite(t *testing.T) {
 
 type IngressFetcherV1TestSuite struct {
 	suite.Suite
+	CDNClass CDNClass
+}
+
+func (suite *IngressFetcherV1TestSuite) SetupTest() {
+	suite.CDNClass = CDNClass{
+		CertificateArn: "foo",
+		HostedZoneID:   "bar",
+	}
 }
 
 func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
@@ -65,16 +73,12 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithoutUserOrigins() {
 		}).
 		Build()
 
-	cdnClassFetcher := &CDNClassFetcherMock{}
-	cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
-	cdnClassFetcher.ExpectedCDNClass = CDNClass{}
-
-	fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
+	fetcher := NewIngressFetcherV1(client)
 	predicate := func(ing CDNIngress) bool {
 		return ing.Group == "group"
 	}
 
-	gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
+	gotIngs, err := fetcher.FetchBy(context.Background(), s.CDNClass, predicate)
 	s.NoError(err)
 	s.Len(gotIngs, 1)
 	s.Equal("ingress-matching-annotation", gotIngs[0].Name)
@@ -84,14 +88,10 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureToListIngresses() {
 	client := &test.MockK8sClient{}
 	client.On("List", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mock err"))
 
-	cdnClassFetcher := &CDNClassFetcherMock{}
-	cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
-	cdnClassFetcher.ExpectedCDNClass = CDNClass{}
-
-	fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
+	fetcher := NewIngressFetcherV1(client)
 	predicate := func(CDNIngress) bool { return false }
 
-	gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
+	gotIngs, err := fetcher.FetchBy(context.Background(), s.CDNClass, predicate)
 	s.Error(err)
 	s.Nil(gotIngs)
 }
@@ -207,20 +207,16 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 			}).
 			Build()
 
-		cdnClassFetcher := &CDNClassFetcherMock{}
-		cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
-		cdnClassFetcher.ExpectedCDNClass = CDNClass{}
-
-		fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
+		fetcher := NewIngressFetcherV1(client)
 		predicate := func(ing CDNIngress) bool {
 			return ing.Group == "group"
 		}
 
-		expectedParentCDNIng, err := NewCDNIngressFromV1(parentIng, CDNClass{})
+		expectedParentCDNIng, err := NewCDNIngressFromV1(parentIng, s.CDNClass)
 		s.NoError(err, "test: %s", tc.name)
 
 		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)
-		gotIngs, err := fetcher.FetchBy(context.Background(), predicate)
+		gotIngs, err := fetcher.FetchBy(context.Background(), s.CDNClass, predicate)
 		s.NoError(err, "test: %s", tc.name)
 		s.ElementsMatch(expectedIngs, gotIngs, "test: %s", tc.name)
 	}
@@ -265,14 +261,10 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 			}).
 			Build()
 
-		cdnClassFetcher := &CDNClassFetcherMock{}
-		cdnClassFetcher.On("FetchByName", mock.Anything, mock.Anything).Return(nil)
-		cdnClassFetcher.ExpectedCDNClass = CDNClass{}
-
-		fetcher := NewIngressFetcherV1(client, cdnClassFetcher)
+		fetcher := NewIngressFetcherV1(client)
 		predicate := func(ing CDNIngress) bool { return true }
 
-		got, err := fetcher.FetchBy(context.Background(), predicate)
+		got, err := fetcher.FetchBy(context.Background(), s.CDNClass, predicate)
 		s.Error(err, "test: %s", tc.name)
 		s.Nil(got, "test: %s", tc.name)
 	}
