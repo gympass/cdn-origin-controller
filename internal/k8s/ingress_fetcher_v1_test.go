@@ -54,8 +54,8 @@ type IngressFetcherV1TestSuite struct {
 	CDNClass CDNClass
 }
 
-func (suite *IngressFetcherV1TestSuite) SetupTest() {
-	suite.CDNClass = CDNClass{
+func (s *IngressFetcherV1TestSuite) SetupTest() {
+	s.CDNClass = CDNClass{
 		CertificateArn: "foo",
 		HostedZoneID:   "bar",
 	}

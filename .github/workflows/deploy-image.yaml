@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'dev'
 
 env:
   REGISTRY: ghcr.io
