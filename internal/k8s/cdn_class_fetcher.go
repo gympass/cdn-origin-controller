@@ -50,5 +50,7 @@ func (c cdnClassFetcher) FetchByName(ctx context.Context, name string) (CDNClass
 	return CDNClass{
 		CertificateArn: k8sClass.Spec.CertificateArn,
 		HostedZoneID:   k8sClass.Spec.HostedZoneID,
+		CreateAlias:    k8sClass.Spec.CreateAlias,
+		TXTOwnerValue:  k8sClass.Spec.TXTOwnerValue,
 	}, err
 }

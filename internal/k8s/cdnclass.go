@@ -25,4 +25,8 @@ type CDNClass struct {
 	CertificateArn string
 	// HostedZoneID of domain name
 	HostedZoneID string
+	// CreateAlias determine if should create an DNS alias or not
+	CreateAlias bool
+	// TXTOwnerValue the value to generate ownership TXT dns registry
+	TXTOwnerValue string
 }

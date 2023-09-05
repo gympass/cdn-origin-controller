@@ -80,7 +80,7 @@ func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing
 	existingDist, err := s.syncDist(ctx, desiredDist, cdnStatus, ing)
 	errs = multierror.Append(errs, err)
 
-	if s.Config.CloudFrontRoute53CreateAlias {
+	if reconciling.Class.CreateAlias {
 		err := s.syncAliases(cdnStatus, existingDist, reconciling.Class)
 		errs = multierror.Append(errs, err)
 	}
@@ -288,8 +288,8 @@ func (s *Service) newAliases(dist Distribution, status *v1alpha1.CDNStatus, clas
 		deleting = []string{}
 	}
 
-	toUpsert := route53.NewAliases(dist.Address, class.HostedZoneID, dist.AlternateDomains, dist.IPv6Enabled)
-	toDelete := route53.NewAliases(dist.Address, class.HostedZoneID, deleting, dist.IPv6Enabled)
+	toUpsert := route53.NewAliases(dist.Address, class.HostedZoneID, class.TXTOwnerValue, dist.AlternateDomains, dist.IPv6Enabled)
+	toDelete := route53.NewAliases(dist.Address, class.HostedZoneID, class.TXTOwnerValue, deleting, dist.IPv6Enabled)
 
 	return toUpsert, toDelete
 }

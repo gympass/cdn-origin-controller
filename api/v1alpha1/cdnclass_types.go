@@ -34,6 +34,12 @@ type CDNClassSpec struct {
 	// HostedZoneID represents a valid hosted zone ID for a domain name
 	// +kubebuilder:validation:Required
 	HostedZoneID string `json:"hostedZoneID"`
+	// CreateAlias determine if should create an DNS alias for distribution
+	// +kubebuilder:validation:Required
+	CreateAlias bool `json:"createAlias"`
+	// TXTOwnerValue is the value to be used when creating ownership TXT records for aliases
+	// +kubebuilder:validation:Required
+	TXTOwnerValue string `json:"txtOwnerValue"`
 }
 
 // CDNClassStatus defines the observed state of CDNClass

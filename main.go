@@ -146,7 +146,7 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 		Client:    mgr.GetClient(),
 		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
 		DistRepo:  distRepo,
-		AliasRepo: route53.NewAliasRepository(awsroute53.New(s), cfg),
+		AliasRepo: route53.NewAliasRepository(awsroute53.New(s)),
 		Config:    cfg,
 	}
 
