@@ -38,13 +38,23 @@ spec:
                 description: CertificateArn represents a valid Certificate ARN for
                   a domain name
                 type: string
+              createAlias:
+                description: CreateAlias determine if should create an DNS alias for
+                  distribution
+                type: boolean
               hostedZoneID:
                 description: HostedZoneID represents a valid hosted zone ID for a
                   domain name
                 type: string
+              txtOwnerValue:
+                description: TXTOwnerValue is the value to be used when creating ownership
+                  TXT records for aliases
+                type: string
             required:
             - certificateArn
+            - createAlias
             - hostedZoneID
+            - txtOwnerValue
             type: object
           status:
             description: CDNClassStatus defines the observed state of CDNClass

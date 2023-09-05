@@ -42,8 +42,9 @@ func (s *AliasesTestSuite) TestNewAliases_IPV6Disabled() {
 	target := "target.foo.bar."
 	domains := []string{"alias.foo.bar."}
 	zoneID := "A3GK5SAMPLE"
+	ownerTXTValue := "foo CDN Class"
 
-	aliases := route53.NewAliases(target, zoneID, domains, ipv6Enabled)
+	aliases := route53.NewAliases(target, zoneID, ownerTXTValue, domains, ipv6Enabled)
 	s.Equal(target, aliases.Target)
 	s.Len(aliases.Entries, 1)
 	s.Equal(domains[0], aliases.Entries[0].Name)
@@ -55,8 +56,9 @@ func (s *AliasesTestSuite) TestNewAliases_IPV6Enabled() {
 	target := "target.foo.bar."
 	domains := []string{"alias.foo.bar."}
 	zoneID := "A3GK5SAMPLE"
+	ownerTXTValue := "foo CDN Class"
 
-	aliases := route53.NewAliases(target, zoneID, domains, ipv6Enabled)
+	aliases := route53.NewAliases(target, zoneID, ownerTXTValue, domains, ipv6Enabled)
 	s.Equal(target, aliases.Target)
 	s.Len(aliases.Entries, 1)
 	s.Equal(domains[0], aliases.Entries[0].Name)
@@ -68,8 +70,9 @@ func (s *AliasesTestSuite) TestNewAliases_MultipleAliases() {
 	target := "target.foo.bar."
 	domains := []string{"alias1.foo.bar.", "alias2.foo.bar."}
 	zoneID := "A3GK5SAMPLE"
+	ownerTXTValue := "foo CDN Class"
 
-	aliases := route53.NewAliases(target, zoneID, domains, ipv6Enabled)
+	aliases := route53.NewAliases(target, zoneID, ownerTXTValue, domains, ipv6Enabled)
 	s.Equal(target, aliases.Target)
 
 	expectedEntries := []route53.Entry{
@@ -90,8 +93,9 @@ func (s *AliasesTestSuite) TestNewAliases_DenormalizedInputDomains() {
 	target := "target.foo.bar."
 	domains := []string{"alias1.foo.bar", "alias2.foo.bar"}
 	zoneID := "A3GK5SAMPLE"
+	ownerTXTValue := "foo CDN Class"
 
-	aliases := route53.NewAliases(target, zoneID, domains, ipv6Enabled)
+	aliases := route53.NewAliases(target, zoneID, ownerTXTValue, domains, ipv6Enabled)
 	s.Equal(target, aliases.Target)
 
 	expectedEntries := []route53.Entry{
@@ -123,7 +127,7 @@ func (s *AliasesTestSuite) TestDomains() {
 	}
 
 	for _, tc := range testCases {
-		aliases := route53.NewAliases("target.foo.bar.", "A3GK5SAMPLE", tc.expectedDomains, false)
+		aliases := route53.NewAliases("target.foo.bar.", "A3GK5SAMPLE", "foo CDN class", tc.expectedDomains, false)
 		s.ElementsMatch(tc.expectedDomains, aliases.Domains(), "test: %s", tc.name)
 	}
 }

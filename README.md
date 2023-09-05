@@ -47,7 +47,16 @@ The controller needs permission to manipulate the CloudFront distributions. A [s
 
 The controller has several [infrastructure configurations](#configuration). In order to support different controller configurations running in the same cluster it's possible to make each of them responsible for a class. This is done using the `CDNClass` Kubernetes kind.
 
-For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID` and `certificateArn` parameters.
+### Parameters
+
+| Parameter      | Required | Description                                                                                                                                                      |   |   |
+|----------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
+| certificateArn | yes      | The ARN of ACM certificate which should be used by the distributions.                                                                                            |   |   |
+| hostedZoneID   | yes      | The ID of the Route53 zone where the aliases should be created in.                                                                                               |   |   |
+| createAlias    | yes      | Whether the controller should create DNS records for a distribution's alternate domain names.                                                                    |   |   |
+| txtOwnerValue  | yes      | The controller creates TXT records for managing aliases. In it, a value is written to bind that given record to a particular instance of the controller running. |   |   |
+
+For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID`, `certificateArn`, `createAlias` and `txtOwnerValue` parameters.
 
 For this example, for the first kind we should have:
 
@@ -59,6 +68,8 @@ metadata:
 spec:
   certificateArn: "<Certificate ARN from given hosted zone>"
   hostedZoneID: "<foo-com hosted zone ID>"
+  createAlias: true
+  txtOwnerValue: "<foo-owner value>"
 ```
 
 While the other kind is defined with:
@@ -71,6 +82,8 @@ metadata:
 spec:
   certificateArn: "<Certificate ARN from given hosted zone>"
   hostedZoneID: "<bar-com hosted zone ID>"
+  createAlias: true
+  txtOwnerValue: "<bar-owner value>"
 ```
 
 In order for Ingresses to be part of one class or the other they must have cdn class annotation set the respective value.
@@ -216,8 +229,6 @@ Use the following environment variables to change the controller's behavior:
 | CF_ENABLE_IPV6             | No       | Whether the distribution should also expose an IPv6 address to serve requests.                                                                                                                                                                                                                                                                               | "true"                                |
 | CF_ENABLE_LOGGING          | No       | If set to true enables sending logs to CloudWatch; `CF_S3_BUCKET_LOG` must be set as well.                                                                                                                                                                                                                                                                   | "false"                               |
 | CF_PRICE_CLASS             | Yes      | The distribution price class. Possible values are: "PriceClass_All", "PriceClass_200", "PriceClass_100". [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html).                                                                                                                                           | "PriceClass_All"                      |
-| CF_ROUTE53_CREATE_ALIAS    | No       | Whether the controller should create DNS records for a distribution's alternate domain names. If IPv6 is enabled (see `CF_ENABLE_IPV6`) AAAA and A records are created. Only A records are created otherwise. <br><br> Must also set `CF_ROUTE53_HOSTED_ZONE_ID` and `CF_ROUTE53_TXT_OWNER_VALUE` if set to "true".                                          | "false"                               |
-| CF_ROUTE53_TXT_OWNER_VALUE | No       | The controller creates TXT records for managing aliases. In it, a value written to bind that given record to a particular instance of the controller running. Use a unique value for each instance. Example: "coc-staging-ab64sj2".                                                                                                                          | ""                                    |
 | CF_S3_BUCKET_LOG           | No       | The domain of the S3 bucket CloudWatch logs should be sent to. Each distribution will have its own directory inside the bucket with the same as the distribution's group. For example, if the group is "foo", the logs will be stored as `foo/<ID>.<timestamp and hash>.gz`.<br><br> If `CF_ENABLE_LOGGING` is not set to "true" then this value is ignored. | ""                                    |
 | CF_SECURITY_POLICY         | No       | The TLS/SSL security policy to be used when serving requests. [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-viewer-protocols-ciphers.html). <br><br> Must also inform a valid `CF_CUSTOM_SSL_CERT` if set.                                                                            | ""                                    |
 | DEV_MODE                   | No       | When set to "true" logs in unstructured text instead of JSON. Also overrides LOG_LEVEL to "debug".                                                                                                                                                                                                                                                           | "false"                               |

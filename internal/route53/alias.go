@@ -20,9 +20,14 @@
 package route53
 
 import (
+	"fmt"
 	"strings"
 
 	awsroute53 "github.com/aws/aws-sdk-go/service/route53"
+)
+
+const (
+	txtOwnerKey = "cdn-origin-controller/owner"
 )
 
 // Entry represents an alias entry with all desired record types for it
@@ -33,16 +38,18 @@ type Entry struct {
 
 // Aliases represents all aliases which should be bound to a CF distribution
 type Aliases struct {
-	Target       string
-	HostedZoneID string
-	Entries      []Entry
+	Target            string
+	HostedZoneID      string
+	OwnershipTXTValue string
+	Entries           []Entry
 }
 
 // NewAliases builds a new Aliases
-func NewAliases(target, hostedZoneID string, domains []string, ipv6Enabled bool) Aliases {
+func NewAliases(target, hostedZoneID, txtOwnerValue string, domains []string, ipv6Enabled bool) Aliases {
 	aliases := Aliases{
-		Target:       target,
-		HostedZoneID: hostedZoneID,
+		Target:            target,
+		HostedZoneID:      hostedZoneID,
+		OwnershipTXTValue: fmt.Sprintf(`"%s=%s"`, txtOwnerKey, txtOwnerValue),
 	}
 
 	types := []string{awsroute53.RRTypeA}
