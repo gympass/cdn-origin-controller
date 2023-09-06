@@ -2,6 +2,14 @@ apiVersion: v1
 entries:
   cdn-origin-controller:
   - apiVersion: v1
+    created: "2023-09-06T10:59:04.47355363Z"
+    description: The cdn-origin-controller Helm Chart
+    digest: 76ac89bdaba63833744cc2d9040e230dcbe0e5ade1ba829919c1ddf0a61c3d78
+    name: cdn-origin-controller
+    urls:
+    - https://github.com/gympass/cdn-origin-controller/releases/download/cdn-origin-controller-v0.2.2/cdn-origin-controller-v0.2.2.tgz
+    version: v0.2.2
+  - apiVersion: v1
     created: "2023-08-29T14:37:43.124698379Z"
     description: The cdn-origin-controller Helm Chart
     digest: 57fa4d347ae4d684be161af99564f04d96eb92e7fb88ba0a7603b4723a979cab
@@ -41,4 +49,4 @@ entries:
     urls:
     - https://github.com/gympass/cdn-origin-controller/releases/download/cdn-origin-controller-v0.0.20/cdn-origin-controller-v0.0.20.tgz
     version: v0.0.20
-generated: "2023-08-29T14:37:43.125006581Z"
+generated: "2023-09-06T10:59:04.473584931Z"
