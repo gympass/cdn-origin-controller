@@ -8,6 +8,7 @@ metadata:
 spec:
   certificateArn: {{ .certificateArn }}
   hostedZoneID: {{ .hostedZoneID }}
+  createAlias: {{ .createAlias }}
+  txtOwnerValue: {{ .txtOwnerValue }}
 {{- end }}
 {{ end }}
-

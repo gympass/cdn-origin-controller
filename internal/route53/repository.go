@@ -69,7 +69,7 @@ func (r repository) Upsert(aliases Aliases) error {
 	for _, e := range aliases.Entries {
 		existingRS, err := r.existingRecordSets(aliases.OwnershipTXTValue, aliases.HostedZoneID, e)
 		if err != nil {
-			return fmt.Errorf("generating filtered record sets: %v", err)
+			return fmt.Errorf("fetching existing DNS records: %v", err)
 		}
 
 		var existingTXTRecords []*route53.ResourceRecord
@@ -213,6 +213,10 @@ func (r repository) existingRecordSets(ownershipTXTValue, hostedZoneID string, e
 }
 
 func (r repository) validateRecordSets(ownershipTXTValue string, filteredRs filteredRecordSets) error {
+	if err := r.validateRoutingPolicies(filteredRs); err != nil {
+		return err
+	}
+
 	if filteredRs.txtRecord == nil || !r.containsOwnershipRecord(filteredRs.txtRecord.ResourceRecords) {
 		if len(filteredRs.addressRecords) > 0 {
 			return errors.New("address record (A or AAAA) exists but is not managed by the controller")
@@ -223,6 +227,36 @@ func (r repository) validateRecordSets(ownershipTXTValue string, filteredRs filt
 	err := r.validateOwnership(ownershipTXTValue, *filteredRs.txtRecord)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (r repository) validateRoutingPolicies(sets filteredRecordSets) error {
+	allRecords := append(sets.addressRecords, sets.txtRecord)
+	for _, rs := range allRecords {
+		if err := r.validateRoutingPolicy(rs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r repository) validateRoutingPolicy(rs *route53.ResourceRecordSet) error {
+	if rs == nil {
+		return nil
+	}
+
+	if rs.Weight != nil {
+		return fmt.Errorf("existing %s record (%q) has weighted routing policy. Routing policy should be simple", aws.StringValue(rs.Type), aws.StringValue(rs.Name))
+	}
+
+	if rs.GeoLocation != nil {
+		return fmt.Errorf("existing %s record (%q) has geo-location routing policy. Routing policy should be simple", aws.StringValue(rs.Type), aws.StringValue(rs.Name))
+	}
+
+	if rs.CidrRoutingConfig != nil {
+		return fmt.Errorf("existing %s record (%q) has ip-based routing policy. Routing policy should be simple", aws.StringValue(rs.Type), aws.StringValue(rs.Name))
 	}
 
 	return nil
