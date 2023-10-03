@@ -123,13 +123,13 @@ routes.
 
 For example:
 
-- Catch-all Ingress, with a path `/??-??/foo`
+- Catch-all Ingress, with a path `/*/foo`
 - USA-specific Ingress, with a path `/en-us/foo`
 
 In CloudFront, these would result in the following order:
 
-- /en-us/foo -> en-us specific origin
-- /??-??/foo -> catch all origin
+- `/en-us/foo` -> en-us specific origin
+- `/*/foo` -> catch all origin
 
 ## User-supplied origin/behavior configuration
 
