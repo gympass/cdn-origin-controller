@@ -51,12 +51,11 @@ The controller has several [infrastructure configurations](#configuration). In o
 
 | Parameter      | Required | Description                                                                                                                                                      |   |   |
 |----------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
-| certificateArn | yes      | The ARN of ACM certificate which should be used by the distributions.                                                                                            |   |   |
 | hostedZoneID   | yes      | The ID of the Route53 zone where the aliases should be created in.                                                                                               |   |   |
 | createAlias    | yes      | Whether the controller should create DNS records for a distribution's alternate domain names.                                                                    |   |   |
 | txtOwnerValue  | yes      | The controller creates TXT records for managing aliases. In it, a value is written to bind that given record to a particular instance of the controller running. |   |   |
 
-For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID`, `certificateArn`, `createAlias` and `txtOwnerValue` parameters.
+For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID`, `createAlias` and `txtOwnerValue` parameters.
 
 For this example, for the first kind we should have:
 
@@ -66,7 +65,6 @@ kind: CDNClass
 metadata:
   name: foo-com
 spec:
-  certificateArn: "<Certificate ARN from given hosted zone>"
   hostedZoneID: "<foo-com hosted zone ID>"
   createAlias: true
   txtOwnerValue: "<foo-owner value>"
@@ -80,7 +78,6 @@ kind: CDNClass
 metadata:
   name: bar-com
 spec:
-  certificateArn: "<Certificate ARN from given hosted zone>"
   hostedZoneID: "<bar-com hosted zone ID>"
   createAlias: true
   txtOwnerValue: "<bar-owner value>"
@@ -99,6 +96,11 @@ While Ingresses that serve as origins for CloudFronts at the `bar.com` zone shou
 ``` yaml
 cdn-origin-controller.gympass.com/cdn.class: bar-com
 ```
+### TLS Certificate configuration
+
+TLS will automatically be enabled if the `CF_SECURITY_POLICY` env var is set, and is disabled by default.
+
+The controller will automatically search for TLS certificates in [AWS ACM](https://aws.amazon.com/certificate-manager/). If it finds a certificate matching any of the Distribution's alternate domain names, it will bind that certificate to the Distribution.
 
 ## Behavior ordering
 

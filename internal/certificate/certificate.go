@@ -17,40 +17,35 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package k8s
+package certificate
 
-import (
-	"context"
-
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
-)
-
-type CDNClassFetcher interface {
-	FetchByName(ctx context.Context, name string) (CDNClass, error)
-}
-
-type cdnClassFetcher struct {
-	k8sClient client.Client
-}
-
-func NewCDNClassFetcher(client client.Client) CDNClassFetcher {
-	return cdnClassFetcher{k8sClient: client}
-}
-
-func (c cdnClassFetcher) FetchByName(ctx context.Context, name string) (CDNClass, error) {
-	k8sClass := &v1alpha1.CDNClass{}
-	err := c.k8sClient.Get(ctx, types.NamespacedName{Name: name}, k8sClass)
-
-	if err != nil {
-		return CDNClass{}, err
+// New creates a Certificate
+func New(arn, domainName string, alternativeNames []string /*, renewalEligibility string*/) Certificate {
+	return Certificate{
+		arn:              arn,
+		domainName:       domainName,
+		alternativeNames: alternativeNames,
 	}
+}
 
-	return CDNClass{
-		HostedZoneID:  k8sClass.Spec.HostedZoneID,
-		CreateAlias:   k8sClass.Spec.CreateAlias,
-		TXTOwnerValue: k8sClass.Spec.TXTOwnerValue,
-	}, err
+// Certificate represents a basic certificate
+type Certificate struct {
+	arn              string
+	domainName       string
+	alternativeNames []string
+}
+
+// DomainName returns the main certificate domain name
+func (c Certificate) DomainName() string {
+	return c.domainName
+}
+
+// AlternativeNames returns a list of certificate subject alternative names
+func (c Certificate) AlternativeNames() []string {
+	return c.alternativeNames
+}
+
+// ARN returns the certificate identifier
+func (c Certificate) ARN() string {
+	return c.arn
 }

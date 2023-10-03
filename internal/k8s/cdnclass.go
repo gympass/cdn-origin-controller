@@ -21,8 +21,6 @@ package k8s
 
 // CDNClass represents the domain object
 type CDNClass struct {
-	// CertificateArn of domain name
-	CertificateArn string
 	// HostedZoneID of domain name
 	HostedZoneID string
 	// CreateAlias determine if should create an DNS alias or not

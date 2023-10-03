@@ -56,8 +56,7 @@ type IngressFetcherV1TestSuite struct {
 
 func (s *IngressFetcherV1TestSuite) SetupTest() {
 	s.CDNClass = CDNClass{
-		CertificateArn: "foo",
-		HostedZoneID:   "bar",
+		HostedZoneID: "bar",
 	}
 }
 

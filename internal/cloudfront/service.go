@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/certificate"
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 	"github.com/Gympass/cdn-origin-controller/internal/route53"
@@ -48,11 +49,12 @@ const (
 type Service struct {
 	client.Client
 
-	Config    config.Config
-	Recorder  record.EventRecorder
-	AliasRepo route53.AliasRepository
-	DistRepo  DistributionRepository
-	Fetcher   k8s.IngressFetcher
+	Config      config.Config
+	Recorder    record.EventRecorder
+	AliasRepo   route53.AliasRepository
+	DistRepo    DistributionRepository
+	Fetcher     k8s.IngressFetcher
+	CertService certificate.Service
 }
 
 // Reconcile an Ingress resource of any version
@@ -119,7 +121,7 @@ func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress) 
 		return nil, Distribution{}, fmt.Errorf("fetching existing CloudFront ID based on group (%s): %v", reconciling.Group, err)
 	}
 
-	desiredDist, err := newDistribution(desiredIngresses, reconciling.Group, sharedParams.WebACLARN, existingDistARN, s.Config)
+	desiredDist, err := s.newDistribution(desiredIngresses, reconciling.Group, sharedParams.WebACLARN, existingDistARN)
 	if err != nil {
 		return nil, Distribution{}, fmt.Errorf("building desired distribution: %v", err)
 	}
@@ -170,6 +172,66 @@ func newCDNStatus(ings []k8s.CDNIngress, dist Distribution) *v1alpha1.CDNStatus 
 	}
 
 	return status
+}
+
+func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string) (Distribution, error) {
+	b := NewDistributionBuilder(
+		group,
+		s.Config,
+	)
+
+	var err error
+	var cert certificate.Certificate
+	if s.Config.TLSIsEnabled() {
+		cert, err = s.discoverCert(ingresses)
+		if err != nil {
+			return Distribution{}, fmt.Errorf("discovering TLS cert: %v", err)
+		}
+		b = b.WithTLS(cert.ARN(), s.Config.CloudFrontSecurityPolicy)
+	}
+
+	for _, ing := range ingresses {
+		b = b.WithOrigin(newOrigin(ing, s.Config))
+		b = b.WithAlternateDomains(ing.AlternateDomainNames)
+		b = b.AppendTags(ing.Tags)
+	}
+
+	if s.Config.CloudFrontEnableIPV6 {
+		b = b.WithIPv6()
+	}
+
+	if s.Config.CloudFrontEnableLogging && len(s.Config.CloudFrontS3BucketLog) > 0 {
+		b = b.WithLogging(s.Config.CloudFrontS3BucketLog, group)
+	}
+
+	if len(s.Config.CloudFrontCustomTags) > 0 {
+		b = b.AppendTags(s.Config.CloudFrontCustomTags)
+	}
+
+	if len(webACLARN) > 0 {
+		b = b.WithWebACL(webACLARN)
+	}
+
+	if len(distARN) > 0 {
+		b = b.WithARN(distARN)
+	}
+
+	return b.Build()
+}
+
+// discoverCert returns the first found ACM Certificate that matches any Alternate Domain Name of the input Ingresses
+func (s *Service) discoverCert(ingresses []k8s.CDNIngress) (certificate.Certificate, error) {
+	errs := &multierror.Error{}
+	for _, ing := range ingresses {
+		for _, dn := range ing.AlternateDomainNames {
+			cert, err := s.CertService.DiscoverByHost(dn)
+			if err == nil {
+				return cert, nil
+			}
+			errs = multierror.Append(errs, fmt.Errorf("%q: %v", dn, err))
+		}
+	}
+	return certificate.Certificate{}, errs.ErrorOrNil()
 }
 
 func (s *Service) syncDist(ctx context.Context, desiredDist Distribution, cdnStatus *v1alpha1.CDNStatus, ing client.Object) (Distribution, error) {

@@ -3,7 +3,6 @@ kind: CDNClass
 metadata:
   name: cdnclass-sample
 spec:
-  certificateArn: arn:aws:acm:us-east-1:215023620964:certificate/928e8e0d-eb37-4c47-b324-159cdbffbef2
-  hostedZoneID: Z02652453DOG4JF0CLCC7
+  hostedZoneID: 000000000000000000000
   createAlias: true
   txtOwnerValue: "owner value"

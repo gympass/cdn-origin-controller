@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/acm"
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/resourcegroupstaggingapi"
 	awsroute53 "github.com/aws/aws-sdk-go/service/route53"
@@ -46,6 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	cdnv1alpha1 "github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/Gympass/cdn-origin-controller/internal/certificate"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 
 	//+kubebuilder:scaffold:imports
@@ -142,12 +144,15 @@ func mustSetupControllers(mgr manager.Manager, cfg config.Config) {
 	}
 	distRepo.RunPostCreationOperations = distRepo.Sync
 
+	certService := certificate.NewService(certificate.NewRepository(acm.New(s)))
+
 	cfService := &cloudfront.Service{
-		Client:    mgr.GetClient(),
-		Recorder:  mgr.GetEventRecorderFor("cdn-origin-controller"),
-		DistRepo:  distRepo,
-		AliasRepo: route53.NewAliasRepository(awsroute53.New(s)),
-		Config:    cfg,
+		Client:      mgr.GetClient(),
+		Recorder:    mgr.GetEventRecorderFor("cdn-origin-controller"),
+		CertService: certService,
+		DistRepo:    distRepo,
+		AliasRepo:   route53.NewAliasRepository(awsroute53.New(s)),
+		Config:      cfg,
 	}
 
 	const ingressVersionAvailableMsg = " Ingress available, setting up its controller. Other versions will not be tried."

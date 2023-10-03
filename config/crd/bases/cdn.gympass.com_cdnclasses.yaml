@@ -35,8 +35,8 @@ spec:
             description: CDNClassSpec defines the desired state of CDNClass
             properties:
               certificateArn:
-                description: CertificateArn represents a valid Certificate ARN for
-                  a domain name
+                description: CertificateArn is deprecated, certs are now automatically
+                  discovered and this field is ignored
                 type: string
               createAlias:
                 description: CreateAlias determine if should create an DNS alias for
