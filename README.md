@@ -100,6 +100,37 @@ While Ingresses that serve as origins for CloudFronts at the `bar.com` zone shou
 cdn-origin-controller.gympass.com/cdn.class: bar-com
 ```
 
+## Behavior ordering
+
+During reconciliation, the controller will assemble desired behaviors based on all
+Ingresses that compose a single CloudFront. In order to determine the correct
+order of behaviors based on their paths, the following criteria are followed.
+
+Given a path `i` and a path `j`:
+
+1. `i` is more specific if `i` is longer than `j`
+
+2. If both are the same length, `i` is more specific if it comes before `j` in a
+ special alphabetical order, where "*" and "?" come after all other characters.
+
+The order can be summarized as `[0-9],[A-Z],[a-z], ?, *`.
+
+"?" is considered more specific than "\*" because it represents a single char,
+while "\*" may represent more.
+
+This allows for more specific routing of requests which could be matched by better
+routes.
+
+For example:
+
+- Catch-all Ingress, with a path `/??-??/foo`
+- USA-specific Ingress, with a path `/en-us/foo`
+
+In CloudFront, these would result in the following order:
+
+- /en-us/foo -> en-us specific origin
+- /??-??/foo -> catch all origin
+
 ## User-supplied origin/behavior configuration
 
 If you need additional origin/behavior configuration that you can't express via Ingress resources (e.g., pointing to an S3 bucket with static resources of your application) you can do that using the `cdn-origin-controller.gympass.com/cf.user-origins`.

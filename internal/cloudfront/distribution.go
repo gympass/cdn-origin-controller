@@ -65,7 +65,7 @@ func (d Distribution) SortedCustomBehaviors() []Behavior {
 		result = append(result, o.Behaviors...)
 	}
 
-	sort.Sort(byDescendingPathLength(result))
+	sort.Sort(byMostSpecificPath(result))
 	return result
 }
 
