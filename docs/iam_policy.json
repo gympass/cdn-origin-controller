@@ -13,7 +13,9 @@
                 "s3:GetBucketAcl",
                 "s3:PutBucketAcl",
                 "route53:ListResourceRecordSets",
-                "route53:ChangeResourceRecordSets"
+                "route53:ChangeResourceRecordSets",
+                "acm:ListCertificates",
+                "acm:DescribeCertificate"
             ],
             "Resource": "*"
         }
