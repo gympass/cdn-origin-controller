@@ -29,6 +29,7 @@ import (
 // CDNClassSpec defines the desired state of CDNClass
 type CDNClassSpec struct {
 	// CertificateArn is deprecated, certs are now automatically discovered and this field is ignored
+	// +optional
 	CertificateArn string `json:"certificateArn"`
 	// HostedZoneID represents a valid hosted zone ID for a domain name
 	// +kubebuilder:validation:Required
