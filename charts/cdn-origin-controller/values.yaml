@@ -4,7 +4,7 @@ cdnClass: default
 
 image:
   repository: ghcr.io/gympass/cdn-origin-controller
-  tag: v0.1.2
+  tag: v0.3.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -26,10 +26,6 @@ podSecurityContext: {}
  # fsGroup: 65532
 
 securityContext: {}
-
-service:
-  type: ClusterIP
-  port: 80
 
 resources: {}
 #  limits:
