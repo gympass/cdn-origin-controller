@@ -1,7 +1,0 @@
-apiVersion: cdn.gympass.com/v1alpha1
-kind: CDNClass
-metadata:
-  name: pe-dev-eu-gympass-cloud
-spec:
-  certificateArn: arn:aws:acm:us-east-1:215023620964:certificate/928e8e0d-eb37-4c47-b324-159cdbffbef2
-  hostedZoneID: Z0592540H7Z9HQ6NEBH2

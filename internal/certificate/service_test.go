@@ -17,40 +17,41 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package k8s
+package certificate
 
 import (
-	"context"
+	"testing"
 
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/Gympass/cdn-origin-controller/api/v1alpha1"
+	"github.com/stretchr/testify/suite"
 )
 
-type CDNClassFetcher interface {
-	FetchByName(ctx context.Context, name string) (CDNClass, error)
+func TestRunCertificateServiceSuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, &CertificateServiceTestSuite{})
 }
 
-type cdnClassFetcher struct {
-	k8sClient client.Client
+type CertificateServiceTestSuite struct {
+	suite.Suite
 }
 
-func NewCDNClassFetcher(client client.Client) CDNClassFetcher {
-	return cdnClassFetcher{k8sClient: client}
+func (s *CertificateServiceTestSuite) TestMatchDomainFilter_MainDomain() {
+	cert := New(
+		"arn:xpto",
+		"foo.xpto.com",
+		[]string{"foo.xpto.com", "*.foo.xpto.com"},
+	)
+
+	filter := matchingDomainFilter("foo.xpto.com")
+	s.True(filter(cert))
 }
 
-func (c cdnClassFetcher) FetchByName(ctx context.Context, name string) (CDNClass, error) {
-	k8sClass := &v1alpha1.CDNClass{}
-	err := c.k8sClient.Get(ctx, types.NamespacedName{Name: name}, k8sClass)
+func (s *CertificateServiceTestSuite) TestMatchDomainFilter_SubDomain() {
+	cert := New(
+		"arn:xpto",
+		"foo.xpto.com",
+		[]string{"foo.xpto.com", "*.foo.xpto.com"},
+	)
 
-	if err != nil {
-		return CDNClass{}, err
-	}
-
-	return CDNClass{
-		HostedZoneID:  k8sClass.Spec.HostedZoneID,
-		CreateAlias:   k8sClass.Spec.CreateAlias,
-		TXTOwnerValue: k8sClass.Spec.TXTOwnerValue,
-	}, err
+	filter := matchingDomainFilter("baz.foo.xpto.com")
+	s.True(filter(cert))
 }

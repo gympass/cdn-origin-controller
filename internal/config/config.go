@@ -111,6 +111,11 @@ type Config struct {
 	CloudFrontDefaultBucketOriginAccessRequestPolicyID string
 }
 
+// TLSIsEnabled returns whether TLS is enabled
+func (c Config) TLSIsEnabled() bool {
+	return len(c.CloudFrontSecurityPolicy) > 0
+}
+
 // Parse environment variables into a config struct
 func Parse() Config {
 	devMode := viper.GetBool(devModeKey)

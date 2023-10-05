@@ -30,44 +30,6 @@ import (
 
 const prefixPathType = string(networkingv1.PathTypePrefix)
 
-func newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string, cfg config.Config) (Distribution, error) {
-	b := NewDistributionBuilder(
-		group,
-		cfg,
-	)
-
-	for _, ing := range ingresses {
-		b = b.WithOrigin(newOrigin(ing, cfg))
-		b = b.WithAlternateDomains(ing.AlternateDomainNames)
-		b = b.AppendTags(ing.Tags)
-		if len(ing.Class.CertificateArn) > 0 && len(cfg.CloudFrontSecurityPolicy) > 0 {
-			b = b.WithTLS(ing.Class.CertificateArn, cfg.CloudFrontSecurityPolicy)
-		}
-	}
-
-	if cfg.CloudFrontEnableIPV6 {
-		b = b.WithIPv6()
-	}
-
-	if cfg.CloudFrontEnableLogging && len(cfg.CloudFrontS3BucketLog) > 0 {
-		b = b.WithLogging(cfg.CloudFrontS3BucketLog, group)
-	}
-
-	if len(cfg.CloudFrontCustomTags) > 0 {
-		b = b.AppendTags(cfg.CloudFrontCustomTags)
-	}
-
-	if len(webACLARN) > 0 {
-		b = b.WithWebACL(webACLARN)
-	}
-
-	if len(distARN) > 0 {
-		b = b.WithARN(distARN)
-	}
-
-	return b.Build()
-}
-
 func renderDescription(template, group string) string {
 	return strings.ReplaceAll(template, "{{group}}", group)
 }
