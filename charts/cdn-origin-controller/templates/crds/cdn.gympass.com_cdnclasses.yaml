@@ -51,7 +51,6 @@ spec:
                   TXT records for aliases
                 type: string
             required:
-            - certificateArn
             - createAlias
             - hostedZoneID
             - txtOwnerValue
