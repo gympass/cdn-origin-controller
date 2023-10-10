@@ -22,8 +22,10 @@ package cloudfront
 import (
 	"testing"
 
-	"github.com/Gympass/cdn-origin-controller/internal/config"
+	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunOriginTestSuite(t *testing.T) {
@@ -99,16 +101,18 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_DuplicatePaths() {
 	s.Equal("/", o.Behaviors[0].PathPattern)
 }
 
-func (s *OriginTestSuite) TestNewOriginBuilder_WithViewerFunction() {
+func (s *OriginTestSuite) TestNewOriginBuilder_WithBehavior_WithFunctions() {
 	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
-		WithBehavior("/").
-		WithBehavior("/foo").
-		WithViewerFunction("some-arn").
+		WithBehavior("/",
+			newResponseCloudfrontFunction("some-arn", awscloudfront.EventTypeOriginResponse),
+			newRequestEdgeFunction("some-other-arn", awscloudfront.EventTypeViewerResponse, true),
+		).
 		Build()
 	s.Equal("origin", o.Host)
-	s.Len(o.Behaviors, 2)
-	s.Equal("some-arn", o.Behaviors[0].ViewerFnARN)
-	s.Equal("some-arn", o.Behaviors[1].ViewerFnARN)
+	s.Len(o.Behaviors, 1)
+	s.Len(o.Behaviors[0].FunctionAssociations, 2)
+	s.Equal("some-arn", o.Behaviors[0].FunctionAssociations[0].ARN())
+	s.Equal("some-other-arn", o.Behaviors[0].FunctionAssociations[1].ARN())
 }
 
 func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {

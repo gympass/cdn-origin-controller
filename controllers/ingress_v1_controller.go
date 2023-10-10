@@ -70,7 +70,7 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return ctrl.Result{}, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
 	}
 
-	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ingress, cdnClass)
+	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ctx, ingress, cdnClass)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

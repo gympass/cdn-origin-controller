@@ -22,7 +22,6 @@ package cloudfront
 import (
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
-	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 const (
@@ -65,13 +64,13 @@ type Behavior struct {
 	RequestPolicy string
 	// CachePolicy is the ID of the cache policy to be associated with this Behavior
 	CachePolicy string
-	// ViewerFnARN is the ARN of the function to be associated with the Behavior's viewer requests
-	ViewerFnARN string
 	// OriginHost the origin's host this behavior belongs to
 	OriginHost string
+	// FunctionAssociations is a slice of Function that should be bound to this Behavior
+	FunctionAssociations []Function
 }
 
-// OriginBuilder allows the construction of a Origin
+// OriginBuilder allows the construction of an Origin
 type OriginBuilder struct {
 	host             string
 	viewerFnARN      string
@@ -80,7 +79,7 @@ type OriginBuilder struct {
 	cachePolicy      string
 	respTimeout      int64
 	accessType       string
-	paths            strhelper.Set
+	behaviors        map[string][]Function
 }
 
 // NewOriginBuilder returns an OriginBuilder for a given host
@@ -91,7 +90,7 @@ func NewOriginBuilder(distributionName, host, accessType string, cfg config.Conf
 		respTimeout:      defaultResponseTimeout,
 		requestPolicy:    defaultRequestPolicyForType(accessType, cfg),
 		cachePolicy:      cfg.CloudFrontDefaultCachingPolicyID,
-		paths:            strhelper.NewSet(),
+		behaviors:        make(map[string][]Function),
 		accessType:       accessType,
 	}
 }
@@ -103,15 +102,16 @@ func defaultRequestPolicyForType(accessType string, cfg config.Config) string {
 	return cfg.CloudFrontDefaultPublicOriginAccessRequestPolicyID
 }
 
-// WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for
-func (b OriginBuilder) WithBehavior(pathPattern string) OriginBuilder {
-	b.paths.Add(pathPattern)
-	return b
-}
+// WithBehavior adds a Behavior to the Origin being built given a path pattern the Behavior should respond for.
+// Also receives optional functions that should be associated to this behavior.
+func (b OriginBuilder) WithBehavior(pathPattern string, functions ...Function) OriginBuilder {
+	_, behaviorExists := b.behaviors[pathPattern]
+	if !behaviorExists {
+		b.behaviors[pathPattern] = functions
+		return b
+	}
 
-// WithViewerFunction associates a function with all viewer requests of all Behaviors in the Origin being built
-func (b OriginBuilder) WithViewerFunction(fnARN string) OriginBuilder {
-	b.viewerFnARN = fnARN
+	b.behaviors[pathPattern] = append(b.behaviors[pathPattern], functions...)
 	return b
 }
 
@@ -148,10 +148,6 @@ func (b OriginBuilder) Build() Origin {
 
 	origin = b.addBehaviors(origin)
 
-	if len(b.viewerFnARN) > 0 {
-		origin = b.addViewerFnToBehaviors(origin)
-	}
-
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
 
@@ -163,15 +159,8 @@ func (b OriginBuilder) Build() Origin {
 }
 
 func (b OriginBuilder) addBehaviors(origin Origin) Origin {
-	for _, p := range b.paths.ToSlice() {
-		origin.Behaviors = append(origin.Behaviors, Behavior{PathPattern: p, OriginHost: b.host})
-	}
-	return origin
-}
-
-func (b OriginBuilder) addViewerFnToBehaviors(origin Origin) Origin {
-	for i := range origin.Behaviors {
-		origin.Behaviors[i].ViewerFnARN = b.viewerFnARN
+	for p, functions := range b.behaviors {
+		origin.Behaviors = append(origin.Behaviors, Behavior{PathPattern: p, OriginHost: b.host, FunctionAssociations: functions})
 	}
 	return origin
 }
