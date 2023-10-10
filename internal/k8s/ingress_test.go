@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestRunCDNIngressTestSuite(t *testing.T) {
@@ -181,22 +180,16 @@ func (s *CDNIngressSuite) TestNewCDNIngressFromV1_UsingFunctionAssociationsAndVi
 	s.Empty(got)
 }
 
-func (s *CDNIngressSuite) Test_sharedIngressParams_SingleIngressIsValid() {
+func (s *CDNIngressSuite) Test_sharedIngressParams_SingleOriginIsValid() {
 	params := []CDNIngress{
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			},
+			OriginHost:        "foo.bar",
 			Group:             "foo",
 			UnmergedWebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 		},
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			},
-			Group: "foo",
+			OriginHost: "foo.bar",
+			Group:      "foo",
 			UnmergedPaths: []Path{
 				{
 					PathPattern: "/",
@@ -215,11 +208,8 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_SingleIngressIsValid() {
 
 	expected := SharedIngressParams{
 		WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
-		paths: map[types.NamespacedName][]Path{
-			types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			}: {
+		paths: map[string][]Path{
+			"foo.bar": {
 				{
 					PathPattern: "/",
 					PathType:    "Prefix",
@@ -235,14 +225,11 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_SingleIngressIsValid() {
 	s.NoError(err)
 }
 
-func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferentPathsIsValid() {
+func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleOriginsWithDifferentPathsIsValid() {
 	params := []CDNIngress{
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			},
-			Group: "foo",
+			OriginHost: "foo.bar",
+			Group:      "foo",
 			UnmergedPaths: []Path{
 				{
 					PathPattern: "/",
@@ -256,11 +243,8 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferen
 			},
 		},
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns2",
-				Name:      "ingress2",
-			},
-			Group: "foo",
+			OriginHost: "foo.bar2",
+			Group:      "foo",
 			UnmergedPaths: []Path{
 				{
 					PathPattern: "/foo",
@@ -278,11 +262,8 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferen
 	shared, err := NewSharedIngressParams(params)
 
 	expected := SharedIngressParams{
-		paths: map[types.NamespacedName][]Path{
-			types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			}: {
+		paths: map[string][]Path{
+			"foo.bar": {
 				{
 					PathPattern: "/",
 					PathType:    "Prefix",
@@ -291,10 +272,7 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferen
 					},
 				},
 			},
-			types.NamespacedName{
-				Namespace: "ns2",
-				Name:      "ingress2",
-			}: {
+			"foo.bar2": {
 				{
 					PathPattern: "/foo",
 					PathType:    "Prefix",
@@ -310,14 +288,11 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferen
 	s.NoError(err)
 }
 
-func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithSamePathButDifferentFunctionEventTypesIsValid() {
+func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleOriginsWithSamePathButDifferentFunctionEventTypesIsValid() {
 	params := []CDNIngress{
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			},
-			Group: "foo",
+			OriginHost: "foo.bar",
+			Group:      "foo",
 			UnmergedPaths: []Path{
 				{
 					PathPattern: "/",
@@ -331,11 +306,8 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithSamePath
 			},
 		},
 		{
-			NamespacedName: types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			},
-			Group: "foo",
+			OriginHost: "foo.bar",
+			Group:      "foo",
 			UnmergedPaths: []Path{
 				{
 					PathPattern: "/",
@@ -353,11 +325,8 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithSamePath
 	shared, err := NewSharedIngressParams(params)
 
 	expected := SharedIngressParams{
-		paths: map[types.NamespacedName][]Path{
-			types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			}: {
+		paths: map[string][]Path{
+			"foo.bar": {
 				{
 					PathPattern: "/",
 					PathType:    "Prefix",
@@ -501,13 +470,10 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_ConflictingWebACLs() {
 	s.ErrorIs(err, errSharedParamsConflictingACL)
 }
 
-func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
+func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromOrigin() {
 	shared := SharedIngressParams{
-		paths: map[types.NamespacedName][]Path{
-			types.NamespacedName{
-				Namespace: "ns1",
-				Name:      "ingress1",
-			}: {
+		paths: map[string][]Path{
+			"foo.bar": {
 				{
 					PathPattern: "/",
 					PathType:    "Prefix",
@@ -519,10 +485,7 @@ func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
 					},
 				},
 			},
-			types.NamespacedName{
-				Namespace: "ns2",
-				Name:      "ingress2",
-			}: {
+			"foo.bar2": {
 				{
 					PathPattern: "/foo",
 					PathType:    "Prefix",
@@ -547,7 +510,7 @@ func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
 		},
 	}
 
-	s.Empty(shared.PathsFromIngress(types.NamespacedName{Name: "I don't exist"}))
+	s.Empty(shared.PathsFromOrigin("I don't exist"))
 
 	s.ElementsMatch([]Path{
 		{
@@ -560,7 +523,7 @@ func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
 				},
 			},
 		},
-	}, shared.PathsFromIngress(types.NamespacedName{Namespace: "ns1", Name: "ingress1"}))
+	}, shared.PathsFromOrigin("foo.bar"))
 
 	s.ElementsMatch([]Path{
 		{
@@ -582,5 +545,5 @@ func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
 					ARN: "some-other-arn3",
 				},
 			},
-		}}, shared.PathsFromIngress(types.NamespacedName{Namespace: "ns2", Name: "ingress2"}))
+		}}, shared.PathsFromOrigin("foo.bar2"))
 }

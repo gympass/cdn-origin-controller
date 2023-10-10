@@ -20,12 +20,15 @@
 package k8s
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/creasty/defaults"
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/Gympass/cdn-origin-controller/internal/strhelper"
 )
 
 const (
@@ -51,7 +54,7 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 	for _, o := range origins {
 		ing := CDNIngress{
 			NamespacedName:    types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()},
-			LoadBalancerHost:  o.Host,
+			OriginHost:        o.Host,
 			Group:             groupAnnotationValue(obj),
 			UnmergedPaths:     o.paths(),
 			OriginReqPolicy:   o.RequestPolicy,
@@ -66,36 +69,84 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 	return result, nil
 }
 
-// TODO in upcoming PRs:
-// parse and validate function associations, ensuring:
-//   a. it only references paths present in this custom origin
-//   b. do not break any existing rules that are already mapped in fa.Validate()
-
 type userOrigin struct {
-	Host              string   `yaml:"host"`
-	ResponseTimeout   int64    `yaml:"responseTimeout"`
-	Paths             []string `yaml:"paths"`
-	ViewerFunctionARN string   `yaml:"viewerFunctionARN"`
-	RequestPolicy     string   `yaml:"originRequestPolicy"`
-	CachePolicy       string   `yaml:"cachePolicy"`
-	WebACLARN         string   `yaml:"webACLARN"`
-	OriginAccess      string   `yaml:"originAccess" default:"Public"`
+	Host              string                 `yaml:"host"`
+	ResponseTimeout   int64                  `yaml:"responseTimeout"`
+	Paths             []string               `yaml:"paths"` // deprecated in favor of Behaviors
+	Behaviors         []customOriginBehavior `yaml:"behaviors"`
+	ViewerFunctionARN string                 `yaml:"viewerFunctionARN"` // deprecated in favor of Behaviors
+	RequestPolicy     string                 `yaml:"originRequestPolicy"`
+	CachePolicy       string                 `yaml:"cachePolicy"`
+	WebACLARN         string                 `yaml:"webACLARN"`
+	OriginAccess      string                 `yaml:"originAccess" default:"Public"`
+}
+
+type customOriginBehavior struct {
+	Path                 string               `yaml:"path"`
+	FunctionAssociations FunctionAssociations `yaml:"functionAssociations"`
 }
 
 func (o userOrigin) paths() []Path {
 	var paths []Path
 	for _, p := range o.Paths {
-		paths = append(paths, Path{PathPattern: p})
+		path := Path{PathPattern: p}
+		if len(o.ViewerFunctionARN) > 0 {
+			path.FunctionAssociations = newFAFromViewerFunctionARN(o.ViewerFunctionARN)
+		}
+		paths = append(paths, path)
 	}
+
+	for _, b := range o.Behaviors {
+		paths = append(paths, Path{
+			PathPattern:          b.Path,
+			FunctionAssociations: b.FunctionAssociations,
+		})
+	}
+
 	return paths
 }
 
-func (o userOrigin) isValid() bool {
-	return len(o.Host) > 0 && len(o.Paths) > 0 && (o.OriginAccess == CFUserOriginAccessPublic || o.OriginAccess == CFUserOriginAccessBucket)
+func (o userOrigin) validate() error {
+	if err := o.validateBehaviors(); err != nil {
+		return err
+	}
+
+	if len(o.Host) == 0 {
+		return errors.New("the origin must have a host")
+	}
+
+	if len(o.Paths) == 0 && len(o.Behaviors) == 0 {
+		return errors.New("the origin must have at least one path or behavior")
+	}
+
+	if o.OriginAccess != CFUserOriginAccessPublic && o.OriginAccess != CFUserOriginAccessBucket {
+		return fmt.Errorf("the origin must specify a valid originAccess. Valid values: %q, %q",
+			CFUserOriginAccessPublic, CFUserOriginAccessBucket)
+	}
+
+	return nil
+}
+
+func (o userOrigin) validateBehaviors() error {
+	for _, b := range o.Behaviors {
+		if err := b.FunctionAssociations.Validate(); err != nil {
+			return fmt.Errorf("validating behavior function associations: %v", err)
+		}
+
+		if strhelper.Contains(o.Paths, b.Path) {
+			return fmt.Errorf("same path %q informed in paths (deprecated) and behaviors. Specify it in behaviors only", b.Path)
+		}
+
+		if !b.FunctionAssociations.IsEmpty() && len(o.ViewerFunctionARN) > 0 {
+			return errors.New("function associations declared in behaviors, but viewerFunctionArn is present (deprecated). " +
+				"Configure all functions via behaviors only")
+		}
+	}
+	return nil
 }
 
 func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
-	origins := []userOrigin{}
+	var origins []userOrigin
 	err := yaml.Unmarshal(originsData, &origins)
 	if err != nil {
 		return nil, err
@@ -108,8 +159,8 @@ func userOriginsFromYAML(originsData []byte) ([]userOrigin, error) {
 			return nil, err
 		}
 
-		if !o.isValid() {
-			return nil, fmt.Errorf("user origin invalid. Must have at lease one path, must have a host, and origin access must be Public or Bucket: has %d paths and the host is %q", len(o.Paths), o.Host)
+		if err := o.validate(); err != nil {
+			return nil, fmt.Errorf("validating user origin: %v", err)
 		}
 
 		origins[i] = o

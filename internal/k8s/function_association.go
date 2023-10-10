@@ -154,6 +154,13 @@ func (fa FunctionAssociations) deepCopy() FunctionAssociations {
 	return copied
 }
 
+func (fa FunctionAssociations) IsEmpty() bool {
+	return fa.ViewerRequest == nil &&
+		fa.ViewerResponse == nil &&
+		fa.OriginRequest == nil &&
+		fa.OriginResponse == nil
+}
+
 type ViewerFunction struct {
 	ARN          string       `yaml:"arn"`
 	FunctionType FunctionType `yaml:"functionType"`

@@ -63,7 +63,7 @@ type Path struct {
 // CDNIngress represents an Ingress within the bounded context of cdn-origin-controller
 type CDNIngress struct {
 	types.NamespacedName
-	LoadBalancerHost     string
+	OriginHost           string
 	Group                string
 	UnmergedPaths        []Path
 	OriginReqPolicy      string
@@ -95,7 +95,7 @@ var (
 // SharedIngressParams represents parameters which might be specified in multiple Ingresses
 type SharedIngressParams struct {
 	WebACLARN string
-	paths     map[types.NamespacedName][]Path
+	paths     map[string][]Path // map[originHost][]Path
 }
 
 // NewSharedIngressParams creates a new SharedIngressParams from a slice of CDNIngress
@@ -116,11 +116,11 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 	}, nil
 }
 
-func (sp SharedIngressParams) PathsFromIngress(ing types.NamespacedName) []Path {
-	return sp.paths[ing]
+func (sp SharedIngressParams) PathsFromOrigin(originHost string) []Path {
+	return sp.paths[originHost]
 }
 
-func mergedPaths(ingresses []CDNIngress) (map[types.NamespacedName][]Path, error) {
+func mergedPaths(ingresses []CDNIngress) (map[string][]Path, error) {
 	// Let's put it all in a map of Paths to easily check if we already saw this
 	// Path before and whether to merge it, but we must avoid checking equality of
 	// Paths by also checking Path.FunctionAssociations, because the same Path might
@@ -130,17 +130,17 @@ func mergedPaths(ingresses []CDNIngress) (map[types.NamespacedName][]Path, error
 	// instead of just using the input Path, with an empty FunctionAssociations.
 	// This way we ensure we only check equality via PathPattern and PathType.
 	//
-	// We're also going to create a map[ingressNamespacedName] because this
-	// struct will later also need to filter paths by Ingress, so it comes in handy
+	// We're also going to create a map[originHostname] because this
+	// struct will later also need to filter paths by origin, so it comes in handy
 	// to filter easily.
 	//
 	// The resulting map of all of this is a map of Path indexed by ingress name.
 
-	mergedPaths := make(map[types.NamespacedName]map[Path]FunctionAssociations)
+	mergedPaths := make(map[string]map[Path]FunctionAssociations)
 	for _, ing := range ingresses {
-		_, ok := mergedPaths[ing.NamespacedName]
+		_, ok := mergedPaths[ing.OriginHost]
 		if !ok {
-			mergedPaths[ing.NamespacedName] = make(map[Path]FunctionAssociations)
+			mergedPaths[ing.OriginHost] = make(map[Path]FunctionAssociations)
 		}
 
 		for _, p := range ing.UnmergedPaths {
@@ -148,9 +148,9 @@ func mergedPaths(ingresses []CDNIngress) (map[types.NamespacedName][]Path, error
 				PathPattern: p.PathPattern,
 				PathType:    p.PathType,
 			}
-			existingFA, ok := mergedPaths[ing.NamespacedName][pKey]
+			existingFA, ok := mergedPaths[ing.OriginHost][pKey]
 			if !ok {
-				mergedPaths[ing.NamespacedName][pKey] = p.FunctionAssociations
+				mergedPaths[ing.OriginHost][pKey] = p.FunctionAssociations
 				continue
 			}
 
@@ -159,23 +159,23 @@ func mergedPaths(ingresses []CDNIngress) (map[types.NamespacedName][]Path, error
 				return nil, fmt.Errorf("conflicting function associations on %q: %v", p.PathPattern, err)
 			}
 
-			mergedPaths[ing.NamespacedName][pKey] = mergedFA
+			mergedPaths[ing.OriginHost][pKey] = mergedFA
 		}
 	}
 
-	return mapOfNamespacedNameToPath(mergedPaths), nil
+	return mapOfOriginHostToPath(mergedPaths), nil
 }
 
-func mapOfNamespacedNameToPath(ingsPathsAndFAs map[types.NamespacedName]map[Path]FunctionAssociations) map[types.NamespacedName][]Path {
-	s := make(map[types.NamespacedName][]Path)
-	for ing, pathsAndFAs := range ingsPathsAndFAs {
+func mapOfOriginHostToPath(ingsPathsAndFAs map[string]map[Path]FunctionAssociations) map[string][]Path {
+	s := make(map[string][]Path)
+	for originHost, pathsAndFAs := range ingsPathsAndFAs {
 		for p, fa := range pathsAndFAs {
 			path := Path{
 				PathPattern:          p.PathPattern,
 				PathType:             p.PathType,
 				FunctionAssociations: fa,
 			}
-			s[ing] = append(s[ing], path)
+			s[originHost] = append(s[originHost], path)
 		}
 	}
 	return s
@@ -228,7 +228,7 @@ func NewCDNIngressFromV1(ctx context.Context, ing *networkingv1.Ingress, class C
 	}
 
 	if len(ing.Status.LoadBalancer.Ingress) > 0 {
-		result.LoadBalancerHost = ing.Status.LoadBalancer.Ingress[0].Hostname
+		result.OriginHost = ing.Status.LoadBalancer.Ingress[0].Hostname
 	}
 
 	return result, nil
