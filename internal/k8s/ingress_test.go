@@ -20,11 +20,13 @@
 package k8s
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestRunCDNIngressTestSuite(t *testing.T) {
@@ -55,7 +57,7 @@ func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithAlternativeDomainNames() {
 			},
 		},
 	}
-	ip, _ := NewCDNIngressFromV1(ing, CDNClass{})
+	ip, _ := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
 	s.Equal([]string{"banana.com.br", "pera.com.br"}, ip.AlternateDomainNames)
 }
 
@@ -81,18 +83,37 @@ foo: bar
 		"foo":            "bar",
 	}
 
-	ip, _ := NewCDNIngressFromV1(ing, CDNClass{})
+	ip, _ := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
 	s.Equal(expected, ip.Tags)
 }
 
-func (s *CDNIngressSuite) Test_sharedIngressParams_Valid() {
+func (s *CDNIngressSuite) Test_sharedIngressParams_SingleIngressIsValid() {
 	params := []CDNIngress{
 		{
-			Group:     "foo",
-			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			},
+			Group:             "foo",
+			UnmergedWebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 		},
 		{
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			},
 			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{
+							ARN: "some-arn",
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -100,26 +121,372 @@ func (s *CDNIngressSuite) Test_sharedIngressParams_Valid() {
 
 	expected := SharedIngressParams{
 		WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+		paths: map[types.NamespacedName][]Path{
+			types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			}: {
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn"},
+					},
+				},
+			},
+		},
 	}
 
 	s.Equal(expected, shared)
 	s.NoError(err)
 }
 
+func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithDifferentPathsIsValid() {
+	params := []CDNIngress{
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			},
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{
+							ARN: "some-arn",
+						},
+					},
+				},
+			},
+		},
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns2",
+				Name:      "ingress2",
+			},
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/foo",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{
+							ARN: "some-other-arn",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	shared, err := NewSharedIngressParams(params)
+
+	expected := SharedIngressParams{
+		paths: map[types.NamespacedName][]Path{
+			types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			}: {
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn"},
+					},
+				},
+			},
+			types.NamespacedName{
+				Namespace: "ns2",
+				Name:      "ingress2",
+			}: {
+				{
+					PathPattern: "/foo",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-other-arn"},
+					},
+				},
+			},
+		},
+	}
+
+	s.Equal(expected.paths, shared.paths)
+	s.NoError(err)
+}
+
+func (s *CDNIngressSuite) Test_sharedIngressParams_MultipleIngressesWithSamePathButDifferentFunctionEventTypesIsValid() {
+	params := []CDNIngress{
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			},
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ // NOTE: viewer response event type
+							ARN: "some-arn",
+						},
+					},
+				},
+			},
+		},
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			},
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						OriginResponse: &OriginFunction{ // NOTE: origin response event type
+							ARN: "some-other-arn",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	shared, err := NewSharedIngressParams(params)
+
+	expected := SharedIngressParams{
+		paths: map[types.NamespacedName][]Path{
+			types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			}: {
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn"},
+						OriginResponse: &OriginFunction{
+							ARN: "some-other-arn",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.Equal(expected.paths, shared.paths)
+	s.NoError(err)
+}
+
+func (s *CDNIngressSuite) Test_sharedIngressParams_FunctionAssociationsForSameEventAndDifferentARNIsInvalid() {
+	params := []CDNIngress{
+		{
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn"},
+					},
+				},
+			},
+		},
+		{
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-other-arn"},
+					},
+				},
+			},
+		},
+	}
+
+	shared, err := NewSharedIngressParams(params)
+
+	s.Empty(shared)
+	s.ErrorIs(err, errSharedParamsConflictingPaths)
+}
+func (s *CDNIngressSuite) Test_sharedIngressParams_FunctionAssociationsForSameEventAndDifferentFunctionTypeIsInvalid() {
+	params := []CDNIngress{
+		{
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{
+							ARN:          "some-arn",
+							FunctionType: FunctionTypeCloudfront,
+						},
+					},
+				},
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{
+							ARN:          "some-arn",
+							FunctionType: FunctionTypeEdge,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	shared, err := NewSharedIngressParams(params)
+
+	s.Empty(shared)
+	s.ErrorIs(err, errSharedParamsConflictingPaths)
+}
+
+func (s *CDNIngressSuite) Test_sharedIngressParams_FunctionAssociationsForSameEventAndDifferentIncludeBodyIsInvalid() {
+	params := []CDNIngress{
+		{
+			Group: "foo",
+			UnmergedPaths: []Path{
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						OriginRequest: &OriginRequestFunction{
+							OriginFunction: OriginFunction{
+								ARN: "some-arn",
+							},
+							IncludeBody: true,
+						},
+					},
+				},
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						OriginRequest: &OriginRequestFunction{
+							OriginFunction: OriginFunction{
+								ARN: "some-arn",
+							},
+							IncludeBody: false,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	shared, err := NewSharedIngressParams(params)
+
+	s.Empty(shared)
+	s.ErrorIs(err, errSharedParamsConflictingPaths)
+}
+
 func (s *CDNIngressSuite) Test_sharedIngressParams_ConflictingWebACLs() {
 	params := []CDNIngress{
 		{
-			Group:     "foo",
-			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
+			Group:             "foo",
+			UnmergedWebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/00000-5c43-4ea0-8424-2ed34dd3434",
 		},
 		{
-			Group:     "foo",
-			WebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/8ab0c8f8-5c43-4ea0-8424-56dd8ab8c",
+			Group:             "foo",
+			UnmergedWebACLARN: "arn:aws:wafv2:us-east-1:000000000000:global/webacl/foo/8ab0c8f8-5c43-4ea0-8424-56dd8ab8c",
 		},
 	}
 
 	shared, err := NewSharedIngressParams(params)
 
 	s.Equal(SharedIngressParams{}, shared)
-	s.Error(err)
+	s.ErrorIs(err, errSharedParamsConflictingACL)
+}
+
+func (s *CDNIngressSuite) TestSharedIngressParams_PathsFromIngress() {
+	shared := SharedIngressParams{
+		paths: map[types.NamespacedName][]Path{
+			types.NamespacedName{
+				Namespace: "ns1",
+				Name:      "ingress1",
+			}: {
+				{
+					PathPattern: "/",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn1"},
+						OriginResponse: &OriginFunction{
+							ARN: "some-other-arn1",
+						},
+					},
+				},
+			},
+			types.NamespacedName{
+				Namespace: "ns2",
+				Name:      "ingress2",
+			}: {
+				{
+					PathPattern: "/foo",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn2"},
+						OriginResponse: &OriginFunction{
+							ARN: "some-other-arn2",
+						},
+					},
+				},
+				{
+					PathPattern: "/bar",
+					PathType:    "Prefix",
+					FunctionAssociations: FunctionAssociations{
+						ViewerResponse: &ViewerFunction{ARN: "some-arn3"},
+						OriginResponse: &OriginFunction{
+							ARN: "some-other-arn3",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.Empty(shared.PathsFromIngress(types.NamespacedName{Name: "I don't exist"}))
+
+	s.ElementsMatch([]Path{
+		{
+			PathPattern: "/",
+			PathType:    "Prefix",
+			FunctionAssociations: FunctionAssociations{
+				ViewerResponse: &ViewerFunction{ARN: "some-arn1"},
+				OriginResponse: &OriginFunction{
+					ARN: "some-other-arn1",
+				},
+			},
+		},
+	}, shared.PathsFromIngress(types.NamespacedName{Namespace: "ns1", Name: "ingress1"}))
+
+	s.ElementsMatch([]Path{
+		{
+			PathPattern: "/foo",
+			PathType:    "Prefix",
+			FunctionAssociations: FunctionAssociations{
+				ViewerResponse: &ViewerFunction{ARN: "some-arn2"},
+				OriginResponse: &OriginFunction{
+					ARN: "some-other-arn2",
+				},
+			},
+		},
+		{
+			PathPattern: "/bar",
+			PathType:    "Prefix",
+			FunctionAssociations: FunctionAssociations{
+				ViewerResponse: &ViewerFunction{ARN: "some-arn3"},
+				OriginResponse: &OriginFunction{
+					ARN: "some-other-arn3",
+				},
+			},
+		}}, shared.PathsFromIngress(types.NamespacedName{Namespace: "ns2", Name: "ingress2"}))
 }

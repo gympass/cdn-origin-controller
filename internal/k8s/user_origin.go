@@ -53,12 +53,12 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 			NamespacedName:    types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()},
 			LoadBalancerHost:  o.Host,
 			Group:             groupAnnotationValue(obj),
-			Paths:             o.paths(),
+			UnmergedPaths:     o.paths(),
 			ViewerFnARN:       o.ViewerFunctionARN,
 			OriginReqPolicy:   o.RequestPolicy,
 			CachePolicy:       o.CachePolicy,
 			OriginRespTimeout: o.ResponseTimeout,
-			WebACLARN:         o.WebACLARN,
+			UnmergedWebACLARN: o.WebACLARN,
 			OriginAccess:      o.OriginAccess,
 		}
 		result = append(result, ing)
@@ -66,6 +66,11 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 
 	return result, nil
 }
+
+// TODO in upcoming PRs:
+// parse and validate function associations, ensuring:
+//   a. it only references paths present in this custom origin
+//   b. do not break any existing rules that are already mapped in fa.Validate()
 
 type userOrigin struct {
 	Host              string   `yaml:"host"`

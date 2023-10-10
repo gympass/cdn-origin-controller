@@ -57,7 +57,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 				{
 					Group:            "group",
 					LoadBalancerHost: "foo.com",
-					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginAccess:     "Public",
 				},
 			},
@@ -74,7 +74,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 				{
 					Group:            "group",
 					LoadBalancerHost: "foo.com",
-					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginAccess:     "Bucket",
 				},
 			},
@@ -93,7 +93,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 				{
 					Group:             "group",
 					LoadBalancerHost:  "foo.com",
-					Paths:             []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
 					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
@@ -118,7 +118,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 				{
 					Group:            "group",
 					LoadBalancerHost: "foo.com",
-					Paths:            []Path{{PathPattern: "/foo"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
 					ViewerFnARN:      "foo",
 					OriginAccess:     "Bucket",
@@ -126,7 +126,7 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 				{
 					Group:             "group",
 					LoadBalancerHost:  "bar.com",
-					Paths:             []Path{{PathPattern: "/bar"}},
+					UnmergedPaths:     []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
 					OriginAccess:      "Public",
 				},
