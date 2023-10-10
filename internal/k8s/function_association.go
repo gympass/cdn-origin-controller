@@ -245,3 +245,14 @@ func functionAssociations(obj client.Object) (map[string]FunctionAssociations, e
 
 	return fa.Paths, nil
 }
+
+func newFAFromViewerFunctionARN(arn string) FunctionAssociations {
+	return FunctionAssociations{
+		ViewerRequest: &ViewerRequestFunction{
+			ViewerFunction: ViewerFunction{
+				ARN:          arn,
+				FunctionType: FunctionTypeCloudfront,
+			},
+		},
+	}
+}

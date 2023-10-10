@@ -153,7 +153,6 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					LoadBalancerHost:  "host",
 					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
-					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
 					OriginAccess:      "Public",
 				},
@@ -179,7 +178,6 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					LoadBalancerHost: "host",
 					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
-					ViewerFnARN:      "foo",
 					OriginAccess:     "Bucket",
 				},
 				{

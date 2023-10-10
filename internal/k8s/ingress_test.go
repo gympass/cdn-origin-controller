@@ -87,6 +87,100 @@ foo: bar
 	s.Equal(expected, ip.Tags)
 }
 
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_UsingViewerFunctionARNOnlyIsValid() {
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				cfViewerFnAnnotation: "some-arn",
+			},
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.NoError(err)
+	for _, p := range got.UnmergedPaths {
+		s.Equal(ViewerRequestFunction{
+			ViewerFunction: ViewerFunction{
+				ARN:          "some-arn",
+				FunctionType: FunctionTypeCloudfront,
+			},
+		}, p.FunctionAssociations.ViewerRequest)
+	}
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_UsingFunctionAssociationsOnlyIsValid() {
+	faYAML := `
+/foo/*:
+  viewerRequest:
+    arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+    functionType: cloudfront
+`
+
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				cfFunctionAssociationsAnnotation: faYAML,
+			},
+		},
+		Spec: networkingv1.IngressSpec{
+			Rules: []networkingv1.IngressRule{
+				{
+					IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+						Paths: []networkingv1.HTTPIngressPath{
+							{
+								Path: "/foo/*",
+								PathType: func() *networkingv1.PathType {
+									it := networkingv1.PathTypeImplementationSpecific
+									return &it
+								}(),
+							},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.NoError(err)
+	for _, p := range got.UnmergedPaths {
+		s.Equal(&ViewerRequestFunction{
+			ViewerFunction: ViewerFunction{
+				ARN:          "arn:aws:cloudfront::000000000000:function/test-function-associations",
+				FunctionType: FunctionTypeCloudfront,
+			},
+		}, p.FunctionAssociations.ViewerRequest)
+	}
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_UsingFunctionAssociationsAndViewerFunctionARNIsInvalid() {
+	faYAML := `
+/foo/*:
+  viewerRequest:
+    arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+    functionType: 
+`
+
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				cfViewerFnAnnotation:             "some-arn",
+				cfFunctionAssociationsAnnotation: faYAML,
+			},
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.Error(err)
+	s.Empty(got)
+}
+
 func (s *CDNIngressSuite) Test_sharedIngressParams_SingleIngressIsValid() {
 	params := []CDNIngress{
 		{

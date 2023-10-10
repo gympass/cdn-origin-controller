@@ -66,7 +66,6 @@ type CDNIngress struct {
 	LoadBalancerHost     string
 	Group                string
 	UnmergedPaths        []Path
-	ViewerFnARN          string
 	OriginReqPolicy      string
 	CachePolicy          string
 	OriginRespTimeout    int64
@@ -217,7 +216,6 @@ func NewCDNIngressFromV1(ctx context.Context, ing *networkingv1.Ingress, class C
 		},
 		Group:                groupAnnotationValue(ing),
 		UnmergedPaths:        paths,
-		ViewerFnARN:          viewerFnARN(ing),
 		OriginReqPolicy:      originReqPolicy(ing),
 		CachePolicy:          cachePolicy(ing),
 		OriginRespTimeout:    originRespTimeout(ing),
@@ -242,6 +240,37 @@ func pathsV1(ctx context.Context, ing *networkingv1.Ingress) ([]Path, error) {
 		return nil, fmt.Errorf("parsing function associations from annotation: %v", err)
 	}
 
+	viewerFn := viewerFnARN(ing)
+	if len(viewerFn) > 0 && len(fa) > 0 {
+		return nil, fmt.Errorf("can't use %q (deprecated) and %q at the same time, prefer %q",
+			cfViewerFnAnnotation, cfFunctionAssociationsAnnotation, cfFunctionAssociationsAnnotation)
+	}
+
+	if len(viewerFn) > 0 {
+		return pathsForViewerFunction(ing, viewerFn), nil
+	}
+	return pathsForFunctionAssociations(ctx, ing, fa), nil
+}
+
+func pathsForViewerFunction(ing *networkingv1.Ingress, fnARN string) []Path {
+	rules := ing.Spec.Rules
+
+	var paths []Path
+	for _, rule := range rules {
+		for _, p := range rule.HTTP.Paths {
+			newPath := Path{
+				PathPattern:          p.Path,
+				PathType:             string(*p.PathType),
+				FunctionAssociations: newFAFromViewerFunctionARN(fnARN),
+			}
+			paths = append(paths, newPath)
+		}
+	}
+
+	return paths
+}
+
+func pathsForFunctionAssociations(ctx context.Context, ing *networkingv1.Ingress, fa map[string]FunctionAssociations) []Path {
 	rules := ing.Spec.Rules
 
 	var paths []Path
@@ -266,7 +295,7 @@ func pathsV1(ctx context.Context, ing *networkingv1.Ingress) ([]Path, error) {
 			paths = append(paths, newPath)
 		}
 	}
-	return paths, nil
+	return paths
 }
 
 func viewerFnARN(obj client.Object) string {

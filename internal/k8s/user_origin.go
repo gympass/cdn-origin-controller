@@ -54,7 +54,6 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 			LoadBalancerHost:  o.Host,
 			Group:             groupAnnotationValue(obj),
 			UnmergedPaths:     o.paths(),
-			ViewerFnARN:       o.ViewerFunctionARN,
 			OriginReqPolicy:   o.RequestPolicy,
 			CachePolicy:       o.CachePolicy,
 			OriginRespTimeout: o.ResponseTimeout,

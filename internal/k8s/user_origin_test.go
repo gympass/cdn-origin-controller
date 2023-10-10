@@ -95,7 +95,6 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					LoadBalancerHost:  "foo.com",
 					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
-					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
 					OriginAccess:      "Public",
 				},
@@ -120,7 +119,6 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 					LoadBalancerHost: "foo.com",
 					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
-					ViewerFnARN:      "foo",
 					OriginAccess:     "Bucket",
 				},
 				{
