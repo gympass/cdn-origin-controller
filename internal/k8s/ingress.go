@@ -118,11 +118,7 @@ func NewSharedIngressParams(ingresses []CDNIngress) (SharedIngressParams, error)
 }
 
 func (sp SharedIngressParams) PathsFromIngress(ing types.NamespacedName) []Path {
-	var paths []Path
-	for _, p := range sp.paths[ing] {
-		paths = append(paths, p)
-	}
-	return paths
+	return sp.paths[ing]
 }
 
 func mergedPaths(ingresses []CDNIngress) (map[types.NamespacedName][]Path, error) {

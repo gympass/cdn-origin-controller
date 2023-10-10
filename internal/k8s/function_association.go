@@ -228,12 +228,7 @@ func (f *OriginRequestFunction) validate() error {
 	if f == nil {
 		return nil
 	}
-
-	if err := f.OriginFunction.validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return f.OriginFunction.validate()
 }
 
 func functionAssociations(obj client.Object) (map[string]FunctionAssociations, error) {

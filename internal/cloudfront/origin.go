@@ -73,7 +73,6 @@ type Behavior struct {
 // OriginBuilder allows the construction of an Origin
 type OriginBuilder struct {
 	host             string
-	viewerFnARN      string
 	requestPolicy    string
 	distributionName string
 	cachePolicy      string
