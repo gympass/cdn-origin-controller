@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -58,7 +59,16 @@ type Service struct {
 }
 
 // Reconcile an Ingress resource of any version
-func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing client.Object) error {
+func (s *Service) Reconcile(ctx context.Context, ing *networkingv1.Ingress, class k8s.CDNClass) error {
+	if err := s.validateIngress(ing); err != nil {
+		return s.handleFailure(fmt.Errorf("validating Ingress: %v", err), ing)
+	}
+
+	reconciling, err := k8s.NewCDNIngressFromV1(ctx, ing, class)
+	if err != nil {
+		return err
+	}
+
 	log, _ := logr.FromContext(ctx)
 
 	if k8s.HasFinalizer(ing) && !k8s.HasGroupAnnotation(ing) {
@@ -103,6 +113,18 @@ func (s *Service) Reconcile(ctx context.Context, reconciling k8s.CDNIngress, ing
 	}
 
 	return s.handleResult(ing, cdnStatus, errs)
+}
+
+func (s *Service) validateIngress(ing *networkingv1.Ingress) error {
+	if df := k8s.UsedDeprecatedFields(ing); len(df) > 0 {
+		s.Recorder.Eventf(
+			ing,
+			corev1.EventTypeWarning,
+			"UsingDeprecatedFields",
+			"Using deprecated fields/annotations: %v", df)
+	}
+
+	return k8s.ValidateIngressFunctionAssociations(ing)
 }
 
 func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress) ([]k8s.CDNIngress, Distribution, error) {
@@ -377,20 +399,30 @@ func (s *Service) reconcileFinalizer(obj client.Object, shouldHaveFinalizer bool
 
 func (s *Service) handleResult(obj client.Object, cdnStatus *v1alpha1.CDNStatus, errs *multierror.Error) error {
 	if errs.Len() > 0 {
-		return s.handleFailure(errs, obj, cdnStatus)
+		return s.handleFailureWithStatus(errs, obj, cdnStatus)
 	}
 	return s.handleSuccess(obj, cdnStatus)
 }
 
-func (s *Service) handleFailure(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
-	msg := "Unable to reconcile CDN: " + err.Error()
-	s.Recorder.Event(ingress, corev1.EventTypeWarning, reasonFailed, msg)
+func (s *Service) handleFailure(err error, ingress client.Object) error {
+	s.recordFailureOnIngress(err, ingress)
+	return err
+}
+
+func (s *Service) handleFailureWithStatus(err error, ingress client.Object, status *v1alpha1.CDNStatus) error {
+	msg := s.recordFailureOnIngress(err, ingress)
 
 	ingRef := v1alpha1.NewIngressRef(ingress.GetNamespace(), ingress.GetName())
 	msg = fmt.Sprintf("%s: %s", ingRef, msg)
 	s.Recorder.Event(status, corev1.EventTypeWarning, reasonFailed, msg)
 
 	return err
+}
+
+func (s *Service) recordFailureOnIngress(err error, ingress client.Object) string {
+	msg := "Unable to reconcile CDN: " + err.Error()
+	s.Recorder.Event(ingress, corev1.EventTypeWarning, reasonFailed, msg)
+	return msg
 }
 
 func (s *Service) handleSuccess(ingress client.Object, status *v1alpha1.CDNStatus) error {
