@@ -282,13 +282,14 @@ func pathsForFunctionAssociations(ctx context.Context, ing *networkingv1.Ingress
 			}
 
 			if err := fa[p.Path].Validate(); err != nil {
-				log.FromContext(ctx).Info(
+				// complain about invalid FAs for now, but don't halt reconciliation of all Ingresses because one of them is bad
+				// the bad ingress itself will throw an error when reconciled due to invalid annotation
+				log.FromContext(ctx).Error(
+					errors.New("invalid function association"),
 					"Found invalid function association when calculating desired state",
 					"functionAssociation", fa[p.Path],
 					"invalidIngress", ing.Namespace+"/"+ing.Name)
 			} else {
-				// ignore invalid FAs for now, don't halt reconciliation of all Ingresses because one of them is bad
-				// the bad ingress should throw an error when reconciled due to invalid annotation
 				newPath.FunctionAssociations = fa[p.Path]
 			}
 
