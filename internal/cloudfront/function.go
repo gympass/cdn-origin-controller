@@ -39,29 +39,45 @@ type BodyIncluderFunction interface {
 func NewFunctions(fa k8s.FunctionAssociations) []Function {
 	var functions []Function
 	if fa.ViewerRequest != nil {
-		var fn Function = newRequestCloudfrontFunction(fa.ViewerRequest.ARN, cloudfront.EventTypeViewerRequest)
-		if fa.ViewerRequest.FunctionType == k8s.FunctionTypeEdge {
-			fn = newRequestEdgeFunction(fa.ViewerRequest.ARN, cloudfront.EventTypeViewerRequest, fa.ViewerRequest.IncludeBody)
-		}
-		functions = append(functions, fn)
+		functions = append(functions, newViewerRequestFn(fa))
 	}
 	if fa.ViewerResponse != nil {
-		var fn Function = newResponseCloudfrontFunction(fa.ViewerResponse.ARN, cloudfront.EventTypeViewerResponse)
-		if fa.ViewerResponse.FunctionType == k8s.FunctionTypeEdge {
-			fn = newResponseEdgeFunction(fa.ViewerResponse.ARN, cloudfront.EventTypeViewerResponse)
-		}
-		functions = append(functions, fn)
+		functions = append(functions, newViewerResponseFn(fa))
 	}
 	if fa.OriginRequest != nil {
-		fn := newRequestEdgeFunction(fa.OriginRequest.ARN, cloudfront.EventTypeOriginRequest, fa.OriginRequest.IncludeBody)
-		functions = append(functions, fn)
+		functions = append(functions, newOriginRequestFn(fa))
 	}
 	if fa.OriginResponse != nil {
-		fn := newResponseEdgeFunction(fa.OriginResponse.ARN, cloudfront.EventTypeOriginResponse)
-		functions = append(functions, fn)
+		functions = append(functions, newOriginResponseFn(fa))
 	}
 
 	return functions
+}
+
+func newViewerRequestFn(fa k8s.FunctionAssociations) Function {
+	var fn Function = newRequestCloudfrontFunction(fa.ViewerRequest.ARN, cloudfront.EventTypeViewerRequest)
+	if fa.ViewerRequest.FunctionType == k8s.FunctionTypeEdge {
+		fn = newRequestEdgeFunction(fa.ViewerRequest.ARN, cloudfront.EventTypeViewerRequest, fa.ViewerRequest.IncludeBody)
+	}
+	return fn
+}
+
+func newViewerResponseFn(fa k8s.FunctionAssociations) Function {
+	var fn Function = newResponseCloudfrontFunction(fa.ViewerResponse.ARN, cloudfront.EventTypeViewerResponse)
+	if fa.ViewerResponse.FunctionType == k8s.FunctionTypeEdge {
+		fn = newResponseEdgeFunction(fa.ViewerResponse.ARN, cloudfront.EventTypeViewerResponse)
+	}
+	return fn
+}
+
+func newOriginRequestFn(fa k8s.FunctionAssociations) requestEdgeFunction {
+	fn := newRequestEdgeFunction(fa.OriginRequest.ARN, cloudfront.EventTypeOriginRequest, fa.OriginRequest.IncludeBody)
+	return fn
+}
+
+func newOriginResponseFn(fa k8s.FunctionAssociations) responseEdgeFunction {
+	fn := newResponseEdgeFunction(fa.OriginResponse.ARN, cloudfront.EventTypeOriginResponse)
+	return fn
 }
 
 var _ Function = requestCloudfrontFunction{}
