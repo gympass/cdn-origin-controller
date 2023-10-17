@@ -34,27 +34,19 @@ func renderDescription(template, group string) string {
 	return strings.ReplaceAll(template, "{{group}}", group)
 }
 
-func newOrigin(ing k8s.CDNIngress, cfg config.Config) Origin {
+func newOrigin(ing k8s.CDNIngress, cfg config.Config, shared k8s.SharedIngressParams) Origin {
 	builder := NewOriginBuilder(ing.Group, ing.LoadBalancerHost, ing.OriginAccess, cfg).
-		WithViewerFunction(ing.ViewerFnARN).
 		WithResponseTimeout(ing.OriginRespTimeout).
 		WithRequestPolicy(ing.OriginReqPolicy).
 		WithCachePolicy(ing.CachePolicy)
 
-	patterns := pathPatterns(ing.Paths)
-	for _, p := range patterns {
-		builder = builder.WithBehavior(p)
+	for _, p := range shared.PathsFromIngress(ing.NamespacedName) {
+		for _, pp := range pathPatternsForPath(p) {
+			builder = builder.WithBehavior(pp, NewFunctions(p.FunctionAssociations)...)
+		}
 	}
 
 	return builder.Build()
-}
-
-func pathPatterns(paths []k8s.Path) []string {
-	var patterns []string
-	for _, p := range paths {
-		patterns = append(patterns, pathPatternsForPath(p)...)
-	}
-	return patterns
 }
 
 func pathPatternsForPath(p k8s.Path) []string {

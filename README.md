@@ -133,6 +133,10 @@ In CloudFront, these would result in the following order:
 - `/en-us/foo` -> en-us specific origin
 - `/*/foo` -> catch all origin
 
+// TODO in upcoming PRs
+// document function associations annotation for ingress-based behaviors
+// also document lambda invocation IAM stuff
+
 ## User-supplied origin/behavior configuration
 
 If you need additional origin/behavior configuration that you can't express via Ingress resources (e.g., pointing to an S3 bucket with static resources of your application) you can do that using the `cdn-origin-controller.gympass.com/cf.user-origins`.
@@ -161,6 +165,9 @@ metadata:
           - /bar
           - /bar/*
 ```
+
+// TODO in upcoming PRs
+// document function associations in user origins
 
 The `.host` is the hostname of the origin you're configuring.
 

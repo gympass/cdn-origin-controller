@@ -118,7 +118,6 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithDuplicateOrigins() {
 			PathPattern:   path,
 			RequestPolicy: "216adef6-5c7f-47e4-b989-5492eafa07d3",
 			CachePolicy:   "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
-			ViewerFnARN:   "",
 			OriginHost:    "host",
 		}
 	}

@@ -637,61 +637,6 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 	s.NoError(err)
 }
 
-func (s *DistributionRepositoryTestSuite) TestSync_WithViewerFunction() {
-	s.cfClient.ExpectedGetDistributionConfigOutput = &awscloudfront.GetDistributionConfigOutput{
-		ETag: aws.String("foo"),
-		DistributionConfig: &awscloudfront.DistributionConfig{
-			Origins:              &awscloudfront.Origins{Quantity: aws.Int64(0)},
-			CacheBehaviors:       &awscloudfront.CacheBehaviors{Quantity: aws.Int64(0)},
-			CallerReference:      aws.String(testCallerRefFn()),
-			DefaultRootObject:    aws.String("/"),
-			CustomErrorResponses: &awscloudfront.CustomErrorResponses{},
-			Restrictions:         &awscloudfront.Restrictions{},
-		},
-	}
-
-	s.cfClient.ExpectedUpdateDistributionOutput = &awscloudfront.UpdateDistributionOutput{
-		Distribution: &awscloudfront.Distribution{
-			Id: aws.String("id"), ARN: aws.String("arn"), DomainName: aws.String("domain"),
-		},
-	}
-
-	var noError error
-	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
-	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
-	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
-
-	distribution := Distribution{
-		ID:  "mock id",
-		ARN: "arn:aws:cloudfront::1010102030:distribution/ABCABC123456",
-		DefaultOrigin: Origin{
-			Host:            "default.origin",
-			ResponseTimeout: 30,
-		},
-		CustomOrigins: []Origin{
-			{
-				Host:            "origin",
-				ResponseTimeout: 30,
-				Behaviors: []Behavior{
-					{PathPattern: "/foo", ViewerFnARN: "some-arn", RequestPolicy: "policy", CachePolicy: "cache-policy"},
-				},
-			},
-		},
-		Tags: map[string]string{"foo": "bar"},
-	}
-
-	repo := DistRepository{
-		CloudFrontClient: s.cfClient,
-		OACRepo:          s.oacRepo,
-		TaggingClient:    s.taggingClient,
-		CallerRef:        testCallerRefFn,
-		WaitTimeout:      time.Second,
-		Cfg:              s.cfg,
-	}
-	_, err := repo.Sync(distribution)
-	s.NoError(err)
-}
-
 func (s *DistributionRepositoryTestSuite) TestUpdate_ShouldSyncOneOACAndDeleteOneOAC() {
 	origins := &awscloudfront.Origins{
 		Items: []*awscloudfront.Origin{

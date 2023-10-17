@@ -113,7 +113,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:            "group",
 					LoadBalancerHost: "host",
-					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginAccess:     "Public",
 				},
 			},
@@ -131,7 +131,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:            "group",
 					LoadBalancerHost: "host",
-					Paths:            []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginAccess:     "Bucket",
 				},
 			},
@@ -151,9 +151,8 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:             "group",
 					LoadBalancerHost:  "host",
-					Paths:             []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
-					ViewerFnARN:       "foo",
 					OriginReqPolicy:   "None",
 					OriginAccess:      "Public",
 				},
@@ -177,16 +176,15 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:            "group",
 					LoadBalancerHost: "host",
-					Paths:            []Path{{PathPattern: "/foo"}},
+					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
 					OriginReqPolicy:  "None",
-					ViewerFnARN:      "foo",
 					OriginAccess:     "Bucket",
 				},
 				{
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:             "group",
 					LoadBalancerHost:  "host",
-					Paths:             []Path{{PathPattern: "/bar"}},
+					UnmergedPaths:     []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
 					OriginAccess:      "Public",
 				},
@@ -211,7 +209,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
 			return ing.Group == "group"
 		}
 
-		expectedParentCDNIng, err := NewCDNIngressFromV1(parentIng, s.CDNClass)
+		expectedParentCDNIng, err := NewCDNIngressFromV1(context.Background(), parentIng, s.CDNClass)
 		s.NoError(err, "test: %s", tc.name)
 
 		expectedIngs := append(tc.expectedIngs, expectedParentCDNIng)

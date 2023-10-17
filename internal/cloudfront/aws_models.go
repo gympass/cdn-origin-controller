@@ -20,9 +20,11 @@
 package cloudfront
 
 import (
-	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudfront"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
+	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
 
 // CallerRefFn is the function that should be called when setting the request's caller reference.
@@ -62,7 +64,8 @@ func newAWSDistributionConfig(d Distribution, callerRef CallerRefFn, cfg config.
 					Items:    aws.StringSlice([]string{"GET", "HEAD"}),
 					Quantity: aws.Int64(2),
 				},
-			}, CachePolicyId: aws.String(cfg.CloudFrontDefaultCachingPolicyID),
+			},
+			CachePolicyId:              aws.String(cfg.CloudFrontDefaultCachingPolicyID),
 			Compress:                   aws.Bool(true),
 			FieldLevelEncryptionId:     aws.String(""),
 			FunctionAssociations:       nil,
@@ -159,22 +162,55 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 
 func newCacheBehavior(b Behavior) *cloudfront.CacheBehavior {
 	cb := baseCacheBehavior(b)
-	if len(b.ViewerFnARN) > 0 {
-		addViewerFunctionAssociation(cb, b.ViewerFnARN)
+	var cfFunctions []Function
+	var edgeFunctions []Function
+	for _, fn := range b.FunctionAssociations {
+		switch fn.Type() {
+		case k8s.FunctionTypeCloudfront:
+			cfFunctions = append(cfFunctions, fn)
+		case k8s.FunctionTypeEdge:
+			edgeFunctions = append(edgeFunctions, fn)
+		}
 	}
+
+	cb.SetFunctionAssociations(&cloudfront.FunctionAssociations{
+		Items:    newAWSFunctionAssociation(cfFunctions),
+		Quantity: aws.Int64(int64(len(cfFunctions))),
+	})
+	cb.SetLambdaFunctionAssociations(&cloudfront.LambdaFunctionAssociations{
+		Items:    newAWSLambdaFunctionAssociation(edgeFunctions),
+		Quantity: aws.Int64(int64(len(edgeFunctions))),
+	})
+
 	return cb
 }
 
-func addViewerFunctionAssociation(cb *cloudfront.CacheBehavior, functionARN string) {
-	cb.FunctionAssociations = &cloudfront.FunctionAssociations{
-		Items: []*cloudfront.FunctionAssociation{
-			{
-				FunctionARN: aws.String(functionARN),
-				EventType:   aws.String(cloudfront.EventTypeViewerRequest),
-			},
-		},
-		Quantity: aws.Int64(1),
+func newAWSFunctionAssociation(functions []Function) []*cloudfront.FunctionAssociation {
+	var result []*cloudfront.FunctionAssociation
+	for _, fn := range functions {
+		result = append(result, &cloudfront.FunctionAssociation{
+			EventType:   aws.String(fn.EventType()),
+			FunctionARN: aws.String(fn.ARN()),
+		})
 	}
+	return result
+}
+
+func newAWSLambdaFunctionAssociation(functions []Function) []*cloudfront.LambdaFunctionAssociation {
+	var result []*cloudfront.LambdaFunctionAssociation
+	for _, fn := range functions {
+		lfa := &cloudfront.LambdaFunctionAssociation{
+			EventType:         aws.String(fn.EventType()),
+			LambdaFunctionARN: aws.String(fn.ARN()),
+		}
+
+		if bfn, ok := fn.(BodyIncluderFunction); ok {
+			lfa.SetIncludeBody(bfn.IncludeBody())
+		}
+
+		result = append(result, lfa)
+	}
+	return result
 }
 
 func baseCacheBehavior(b Behavior) *cloudfront.CacheBehavior {

@@ -121,7 +121,7 @@ func (s *Service) desiredState(ctx context.Context, reconciling k8s.CDNIngress) 
 		return nil, Distribution{}, fmt.Errorf("fetching existing CloudFront ID based on group (%s): %v", reconciling.Group, err)
 	}
 
-	desiredDist, err := s.newDistribution(desiredIngresses, reconciling.Group, sharedParams.WebACLARN, existingDistARN)
+	desiredDist, err := s.newDistribution(desiredIngresses, reconciling.Group, sharedParams, existingDistARN)
 	if err != nil {
 		return nil, Distribution{}, fmt.Errorf("building desired distribution: %v", err)
 	}
@@ -174,7 +174,7 @@ func newCDNStatus(ings []k8s.CDNIngress, dist Distribution) *v1alpha1.CDNStatus 
 	return status
 }
 
-func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, distARN string) (Distribution, error) {
+func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shared k8s.SharedIngressParams, distARN string) (Distribution, error) {
 	b := NewDistributionBuilder(
 		group,
 		s.Config,
@@ -191,7 +191,7 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, 
 	}
 
 	for _, ing := range ingresses {
-		b = b.WithOrigin(newOrigin(ing, s.Config))
+		b = b.WithOrigin(newOrigin(ing, s.Config, shared))
 		b = b.WithAlternateDomains(ing.AlternateDomainNames)
 		b = b.AppendTags(ing.Tags)
 	}
@@ -208,8 +208,8 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group, webACLARN, 
 		b = b.AppendTags(s.Config.CloudFrontCustomTags)
 	}
 
-	if len(webACLARN) > 0 {
-		b = b.WithWebACL(webACLARN)
+	if len(shared.WebACLARN) > 0 {
+		b = b.WithWebACL(shared.WebACLARN)
 	}
 
 	if len(distARN) > 0 {

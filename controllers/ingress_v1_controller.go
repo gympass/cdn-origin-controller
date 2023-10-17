@@ -64,13 +64,18 @@ func (r *V1Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Re
 		return reconcile.Result{}, fmt.Errorf("could not fetch Ingress: %+v", err)
 	}
 
+	// TODO in upcoming PRs:
+	// validate function associations annotation to ensure:
+	//   a. it only references paths present in this Ingress (this currently silently fails)
+	//   b. do not break any existing rules that are already mapped in fa.Validate() (this currently silently fails)
+
 	cdnClassName := k8s.CDNClassAnnotationValue(ingress)
 	cdnClass, err := r.CDNClassFetcher.FetchByName(ctx, cdnClassName)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not find CDN class (%s): %v", cdnClassName, err)
 	}
 
-	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ingress, cdnClass)
+	reconcilingCDNIngress, err := k8s.NewCDNIngressFromV1(ctx, ingress, cdnClass)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

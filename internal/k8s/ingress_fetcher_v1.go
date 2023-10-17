@@ -44,7 +44,7 @@ func (i ingFetcherV1) FetchBy(ctx context.Context, cdnClass CDNClass, predicate 
 
 	var result []CDNIngress
 	for _, k8sIng := range list.Items {
-		ing, err := NewCDNIngressFromV1(&k8sIng, cdnClass)
+		ing, err := NewCDNIngressFromV1(ctx, &k8sIng, cdnClass)
 		if err != nil {
 			return []CDNIngress{}, err
 		}
