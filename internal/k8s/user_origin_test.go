@@ -55,10 +55,10 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                     - /foo/*`,
 			expectedIngs: []CDNIngress{
 				{
-					Group:            "group",
-					LoadBalancerHost: "foo.com",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
-					OriginAccess:     "Public",
+					Group:         "group",
+					OriginHost:    "foo.com",
+					UnmergedPaths: []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:  "Public",
 				},
 			},
 		},
@@ -72,10 +72,10 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                   originAccess: Bucket`,
 			expectedIngs: []CDNIngress{
 				{
-					Group:            "group",
-					LoadBalancerHost: "foo.com",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
-					OriginAccess:     "Bucket",
+					Group:         "group",
+					OriginHost:    "foo.com",
+					UnmergedPaths: []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:  "Bucket",
 				},
 			},
 		},
@@ -87,12 +87,11 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                   paths:
                                     - /foo
                                     - /foo/*
-                                  viewerFunctionARN: foo
                                   originRequestPolicy: None`,
 			expectedIngs: []CDNIngress{
 				{
 					Group:             "group",
-					LoadBalancerHost:  "foo.com",
+					OriginHost:        "foo.com",
 					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
 					OriginReqPolicy:   "None",
@@ -106,7 +105,6 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                 - host: foo.com
                                   paths:
                                     - /foo
-                                  viewerFunctionARN: foo
                                   originRequestPolicy: None
                                   originAccess: Bucket
                                 - host: bar.com
@@ -115,15 +113,15 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
                                     - /bar`,
 			expectedIngs: []CDNIngress{
 				{
-					Group:            "group",
-					LoadBalancerHost: "foo.com",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
-					OriginReqPolicy:  "None",
-					OriginAccess:     "Bucket",
+					Group:           "group",
+					OriginHost:      "foo.com",
+					UnmergedPaths:   []Path{{PathPattern: "/foo"}},
+					OriginReqPolicy: "None",
+					OriginAccess:    "Bucket",
 				},
 				{
 					Group:             "group",
-					LoadBalancerHost:  "bar.com",
+					OriginHost:        "bar.com",
 					UnmergedPaths:     []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
 					OriginAccess:      "Public",
@@ -145,6 +143,94 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 		s.NoError(err, "test: %s", tc.name)
 		s.Equal(tc.expectedIngs, got, "test: %s", tc.name)
 	}
+}
+
+func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_WithViewerFunctionARNIsValid() {
+	userOriginsYAML := `
+- host: foo.com
+  viewerFunctionARN: some-arn
+  paths:
+  - /foo
+  - /foo/*
+`
+	ing := &networkingv1.Ingress{}
+	ing.Annotations = map[string]string{
+		cfUserOriginsAnnotation: userOriginsYAML,
+		CDNGroupAnnotation:      "group",
+	}
+
+	got, err := cdnIngressesForUserOrigins(ing)
+	s.NoError(err)
+
+	s.Equal(&ViewerRequestFunction{
+		ViewerFunction: ViewerFunction{
+			ARN:          "some-arn",
+			FunctionType: FunctionTypeCloudfront,
+		},
+		IncludeBody: false,
+	}, got[0].UnmergedPaths[0].FunctionAssociations.ViewerRequest)
+
+	s.Equal(&ViewerRequestFunction{
+		ViewerFunction: ViewerFunction{
+			ARN:          "some-arn",
+			FunctionType: FunctionTypeCloudfront,
+		},
+		IncludeBody: false,
+	}, got[0].UnmergedPaths[1].FunctionAssociations.ViewerRequest)
+}
+
+func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_WithBehaviorsIsValid() {
+	userOriginsYAML := `
+- host: foo.com
+  behaviors:
+  - path: /foo
+    functionAssociations:
+      viewerRequest:
+        arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+        functionType: cloudfront
+      viewerResponse:
+        arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+        functionType: cloudfront
+      originRequest:
+        arn: arn:aws:lambda:us-east-1:000000000000:function:test-function-associations
+        includeBody: true
+      originResponse:
+        arn: arn:aws:lambda:us-east-1:000000000000:function:test-function-associations 
+`
+	ing := &networkingv1.Ingress{}
+	ing.Annotations = map[string]string{
+		cfUserOriginsAnnotation: userOriginsYAML,
+		CDNGroupAnnotation:      "group",
+	}
+
+	got, err := cdnIngressesForUserOrigins(ing)
+	s.NoError(err)
+
+	s.Len(got, 1)
+	s.Len(got[0].UnmergedPaths, 1)
+
+	s.Equal("/foo", got[0].UnmergedPaths[0].PathPattern)
+	s.Equal(FunctionAssociations{
+		ViewerRequest: &ViewerRequestFunction{
+			ViewerFunction: ViewerFunction{
+				ARN:          "arn:aws:cloudfront::000000000000:function/test-function-associations",
+				FunctionType: FunctionTypeCloudfront,
+			},
+		},
+		ViewerResponse: &ViewerFunction{
+			ARN:          "arn:aws:cloudfront::000000000000:function/test-function-associations",
+			FunctionType: FunctionTypeCloudfront,
+		},
+		OriginRequest: &OriginRequestFunction{
+			OriginFunction: OriginFunction{
+				ARN: "arn:aws:lambda:us-east-1:000000000000:function:test-function-associations",
+			},
+			IncludeBody: true,
+		},
+		OriginResponse: &OriginFunction{
+			ARN: "arn:aws:lambda:us-east-1:000000000000:function:test-function-associations",
+		},
+	}, got[0].UnmergedPaths[0].FunctionAssociations)
 }
 
 func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue() {

@@ -140,7 +140,7 @@ func (s *Service) desiredIngresses(ctx context.Context, reconciling k8s.CDNIngre
 func (s *Service) isPartOfDesiredState(reconciling k8s.CDNIngress) func(k8s.CDNIngress) bool {
 	return func(ing k8s.CDNIngress) bool {
 		isPartOfGroup := ing.Group == reconciling.Group
-		hasBeenProvisioned := len(ing.LoadBalancerHost) > 0
+		hasBeenProvisioned := len(ing.OriginHost) > 0
 		return !ing.IsBeingRemoved && isPartOfGroup && hasBeenProvisioned
 	}
 }

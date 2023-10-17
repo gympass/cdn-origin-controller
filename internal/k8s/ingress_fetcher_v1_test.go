@@ -110,11 +110,11 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                     - /foo/*`,
 			expectedIngs: []CDNIngress{
 				{
-					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
-					Group:            "group",
-					LoadBalancerHost: "host",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
-					OriginAccess:     "Public",
+					NamespacedName: types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:          "group",
+					OriginHost:     "host",
+					UnmergedPaths:  []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:   "Public",
 				},
 			},
 		},
@@ -128,11 +128,11 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                   originAccess: Bucket`,
 			expectedIngs: []CDNIngress{
 				{
-					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
-					Group:            "group",
-					LoadBalancerHost: "host",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
-					OriginAccess:     "Bucket",
+					NamespacedName: types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:          "group",
+					OriginHost:     "host",
+					UnmergedPaths:  []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
+					OriginAccess:   "Bucket",
 				},
 			},
 		},
@@ -144,13 +144,12 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                   paths:
                                     - /foo
                                     - /foo/*
-                                  viewerFunctionARN: foo
                                   originRequestPolicy: None`,
 			expectedIngs: []CDNIngress{
 				{
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:             "group",
-					LoadBalancerHost:  "host",
+					OriginHost:        "host",
 					UnmergedPaths:     []Path{{PathPattern: "/foo"}, {PathPattern: "/foo/*"}},
 					OriginRespTimeout: int64(35),
 					OriginReqPolicy:   "None",
@@ -164,7 +163,6 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                 - host: host
                                   paths:
                                     - /foo
-                                  viewerFunctionARN: foo
                                   originRequestPolicy: None
                                   originAccess: Bucket
                                 - host: host
@@ -173,17 +171,17 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_SuccessWithUserOrigins() {
                                     - /bar`,
 			expectedIngs: []CDNIngress{
 				{
-					NamespacedName:   types.NamespacedName{Name: "name", Namespace: "namespace"},
-					Group:            "group",
-					LoadBalancerHost: "host",
-					UnmergedPaths:    []Path{{PathPattern: "/foo"}},
-					OriginReqPolicy:  "None",
-					OriginAccess:     "Bucket",
+					NamespacedName:  types.NamespacedName{Name: "name", Namespace: "namespace"},
+					Group:           "group",
+					OriginHost:      "host",
+					UnmergedPaths:   []Path{{PathPattern: "/foo"}},
+					OriginReqPolicy: "None",
+					OriginAccess:    "Bucket",
 				},
 				{
 					NamespacedName:    types.NamespacedName{Name: "name", Namespace: "namespace"},
 					Group:             "group",
-					LoadBalancerHost:  "host",
+					OriginHost:        "host",
 					UnmergedPaths:     []Path{{PathPattern: "/bar"}},
 					OriginRespTimeout: int64(35),
 					OriginAccess:      "Public",
