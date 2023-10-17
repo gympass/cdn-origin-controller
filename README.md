@@ -29,7 +29,8 @@ The following annotation controls how origins and behaviors are attached to Clou
 - `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3) for Public origins, and "Managed-CORS-S3Origin" (ID: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf) for Bucket origins, however these defaults can be overriden through configuration by setting the `CF_DEFAULT_PUBLIC_ORIGIN_ACCESS_REQUEST_POLICY_ID` or `CF_DEFAULT_PUBLIC_ORIGIN_ACCESS_REQUEST_POLICY_ID` environment variables. If set to`"None"` no policy will be associated.
 - `cdn-origin-controller.gympass.com/cf.cache-policy`: the ID of the cache policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "CachingDisabled" (ID: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad), this default can be overriden by setting the `CF_DEFAULT_CACHE_REQUEST_POLICY_ID` environment variable. More details about managed cache policies [see](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
-- `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: the ARN of the CloudFront function you would like to associate to viewer requests in each behavior managed by this Ingress. Example: `arn:aws:cloudfront::000000000000:function/my-function`
+- `cdn-origin-controller.gympass.com/cf.function-associations`: configures Function Association to behaviors defined as Ingress paths. Refer to the [dedicated section](#function-associations) for details.
+- `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: deprecated in favor of the more generic `cdn-origin-controller.gympass.com/cf.function-associations`, and will be removed at a later release.
 - `cdn-origin-controller.gympass.com/cf.web-acl-arn`: A unique identifier that specifies the AWS WAF web ACL, if any, to associate with this distribution. To specify a web ACL created using the latest version of AWS WAF, use the ACL ARN, for example `arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a`. To specify a web ACL created using AWS WAF Classic, use the ACL ID, for example `473e64fd-f30b-4765-81a0-62ad96dd167a`.
 - `cdn-origin-controller.gympass.com/cf.tags`: A map of key/value strings to be configured in Cloudfront distribution. The value of this annotation should be given as a YAML map. Example:
 
@@ -49,11 +50,11 @@ The controller has several [infrastructure configurations](#configuration). In o
 
 ### Parameters
 
-| Parameter      | Required | Description                                                                                                                                                      |   |   |
-|----------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
-| hostedZoneID   | yes      | The ID of the Route53 zone where the aliases should be created in.                                                                                               |   |   |
-| createAlias    | yes      | Whether the controller should create DNS records for a distribution's alternate domain names.                                                                    |   |   |
-| txtOwnerValue  | yes      | The controller creates TXT records for managing aliases. In it, a value is written to bind that given record to a particular instance of the controller running. |   |   |
+| Parameter     | Required | Description                                                                                                                                                      |   |   |
+|---------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|---|
+| hostedZoneID  | yes      | The ID of the Route53 zone where the aliases should be created in.                                                                                               |   |   |
+| createAlias   | yes      | Whether the controller should create DNS records for a distribution's alternate domain names.                                                                    |   |   |
+| txtOwnerValue | yes      | The controller creates TXT records for managing aliases. In it, a value is written to bind that given record to a particular instance of the controller running. |   |   |
 
 For example, imagine you need some of your CloudFront distributions to be in the `foo.com` zone and the others on the `bar.com` zone. In order to do that you need create both `CDNClass` kinds and set different values for the `hostedZoneID`, `createAlias` and `txtOwnerValue` parameters.
 
@@ -133,9 +134,42 @@ In CloudFront, these would result in the following order:
 - `/en-us/foo` -> en-us specific origin
 - `/*/foo` -> catch all origin
 
-// TODO in upcoming PRs
-// document function associations annotation for ingress-based behaviors
-// also document lambda invocation IAM stuff
+## Function Associations
+
+In order to associate [Cloudfront Functions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-functions.html) and [Lambda@Edge Functions](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-at-the-edge.html) to your Ingress-based origins, add the `cdn-origin-controller.gympass.com/cf.function-associations` annotation.
+
+It expects a YAML object definition, where each key is a path that's part of this
+Ingress definition, which maps to the function-association configuration for that path.
+
+For example:
+
+```yaml
+    cdn-origin-controller.gympass.com/cf.function-associations: |
+      /foo/*:
+        viewerRequest:
+          arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+          functionType: cloudfront
+        viewerResponse:
+          arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+          functionType: cloudfront
+        originRequest:
+          arn: arn:aws:lambda:us-east-1:000000000000:function:test-function-associations:1
+          includeBody: true
+        originResponse:
+          arn: arn:aws:lambda:us-east-1:000000000000:function:test-function-associations:1
+```
+
+Some considerations:
+
+- the path you define as key must be part of a path defined in this Ingress, under `.spec.rules[].paths[].path`
+- `viewerRequest` and `viewerReponse` accept both CloudFront Functions and Lambda@Edge functions, represented by `functionType` with value of `cloudfront` and `edge`, respectivelly.
+- `originRequest` and `originResponse` only accept Lambda@Edge functions.
+- `originRequest` may optionally add a boolean field `includeBody` to propagate the request's body to the function. This is also possible for `viewerRequest` functions when using Lambda@Edge, but not for CloudFront functions.
+- `viewerRequest` and `viewerReponse` may be different functions, but they must have matching types (ie, either **both** are `edge` or **both** are `cloudfront`)
+
+All function definitions fields (`viewerRequest`, `viewerResponse`, `originRequest` and `originResponse`) are optional.
+
+> **Note**: additional IAM permissions are required depending on whether you're using Lambda@Edge. Refer to [AWS documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-edge-permissions.html) for more information.
 
 ## User-supplied origin/behavior configuration
 
@@ -154,24 +188,25 @@ metadata:
       - host: foo.com
         originAccess: Bucket
         responseTimeout: 30
-        paths:
-          - /foo
+        behaviors:
+          - path: /foo
+            functionAssociations:
+              viewerRequest:
+                arn: arn:aws:cloudfront::000000000000:function/test-function-associations
+                functionType: cloudfront
       - host: bar.com
         originAccess: Public
         originRequestPolicy: None
-        viewerFunctionARN: "bar:arn"
         webACLARN: "arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a"
-        paths:
-          - /bar
-          - /bar/*
+        behaviors:
+          - path: /bar
+          - path: /bar/*
+            
 ```
-
-// TODO in upcoming PRs
-// document function associations in user origins
 
 The `.host` is the hostname of the origin you're configuring.
 
-The `.paths` field is a list of strings representing the cache behavior paths that should be configured.
+The `.behaviors` field is a list of objects representing the cache behaviors that should be configured. It contains a required string `path`, and an optional `functionAssociation` that is defined as shown [here](#function-associations).
 
 The `.originAccess` field allows for different origin access configurations:
 
@@ -182,13 +217,13 @@ Each remaining field has a corresponding annotation value, [documented in a dedi
 
 The table below maps remaining available fields of an entry in this list to an annotation:
 
-| Entry field          | Annotation                                                   |
-|----------------------|--------------------------------------------------------------|
-| .originRequestPolicy | cdn-origin-controller.gympass.com/cf.origin-request-policy   |
-| .responseTimeout     | cdn-origin-controller.gympass.com/cf.origin-response-timeout |
-| .viewerFunctionARN   | cdn-origin-controller.gympass.com/cf.viewer-function-arn     |
-| .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            |
-| .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             |
+| Entry field          | Annotation                                                   | Deprecation Notes                                                            |
+|----------------------|--------------------------------------------------------------|------------------------------------------------------------------------------|
+| .originRequestPolicy | cdn-origin-controller.gympass.com/cf.origin-request-policy   | -                                                                            |
+| .responseTimeout     | cdn-origin-controller.gympass.com/cf.origin-response-timeout | -                                                                            |
+| .viewerFunctionARN   | cdn-origin-controller.gympass.com/cf.viewer-function-arn     | deprecated, prefer defining associtions in .behaviors[].functionAssociations |
+| .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            | -                                                                            |
+| .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             | -                                                                            |
 
 ### Bucket origin access
 
@@ -260,20 +295,20 @@ Access the [documentation](https://gympass.github.io/cdn-origin-controller/) to 
 
 Use the following environment variables to change the controller's behavior:
 
-| Env var key                | Required | Description                                                                                                                                                                                                                                                                                                                                                  | Default                               |
-|----------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| CF_AWS_WAF                 | No       | The Web ACL which should be associated with the distributions. Use the ID for WAF v1 and the ARN for WAF v2.                                                                                                                                                                                                                                                 | ""                                    |
-| CF_CUSTOM_TAGS             | No       | Comma-separated list of custom tags to be added to distributions. Example: "foo=bar,bar=foo"                                                                                                                                                                                                                                                                 | ""                                    |
-| CF_DEFAULT_ORIGIN_DOMAIN   | Yes      | Domain of the default origin each distribution must have to route traffic to in case no custom behaviors match the request.                                                                                                                                                                                                                                  | ""                                    |
-| CF_DESCRIPTION_TEMPLATE    | No       | Template of the distribution's description. Currently a single field can be accessed, `{{group}}`, which matches the CDN group under which the distribution was provisioned.                                                                                                                                                                                 | "Serve contents for {{group}} group." |
-| CF_ENABLE_IPV6             | No       | Whether the distribution should also expose an IPv6 address to serve requests.                                                                                                                                                                                                                                                                               | "true"                                |
-| CF_ENABLE_LOGGING          | No       | If set to true enables sending logs to CloudWatch; `CF_S3_BUCKET_LOG` must be set as well.                                                                                                                                                                                                                                                                   | "false"                               |
-| CF_PRICE_CLASS             | Yes      | The distribution price class. Possible values are: "PriceClass_All", "PriceClass_200", "PriceClass_100". [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html).                                                                                                                                           | "PriceClass_All"                      |
-| CF_S3_BUCKET_LOG           | No       | The domain of the S3 bucket CloudWatch logs should be sent to. Each distribution will have its own directory inside the bucket with the same as the distribution's group. For example, if the group is "foo", the logs will be stored as `foo/<ID>.<timestamp and hash>.gz`.<br><br> If `CF_ENABLE_LOGGING` is not set to "true" then this value is ignored. | ""                                    |
-| CF_SECURITY_POLICY         | No       | The TLS/SSL security policy to be used when serving requests. [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-viewer-protocols-ciphers.html). <br><br> Must also inform a valid `CF_CUSTOM_SSL_CERT` if set.                                                                            | ""                                    |
-| DEV_MODE                   | No       | When set to "true" logs in unstructured text instead of JSON. Also overrides LOG_LEVEL to "debug".                                                                                                                                                                                                                                                           | "false"                               |
-| LOG_LEVEL                  | No       | Represents log level of verbosity. Can be "debug", "info", "warn", "error", "dpanic", "panic" and "fatal" (sorted with decreasing verbosity).                                                                                                                                                                                                                | "info"                                |
-| ENABLE_DELETION            | No       | Represent whether CloudFront Distributions and Route53 records should be deleted based on Ingresses being deleted. Ownership TXT DNS records are also not deleted to allow for self-healing in case of accidental deletion of Kubernetes resources.                                                                                                          | "false"                               |
+| Env var key              | Required | Description                                                                                                                                                                                                                                                                                                                                                  | Default                               |
+|--------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| CF_AWS_WAF               | No       | The Web ACL which should be associated with the distributions. Use the ID for WAF v1 and the ARN for WAF v2.                                                                                                                                                                                                                                                 | ""                                    |
+| CF_CUSTOM_TAGS           | No       | Comma-separated list of custom tags to be added to distributions. Example: "foo=bar,bar=foo"                                                                                                                                                                                                                                                                 | ""                                    |
+| CF_DEFAULT_ORIGIN_DOMAIN | Yes      | Domain of the default origin each distribution must have to route traffic to in case no custom behaviors match the request.                                                                                                                                                                                                                                  | ""                                    |
+| CF_DESCRIPTION_TEMPLATE  | No       | Template of the distribution's description. Currently a single field can be accessed, `{{group}}`, which matches the CDN group under which the distribution was provisioned.                                                                                                                                                                                 | "Serve contents for {{group}} group." |
+| CF_ENABLE_IPV6           | No       | Whether the distribution should also expose an IPv6 address to serve requests.                                                                                                                                                                                                                                                                               | "true"                                |
+| CF_ENABLE_LOGGING        | No       | If set to true enables sending logs to CloudWatch; `CF_S3_BUCKET_LOG` must be set as well.                                                                                                                                                                                                                                                                   | "false"                               |
+| CF_PRICE_CLASS           | Yes      | The distribution price class. Possible values are: "PriceClass_All", "PriceClass_200", "PriceClass_100". [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/PriceClass.html).                                                                                                                                           | "PriceClass_All"                      |
+| CF_S3_BUCKET_LOG         | No       | The domain of the S3 bucket CloudWatch logs should be sent to. Each distribution will have its own directory inside the bucket with the same as the distribution's group. For example, if the group is "foo", the logs will be stored as `foo/<ID>.<timestamp and hash>.gz`.<br><br> If `CF_ENABLE_LOGGING` is not set to "true" then this value is ignored. | ""                                    |
+| CF_SECURITY_POLICY       | No       | The TLS/SSL security policy to be used when serving requests. [Official reference](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-viewer-protocols-ciphers.html). <br><br> Must also inform a valid `CF_CUSTOM_SSL_CERT` if set.                                                                            | ""                                    |
+| DEV_MODE                 | No       | When set to "true" logs in unstructured text instead of JSON. Also overrides LOG_LEVEL to "debug".                                                                                                                                                                                                                                                           | "false"                               |
+| LOG_LEVEL                | No       | Represents log level of verbosity. Can be "debug", "info", "warn", "error", "dpanic", "panic" and "fatal" (sorted with decreasing verbosity).                                                                                                                                                                                                                | "info"                                |
+| ENABLE_DELETION          | No       | Represent whether CloudFront Distributions and Route53 records should be deleted based on Ingresses being deleted. Ownership TXT DNS records are also not deleted to allow for self-healing in case of accidental deletion of Kubernetes resources.                                                                                                          | "false"                               |
 
 ## Contributing
 
