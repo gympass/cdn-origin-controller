@@ -4,6 +4,14 @@ on:
   push:
     branches:
       - 'develop'
+    paths:
+      - 'internal/**'
+      - 'controllers/**'
+      - 'api/**'
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
 
 env:
   REGISTRY: ghcr.io
