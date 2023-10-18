@@ -104,7 +104,7 @@ type DistributionBuilder struct {
 	address             string
 	alternateDomains    []string
 	arn                 string
-	customOrigins       []Origin
+	customOrigins       map[string]Origin // map[originHost]Origin
 	defaultOriginDomain string
 	description         string
 	ipv6Enabled         bool
@@ -122,6 +122,7 @@ func NewDistributionBuilder(group string, cfg config.Config) DistributionBuilder
 	return DistributionBuilder{
 		description:         renderDescription(cfg.CloudFrontDescriptionTemplate, group),
 		defaultOriginDomain: cfg.DefaultOriginDomain,
+		customOrigins:       make(map[string]Origin),
 		priceClass:          cfg.CloudFrontPriceClass,
 		group:               group,
 		webACLID:            cfg.CloudFrontWAFARN,
@@ -129,9 +130,11 @@ func NewDistributionBuilder(group string, cfg config.Config) DistributionBuilder
 	}
 }
 
-// WithOrigin takes in an Origin that should be part of the Distribution
+// WithOrigin takes in an Origin that should be part of the Distribution.
+// If called more than once, input Origins with matching host overwrite each other, and the last
+// one to be processed remains.
 func (b DistributionBuilder) WithOrigin(o Origin) DistributionBuilder {
-	b.customOrigins = append(b.customOrigins, o)
+	b.customOrigins[o.Host] = o
 	return b
 }
 
@@ -202,7 +205,7 @@ func (b DistributionBuilder) Build() (Distribution, error) {
 		ID:               b.id,
 		ARN:              b.arn,
 		Address:          b.address,
-		CustomOrigins:    b.customOrigins,
+		CustomOrigins:    b.originSlice(),
 		DefaultOrigin:    NewOriginBuilder("dist", b.defaultOriginDomain, OriginAccessPublic, b.cfg).Build(),
 		Description:      b.description,
 		Group:            b.group,
@@ -240,6 +243,14 @@ func (b DistributionBuilder) defaultTags() map[string]string {
 	tags[ownershipTagKey] = ownershipTagValue
 	tags[groupTagKey] = b.group
 	return tags
+}
+
+func (b DistributionBuilder) originSlice() []Origin {
+	var result []Origin
+	for _, o := range b.customOrigins {
+		result = append(result, o)
+	}
+	return result
 }
 
 func validate(d Distribution) error {
