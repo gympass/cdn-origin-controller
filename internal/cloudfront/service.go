@@ -66,7 +66,7 @@ func (s *Service) Reconcile(ctx context.Context, ing *networkingv1.Ingress, clas
 
 	reconciling, err := k8s.NewCDNIngressFromV1(ctx, ing, class)
 	if err != nil {
-		return err
+		return s.handleFailure(err, ing)
 	}
 
 	log, _ := logr.FromContext(ctx)
@@ -79,12 +79,16 @@ func (s *Service) Reconcile(ctx context.Context, ing *networkingv1.Ingress, clas
 
 	desiredIngresses, desiredDist, err := s.desiredState(ctx, reconciling)
 	if err != nil {
-		return fmt.Errorf("computing desired state: %v", err)
+		return s.handleFailure(fmt.Errorf("computing desired state: %v", err), ing)
+	}
+
+	if err := s.validateCreation(desiredDist, ing); err != nil {
+		return s.handleFailure(err, ing)
 	}
 
 	cdnStatus, err := s.fetchOrGenerateCDNStatus(desiredIngresses, desiredDist)
 	if err != nil {
-		return err
+		return s.handleFailure(fmt.Errorf("validating creation: %v", err), ing)
 	}
 
 	errs := &multierror.Error{}
@@ -113,6 +117,18 @@ func (s *Service) Reconcile(ctx context.Context, ing *networkingv1.Ingress, clas
 	}
 
 	return s.handleResult(ing, cdnStatus, errs)
+}
+
+func (s *Service) validateCreation(desiredDist Distribution, ing *networkingv1.Ingress) error {
+	if desiredDist.Exists() || desiredDist.IsEmpty() || ing.DeletionTimestamp != nil {
+		return nil
+	}
+
+	if !s.Config.IsCreationAllowed(ing) {
+		return errors.New("creation of new CloudFront distributions is blocked")
+	}
+
+	return nil
 }
 
 func (s *Service) validateIngress(ing *networkingv1.Ingress) error {

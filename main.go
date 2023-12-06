@@ -87,7 +87,11 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	cfg := config.Parse()
+	cfg, err := config.Parse()
+	if err != nil {
+		setupLog.Error(err, "Failed to parse config")
+		os.Exit(1)
+	}
 
 	ctrl.SetLogger(zap.New(
 		zap.UseFlagOptions(&opts),
