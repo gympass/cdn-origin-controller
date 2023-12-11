@@ -17,15 +17,15 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package config_test
+package config
 
 import (
 	"testing"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/Gympass/cdn-origin-controller/internal/config"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestRunConfigTestSuite(t *testing.T) {
@@ -37,6 +37,11 @@ type ConfigTestSuite struct {
 	suite.Suite
 }
 
+func (s *ConfigTestSuite) SetupTest() {
+	viper.Reset()
+	initDefaults()
+}
+
 func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
 	expected := map[string]string{
 		"foo":  "bar",
@@ -45,9 +50,10 @@ func (s *ConfigTestSuite) TestConfigWithCustomTagsParsed() {
 
 	viper.Set("cf_custom_tags", "foo=bar,area=platform")
 
-	cfg := config.Parse()
+	cfg, err := Parse()
 
 	s.Equal(expected, cfg.CloudFrontCustomTags)
+	s.NoError(err)
 }
 
 func (s *ConfigTestSuite) TestConfigNoCustomTags() {
@@ -55,7 +61,59 @@ func (s *ConfigTestSuite) TestConfigNoCustomTags() {
 
 	viper.Set("cf_custom_tags", "")
 
-	cfg := config.Parse()
+	cfg, err := Parse()
 
 	s.Equal(expected, cfg.CloudFrontCustomTags)
+	s.NoError(err)
+}
+
+func (s *ConfigTestSuite) TestParse_DefaultToBlockCreationIsFalse() {
+	cfg, err := Parse()
+
+	s.NoError(err)
+	s.False(cfg.IsCreateBlocked)
+}
+
+func (s *ConfigTestSuite) TestIsCreationAllowed_UnblockedCreationReturnsTrue() {
+	viper.Set(createBlockedKey, "false")
+
+	cfg, err := Parse()
+	s.NoError(err)
+
+	s.True(cfg.IsCreationAllowed(&networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "name",
+		},
+	}))
+}
+
+func (s *ConfigTestSuite) TestIsCreationAllowed_AllowedIngressWithBlockedCreationReturnsTrue() {
+	viper.Set(createBlockedKey, "true")
+	viper.Set(createBlockedAllowListKey, "ns/allowed")
+
+	cfg, err := Parse()
+	s.NoError(err)
+
+	s.True(cfg.IsCreationAllowed(&networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "allowed",
+		},
+	}))
+}
+
+func (s *ConfigTestSuite) TestIsCreationAllowed_IngressNotOnAllowListWithBlockedCreationReturnsFalse() {
+	viper.Set(createBlockedKey, "true")
+	viper.Set(createBlockedAllowListKey, "ns/allowed")
+
+	cfg, err := Parse()
+	s.NoError(err)
+
+	s.False(cfg.IsCreationAllowed(&networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns",
+			Name:      "forbidden",
+		},
+	}))
 }

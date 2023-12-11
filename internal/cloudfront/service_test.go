@@ -23,6 +23,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Gympass/cdn-origin-controller/internal/config"
 )
 
 func TestRunCloudFrontServiceTestSuite(t *testing.T) {
@@ -69,4 +73,44 @@ func (s *CloudFrontServiceTestSuite) Test_getDeletions() {
 	for _, tc := range testCases {
 		s.Equal(tc.want, getDeletions(tc.desired, tc.current), "test: %s", tc.name)
 	}
+}
+
+func (s *CloudFrontServiceTestSuite) Test_validateCreation_IngressesBeingDeletedReturnNoError() {
+	ing := &networkingv1.Ingress{}
+	ing.SetDeletionTimestamp(&metav1.Time{})
+
+	svc := Service{
+		Config: config.Config{
+			IsCreateBlocked: true,
+		},
+	}
+
+	s.NoError(svc.validateCreation(Distribution{}, ing))
+}
+
+func (s *CloudFrontServiceTestSuite) Test_validateCreation_DistributionsBeingDeletedReturnNoError() {
+	ing := &networkingv1.Ingress{}
+
+	svc := Service{
+		Config: config.Config{
+			IsCreateBlocked: true,
+		},
+	}
+
+	s.NoError(svc.validateCreation(Distribution{}, ing))
+}
+
+func (s *CloudFrontServiceTestSuite) Test_validateCreation_ExistingDistributionsReturnNoError() {
+	ing := &networkingv1.Ingress{}
+
+	svc := Service{
+		Config: config.Config{
+			IsCreateBlocked: true,
+		},
+	}
+	dist := Distribution{
+		ID: "some id",
+	}
+
+	s.NoError(svc.validateCreation(dist, ing))
 }

@@ -91,7 +91,7 @@ func (s *DistributionTestSuite) TestDistributionBuilder_WithOrigin() {
 		ResponseTimeout: 30,
 	}
 
-	dist, err := cloudfront.NewDistributionBuilder(group, config.Parse()).
+	dist, err := cloudfront.NewDistributionBuilder(group, s.cfg).
 		WithOrigin(origin).
 		Build()
 

@@ -20,10 +20,13 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/spf13/viper"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -43,9 +46,15 @@ const (
 	cfDefaultCacheRequestPolicyIDKey              = "cf_default_cache_request_policy_id"
 	cfDefaultPublicOriginAccessRequestPolicyIDKey = "cf_default_public_origin_access_request_policy_id"
 	cfDefaultBucketOriginAccessRequestPolicyIDKey = "cf_default_bucket_origin_access_request_policy_id"
+	createBlockedKey                              = "block_creation"
+	createBlockedAllowListKey                     = "block_creation_allow_list"
 )
 
 func init() {
+	initDefaults()
+}
+
+func initDefaults() {
 	viper.SetDefault(logLevelKey, "info")
 	viper.SetDefault(devModeKey, "false")
 	viper.SetDefault(enableDeletionKey, "false")
@@ -70,6 +79,8 @@ func init() {
 	// https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html#managed-origin-request-policy-cors-s3
 	// Default is CORS S3
 	viper.SetDefault(cfDefaultBucketOriginAccessRequestPolicyIDKey, "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf")
+	viper.SetDefault(createBlockedKey, false)
+
 	viper.AutomaticEnv()
 }
 
@@ -109,6 +120,10 @@ type Config struct {
 	CloudFrontDefaultPublicOriginAccessRequestPolicyID string
 	// CloudFrontDefaultBucketOriginAccessRequestPolicyID is the default request policy for bucket origin access.
 	CloudFrontDefaultBucketOriginAccessRequestPolicyID string
+	// IsCreateBlocked configure whether to block creation of new CloudFront distributions. Useful when phasing out clusters or accounts, for example
+	IsCreateBlocked bool
+	// CreateAllowList holds a list of Ingresses namespaced names for which we should allow creation, even if IsCreateBlocked is true
+	CreateAllowList []types.NamespacedName
 }
 
 // TLSIsEnabled returns whether TLS is enabled
@@ -116,12 +131,37 @@ func (c Config) TLSIsEnabled() bool {
 	return len(c.CloudFrontSecurityPolicy) > 0
 }
 
+// IsCreationAllowed returns whether the creation of a new CloudFront distribution for the given Ingress should be allowed
+func (c Config) IsCreationAllowed(ing *networkingv1.Ingress) bool {
+	if !c.IsCreateBlocked {
+		return true
+	}
+
+	ingName := types.NamespacedName{
+		Namespace: ing.Namespace,
+		Name:      ing.Name,
+	}
+
+	for _, candidate := range c.CreateAllowList {
+		if candidate == ingName {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Parse environment variables into a config struct
-func Parse() Config {
+func Parse() (Config, error) {
 	devMode := viper.GetBool(devModeKey)
 	logLvl := viper.GetString(logLevelKey)
 	if devMode {
 		logLvl = "debug"
+	}
+
+	createAllowList, err := parseNamespacedNames(parseList(viper.GetString(createBlockedAllowListKey)))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid %q: %v", createBlockedAllowListKey, err)
 	}
 
 	return Config{
@@ -139,9 +179,41 @@ func Parse() Config {
 		CloudFrontCustomTags:                  extractTags(viper.GetString(cfCustomTagsKey)),
 		CloudFrontDefaultCachingPolicyID:      viper.GetString(cfDefaultCachingPolicyIDKey),
 		CloudFrontDefaultCacheRequestPolicyID: viper.GetString(cfDefaultCacheRequestPolicyIDKey),
+		IsCreateBlocked:                       viper.GetBool(createBlockedKey),
+		CreateAllowList:                       createAllowList,
 		CloudFrontDefaultPublicOriginAccessRequestPolicyID: viper.GetString(cfDefaultPublicOriginAccessRequestPolicyIDKey),
 		CloudFrontDefaultBucketOriginAccessRequestPolicyID: viper.GetString(cfDefaultBucketOriginAccessRequestPolicyIDKey),
+	}, nil
+}
+
+func parseNamespacedNames(names []string) ([]types.NamespacedName, error) {
+	var result []types.NamespacedName
+	for _, n := range names {
+		name, err := nsName(n)
+		if err != nil {
+			return nil, fmt.Errorf("parsing namespaced name: %v", err)
+		}
+		result = append(result, name)
 	}
+	return result, nil
+}
+
+func nsName(name string) (types.NamespacedName, error) {
+	parts := strings.Split(name, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return types.NamespacedName{}, fmt.Errorf(`namespaced name is not in "namespace/name" format: %q`, name)
+	}
+	return types.NamespacedName{
+		Namespace: parts[0],
+		Name:      parts[1],
+	}, nil
+}
+
+func parseList(l string) []string {
+	if l == "" {
+		return nil
+	}
+	return strings.Split(l, ",")
 }
 
 func extractTags(customTags string) map[string]string {
