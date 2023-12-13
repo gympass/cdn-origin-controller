@@ -51,6 +51,7 @@ const (
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 	cfWebACLARNAnnotation            = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
 	cfTagsAnnotation                 = "cdn-origin-controller.gympass.com/cf.tags"
+	cfOrigHeadersAnnotation          = "cdn-origin-controller.gympass.com/cf.origin-headers"
 )
 
 // Path represents a path item within an Ingress
@@ -67,6 +68,7 @@ type CDNIngress struct {
 	Group                string
 	UnmergedPaths        []Path
 	OriginReqPolicy      string
+	OriginHeaders        map[string]string
 	CachePolicy          string
 	OriginRespTimeout    int64
 	AlternateDomainNames []string
@@ -209,6 +211,11 @@ func NewCDNIngressFromV1(ctx context.Context, ing *networkingv1.Ingress, class C
 		return CDNIngress{}, err
 	}
 
+	headers, err := headersV1(ing)
+	if err != nil {
+		return CDNIngress{}, err
+	}
+
 	result := CDNIngress{
 		NamespacedName: types.NamespacedName{
 			Namespace: ing.Namespace,
@@ -217,6 +224,7 @@ func NewCDNIngressFromV1(ctx context.Context, ing *networkingv1.Ingress, class C
 		Group:                groupAnnotationValue(ing),
 		UnmergedPaths:        paths,
 		OriginReqPolicy:      originReqPolicy(ing),
+		OriginHeaders:        headers,
 		CachePolicy:          cachePolicy(ing),
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
@@ -297,6 +305,40 @@ func pathsForFunctionAssociations(ctx context.Context, ing *networkingv1.Ingress
 		}
 	}
 	return paths
+}
+
+func headersV1(ing *networkingv1.Ingress) (map[string]string, error) {
+	val, ok := ing.GetAnnotations()[cfOrigHeadersAnnotation]
+	if !ok {
+		return nil, nil
+	}
+
+	headers, err := parseOriginHeaders(val)
+	if err != nil {
+		return nil, fmt.Errorf("parsing origin headers from annotation %q: %v", cfViewerFnAnnotation, err)
+	}
+
+	return headers, nil
+}
+
+func parseOriginHeaders(rawHeaders string) (map[string]string, error) {
+	if len(rawHeaders) == 0 {
+		return nil, nil
+	}
+
+	headers := strings.Split(rawHeaders, ",")
+
+	result := make(map[string]string)
+	for _, kv := range headers {
+		kvParts := strings.Split(kv, "=")
+		if len(kvParts) != 2 || kvParts[0] == "" || kvParts[1] == "" {
+			return nil, fmt.Errorf("informed origin header does not follow 'key=value' format: %s", kv)
+		}
+
+		result[kvParts[0]] = kvParts[1]
+	}
+
+	return result, nil
 }
 
 func viewerFnARN(obj client.Object) string {

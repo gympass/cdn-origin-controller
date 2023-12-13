@@ -150,13 +150,28 @@ func newAWSOrigin(o Origin) *cloudfront.Origin {
 	}
 
 	return &cloudfront.Origin{
-		CustomHeaders:         &cloudfront.CustomHeaders{Quantity: aws.Int64(0)},
+		CustomHeaders:         newCustomHeaders(o),
 		CustomOriginConfig:    customOriginConfig,
 		DomainName:            aws.String(o.Host),
 		Id:                    aws.String(o.Host),
 		OriginAccessControlId: originAccessControlID,
 		OriginPath:            aws.String(""),
 		S3OriginConfig:        s3OriginConfig,
+	}
+}
+
+func newCustomHeaders(o Origin) *cloudfront.CustomHeaders {
+	var items []*cloudfront.OriginCustomHeader
+	for k, v := range o.Headers() {
+		items = append(items, &cloudfront.OriginCustomHeader{
+			HeaderName:  aws.String(k),
+			HeaderValue: aws.String(v),
+		})
+	}
+
+	return &cloudfront.CustomHeaders{
+		Items:    items,
+		Quantity: aws.Int64(int64(len(items))),
 	}
 }
 

@@ -38,7 +38,8 @@ func newOrigin(ing k8s.CDNIngress, cfg config.Config, shared k8s.SharedIngressPa
 	builder := NewOriginBuilder(ing.Group, ing.OriginHost, ing.OriginAccess, cfg).
 		WithResponseTimeout(ing.OriginRespTimeout).
 		WithRequestPolicy(ing.OriginReqPolicy).
-		WithCachePolicy(ing.CachePolicy)
+		WithCachePolicy(ing.CachePolicy).
+		WithOriginHeaders(ing.OriginHeaders)
 
 	for _, p := range shared.PathsFromOrigin(ing.OriginHost) {
 		for _, pp := range pathPatternsForPath(p) {

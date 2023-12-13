@@ -39,6 +39,7 @@ The following annotation controls how origins and behaviors are attached to Clou
     mykey1: myvalue1
     mykey2: myvalue2
   ```
+- `cdn-origin-controller.gympass.com/cf.origin-headers`: HTTP headers to be added to each request made for an origin. Refer to the [dedicated section](#custom-headers) for more details.
 
 The controller needs permission to manipulate the CloudFront distributions. A [sample IAM Policy](docs/iam_policy.json) is provided with the necessary IAM actions.
 
@@ -102,6 +103,32 @@ cdn-origin-controller.gympass.com/cdn.class: bar-com
 TLS will automatically be enabled if the `CF_SECURITY_POLICY` env var is set, and is disabled by default.
 
 The controller will automatically search for TLS certificates in [AWS ACM](https://aws.amazon.com/certificate-manager/). If it finds a certificate matching any of the Distribution's alternate domain names, it will bind that certificate to the Distribution.
+
+## Custom Headers
+
+CloudFront allows you to specify headers that should be added to each request for a given origin. For example:
+
+```yaml
+kind: Ingress
+metadata:
+  annotations:
+    cdn-origin-controller.gympass.com/cf.origin-headers: "static=value,dynamic={{origin.host}}"
+```
+
+This configures two HTTP headers:
+
+- "static": which is mapped to the value "value"
+- "dynamic": which uses a template to calculate the value during runtime. This is useful for fields which are not known beforehand, such as the origin's host
+
+Currently supported template values:
+
+| field       | description             |
+| ----------- | ----------------------- |
+| origin.host | The host of this origin |
+
+### Custom Headers on user-supplied origins/behaviors
+
+You can also use this feature with user-supplied origins/behaviors. Refer to the [dedicated section](#user-supplied-originbehavior-configuration).
 
 ## Behavior ordering
 
@@ -201,8 +228,13 @@ metadata:
         behaviors:
           - path: /bar
           - path: /bar/*
+        headers:
+          static: value
+          dynamic: '{{origin.host}}'
             
 ```
+
+> **IMPORTANT**: when using the `headers` field, make sure you add quotes when using templates, to preven YAML parsing errors. (`'{{origin.host}}'`, not `{{origin.host}}`). Check the [dedicated section](#custom-headers) for all available template values.
 
 The `.host` is the hostname of the origin you're configuring.
 
@@ -224,6 +256,7 @@ The table below maps remaining available fields of an entry in this list to an a
 | .viewerFunctionARN   | cdn-origin-controller.gympass.com/cf.viewer-function-arn     | deprecated, prefer defining associtions in .behaviors[].functionAssociations |
 | .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            | -                                                                            |
 | .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             | -                                                                            |
+| .headers             | cdn-origin-controller.gympass.com/cf.origin-headers          | -                                                                            |
 
 ### Bucket origin access
 
