@@ -55,6 +55,7 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 		ing := CDNIngress{
 			NamespacedName:    types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()},
 			OriginHost:        o.Host,
+			OriginHeaders:     o.Headers,
 			Group:             groupAnnotationValue(obj),
 			UnmergedPaths:     o.paths(),
 			OriginReqPolicy:   o.RequestPolicy,
@@ -71,6 +72,7 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 
 type userOrigin struct {
 	Host              string                 `yaml:"host"`
+	Headers           map[string]string      `yaml:"headers"`
 	ResponseTimeout   int64                  `yaml:"responseTimeout"`
 	Paths             []string               `yaml:"paths"` // deprecated in favor of Behaviors
 	Behaviors         []customOriginBehavior `yaml:"behaviors"`

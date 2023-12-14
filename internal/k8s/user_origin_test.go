@@ -273,3 +273,28 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_InvalidAnnotationValue
 		s.Nil(got, "test: %s", tc.name)
 	}
 }
+
+func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_WithHeadersIsValid() {
+	userOriginsYAML := `
+- host: foo.com
+  responseTimeout: 30
+  headers:
+    static: val
+    dynamic: '{{origin.host}}'
+  behaviors:
+  - path: /bar
+`
+
+	ing := &networkingv1.Ingress{}
+	ing.Annotations = map[string]string{
+		cfUserOriginsAnnotation: userOriginsYAML,
+	}
+
+	got, err := cdnIngressesForUserOrigins(ing)
+	s.NoError(err)
+	s.Len(got, 1)
+	s.Equal(map[string]string{
+		"static":  "val",
+		"dynamic": "{{origin.host}}",
+	}, got[0].OriginHeaders)
+}

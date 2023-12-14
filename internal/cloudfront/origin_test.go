@@ -152,3 +152,26 @@ func (s *OriginTestSuite) TestNewOriginBuilder_TestHasDifferentParameters() {
 	s.False(o.HasEqualParameters(o3))
 	s.True(o.HasEqualParameters(o))
 }
+
+func (s *OriginTestSuite) TestNewOriginBuilder_OriginHeadersAreNotPassedAndShouldBeNil() {
+	o := NewOriginBuilder("dist", "origin.com", "Public", s.cfg).
+		Build()
+
+	s.Nil(o.Headers())
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_StaticOriginHeadersArePassedAndShouldBePresentAtResult() {
+	o := NewOriginBuilder("dist", "origin.com", "Public", s.cfg).
+		WithOriginHeaders(map[string]string{"key": "val"}).
+		Build()
+
+	s.Equal(map[string]string{"key": "val"}, o.Headers())
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_DynamicOriginHeadersArePassedAndShouldBeTemplatedAtResult() {
+	o := NewOriginBuilder("dist", "origin.com", "Public", s.cfg).
+		WithOriginHeaders(map[string]string{"key": "{{origin.host}}"}).
+		Build()
+
+	s.Equal(map[string]string{"key": "origin.com"}, o.Headers())
+}

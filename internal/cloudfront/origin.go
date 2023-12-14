@@ -20,6 +20,8 @@
 package cloudfront
 
 import (
+	"strings"
+
 	"github.com/Gympass/cdn-origin-controller/internal/config"
 	"github.com/Gympass/cdn-origin-controller/internal/k8s"
 )
@@ -30,8 +32,36 @@ const (
 )
 
 const (
-	defaultResponseTimeout = 30
+	defaultResponseTimeout    = 30
+	templateOriginHeadersHost = "{{origin.host}}"
 )
+
+// originHeaders represents pairs of HTTP header key/values that should be added to requests to the origin
+type originHeaders struct {
+	originHost string
+	headers    map[string]string
+}
+
+func newOriginHeaders(originHost string, headers map[string]string) originHeaders {
+	return originHeaders{
+		originHost: originHost,
+		headers:    headers,
+	}
+}
+
+func (h originHeaders) get() map[string]string {
+	if h.headers == nil {
+		return nil
+	}
+
+	result := make(map[string]string, len(h.headers))
+	for k, v := range h.headers {
+		v = strings.ReplaceAll(v, templateOriginHeadersHost, h.originHost)
+		result[k] = v
+	}
+
+	return result
+}
 
 // Origin represents a CloudFront Origin and aggregates Behaviors associated with it
 type Origin struct {
@@ -45,11 +75,20 @@ type Origin struct {
 	Access string
 	// OAC configures Access Origin Control for this Origin
 	OAC OAC
+
+	headers originHeaders
 }
 
 // HasEqualParameters returns whether both Origins have the same parameters. It ignores differences in Behaviors
 func (o Origin) HasEqualParameters(o2 Origin) bool {
 	return o.Host == o2.Host && o.ResponseTimeout == o2.ResponseTimeout && o.Access == o2.Access && o.OAC == o2.OAC
+}
+
+// Headers returns the headers that are bound to this Origin.
+// The stored value may be changed in order to use values that are known
+// only at runtime, such as the Origin's host.
+func (o Origin) Headers() map[string]string {
+	return o.headers.get()
 }
 
 func (o Origin) isBucketBased() bool {
@@ -73,6 +112,7 @@ type Behavior struct {
 // OriginBuilder allows the construction of an Origin
 type OriginBuilder struct {
 	host             string
+	headers          map[string]string
 	requestPolicy    string
 	distributionName string
 	cachePolicy      string
@@ -138,12 +178,20 @@ func (b OriginBuilder) WithResponseTimeout(rpTimeout int64) OriginBuilder {
 	return b
 }
 
+// WithOriginHeaders associates a map of HTTP headers that CloudFront should add on every request to the Origin
+func (b OriginBuilder) WithOriginHeaders(headers map[string]string) OriginBuilder {
+	b.headers = headers
+	return b
+}
+
 // Build creates an Origin based on configuration made so far
 func (b OriginBuilder) Build() Origin {
 	origin := Origin{
 		Host:            b.host,
 		ResponseTimeout: b.respTimeout,
 	}
+
+	origin.headers = newOriginHeaders(b.host, b.headers)
 
 	origin = b.addBehaviors(origin)
 

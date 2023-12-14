@@ -180,6 +180,95 @@ func (s *CDNIngressSuite) TestNewCDNIngressFromV1_UsingFunctionAssociationsAndVi
 	s.Empty(got)
 }
 
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_NilOriginHeadersAnnotationIsValid() {
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.NoError(err)
+	s.Nil(got.OriginHeaders)
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_EmptyOriginHeadersAnnotationIsValid() {
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				cfOrigHeadersAnnotation: "",
+			},
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.NoError(err)
+	s.Nil(got.OriginHeaders)
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithOriginHeadersAnnotationIsValid() {
+	ing := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "foo",
+			Namespace: "bar",
+			Annotations: map[string]string{
+				cfOrigHeadersAnnotation: "key=value",
+			},
+		},
+	}
+
+	got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+	s.NoError(err)
+	s.Equal(map[string]string{"key": "value"}, got.OriginHeaders)
+}
+
+func (s *CDNIngressSuite) TestNewCDNIngressFromV1_WithMalformedOriginHeadersAnnotationIsInvalid() {
+	testCases := []struct {
+		name       string
+		annotation string
+	}{
+		{
+			name:       "Missing the key is invalid",
+			annotation: "=val",
+		},
+		{
+			name:       "Missing the val is invalid",
+			annotation: "key=",
+		},
+		{
+			name:       "Missing the key and value is invalid",
+			annotation: "=",
+		},
+		{
+			name:       "More than one equal sign is invalid",
+			annotation: "key=val=whoKnows",
+		},
+		{
+			name:       "No equal sign is invalid",
+			annotation: "key_val",
+		},
+	}
+
+	for _, tc := range testCases {
+		ing := &networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo",
+				Namespace: "bar",
+				Annotations: map[string]string{
+					cfOrigHeadersAnnotation: tc.annotation,
+				},
+			},
+		}
+
+		got, err := NewCDNIngressFromV1(context.Background(), ing, CDNClass{})
+		s.Errorf(err, "test case: %s", tc.name)
+		s.Emptyf(got, "test case: %s", tc.name)
+	}
+}
+
 func (s *CDNIngressSuite) Test_sharedIngressParams_SingleOriginIsValid() {
 	params := []CDNIngress{
 		{
