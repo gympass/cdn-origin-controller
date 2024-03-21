@@ -15,7 +15,11 @@
                 "route53:ListResourceRecordSets",
                 "route53:ChangeResourceRecordSets",
                 "acm:ListCertificates",
-                "acm:DescribeCertificate"
+                "acm:DescribeCertificate",
+                "lambda:GetFunction",
+                "lambda:DisableReplication*",
+                "lambda:EnableReplication*",
+                "iam:CreateServiceLinkedRole"
             ],
             "Resource": "*"
         }
