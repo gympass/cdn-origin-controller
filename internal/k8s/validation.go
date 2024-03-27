@@ -59,6 +59,9 @@ func ValidateIngressFunctionAssociations(ing *networkingv1.Ingress) error {
 func ingressPaths(ing *networkingv1.Ingress) []string {
 	var paths []string
 	for _, r := range ing.Spec.Rules {
+		if r.HTTP == nil {
+			continue
+		}
 		for _, p := range r.HTTP.Paths {
 			paths = append(paths, p.Path)
 		}

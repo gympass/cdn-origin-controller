@@ -265,6 +265,9 @@ func pathsForViewerFunction(ing *networkingv1.Ingress, fnARN string) []Path {
 
 	var paths []Path
 	for _, rule := range rules {
+		if rule.HTTP == nil {
+			continue
+		}
 		for _, p := range rule.HTTP.Paths {
 			newPath := Path{
 				PathPattern:          p.Path,
@@ -283,6 +286,9 @@ func pathsForFunctionAssociations(ctx context.Context, ing *networkingv1.Ingress
 
 	var paths []Path
 	for _, rule := range rules {
+		if rule.HTTP == nil {
+			continue
+		}
 		for _, p := range rule.HTTP.Paths {
 			newPath := Path{
 				PathPattern: p.Path,
