@@ -257,7 +257,7 @@ func (s *IngressFetcherV1TestSuite) TestFetchBy_FailureWithUserOrigins() {
 			Build()
 
 		fetcher := NewIngressFetcherV1(client)
-		predicate := func(ing CDNIngress) bool { return true }
+		predicate := func(CDNIngress) bool { return true }
 
 		got, err := fetcher.FetchBy(context.Background(), s.CDNClass, predicate)
 		s.Error(err, "test: %s", tc.name)
