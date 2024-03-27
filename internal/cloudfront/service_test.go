@@ -114,3 +114,19 @@ func (s *CloudFrontServiceTestSuite) Test_validateCreation_ExistingDistributions
 
 	s.NoError(svc.validateCreation(dist, ing))
 }
+
+func (s *CloudFrontServiceTestSuite) Test_s3Prefix_NoPrefixShouldJustUseGroup() {
+	svc := Service{Config: config.Config{
+		CloudFrontS3BucketLogPrefix: "",
+	}}
+
+	s.Equal("group", svc.s3Prefix("group"))
+}
+
+func (s *CloudFrontServiceTestSuite) Test_s3Prefix_PrefixSetShouldConcatenateWithGroup() {
+	svc := Service{Config: config.Config{
+		CloudFrontS3BucketLogPrefix: "foo/bar",
+	}}
+
+	s.Equal("foo/bar/group", svc.s3Prefix("group"))
+}

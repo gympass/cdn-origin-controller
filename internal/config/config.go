@@ -39,6 +39,7 @@ const (
 	cfSecurityPolicyKey                           = "cf_security_policy"
 	cfEnableLoggingKey                            = "cf_enable_logging"
 	cfS3BucketLogKey                              = "cf_s3_bucket_log"
+	cfS3BucketLogPrefixKey                        = "cf_s3_bucket_log_prefix"
 	cfEnableIPV6Key                               = "cf_enable_ipv6"
 	cfDescriptionTemplateKey                      = "cf_description_template"
 	cfCustomTagsKey                               = "cf_custom_tags"
@@ -64,6 +65,7 @@ func initDefaults() {
 	viper.SetDefault(cfSecurityPolicyKey, "")
 	viper.SetDefault(cfEnableLoggingKey, "false")
 	viper.SetDefault(cfS3BucketLogKey, "")
+	viper.SetDefault(cfS3BucketLogPrefixKey, "")
 	viper.SetDefault(cfEnableIPV6Key, "true")
 	viper.SetDefault(cfDescriptionTemplateKey, "Serve contents for {{group}} group.")
 	viper.SetDefault(cfCustomTagsKey, "")
@@ -106,6 +108,9 @@ type Config struct {
 	CloudFrontEnableLogging bool
 	// CloudFrontS3BucketLog if logging enabled represents the S3 Bucket URL to persists, for example myawslogbucket.s3.amazonaws.com.
 	CloudFrontS3BucketLog string
+	// CloudFrontS3BucketLogPrefix is the prefix that should be added to the S3 path when sending logs. The directory on which logs should be stored.
+	// Trailing slashes are ignored ("foo/bar/" is the same as "foo/bar").
+	CloudFrontS3BucketLogPrefix string
 	// CloudFrontEnableIPV6 if should enable ipv6 for distribution responses.
 	CloudFrontEnableIPV6 bool
 	// CloudFrontDescriptionTemplate the description template for distribution.
@@ -174,6 +179,7 @@ func Parse() (Config, error) {
 		CloudFrontSecurityPolicy:              viper.GetString(cfSecurityPolicyKey),
 		CloudFrontEnableLogging:               viper.GetBool(cfEnableLoggingKey),
 		CloudFrontS3BucketLog:                 viper.GetString(cfS3BucketLogKey),
+		CloudFrontS3BucketLogPrefix:           removeTrailingSlash(viper.GetString(cfS3BucketLogPrefixKey)),
 		CloudFrontEnableIPV6:                  viper.GetBool(cfEnableIPV6Key),
 		CloudFrontDescriptionTemplate:         viper.GetString(cfDescriptionTemplateKey),
 		CloudFrontCustomTags:                  extractTags(viper.GetString(cfCustomTagsKey)),
@@ -184,6 +190,13 @@ func Parse() (Config, error) {
 		CloudFrontDefaultPublicOriginAccessRequestPolicyID: viper.GetString(cfDefaultPublicOriginAccessRequestPolicyIDKey),
 		CloudFrontDefaultBucketOriginAccessRequestPolicyID: viper.GetString(cfDefaultBucketOriginAccessRequestPolicyIDKey),
 	}, nil
+}
+
+func removeTrailingSlash(getString string) string {
+	if strings.HasSuffix(getString, "/") {
+		return getString[:len(getString)-1]
+	}
+	return getString
 }
 
 func parseNamespacedNames(names []string) ([]types.NamespacedName, error) {

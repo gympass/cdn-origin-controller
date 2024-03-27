@@ -239,7 +239,7 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 	}
 
 	if s.Config.CloudFrontEnableLogging && len(s.Config.CloudFrontS3BucketLog) > 0 {
-		b = b.WithLogging(s.Config.CloudFrontS3BucketLog, group)
+		b = b.WithLogging(s.Config.CloudFrontS3BucketLog, s.s3Prefix(group))
 	}
 
 	if len(s.Config.CloudFrontCustomTags) > 0 {
@@ -270,6 +270,13 @@ func (s *Service) discoverCert(ingresses []k8s.CDNIngress) (certificate.Certific
 		}
 	}
 	return certificate.Certificate{}, errs.ErrorOrNil()
+}
+
+func (s *Service) s3Prefix(group string) string {
+	if len(s.Config.CloudFrontS3BucketLogPrefix) == 0 {
+		return group
+	}
+	return fmt.Sprintf("%s/%s", s.Config.CloudFrontS3BucketLogPrefix, group)
 }
 
 func (s *Service) syncDist(ctx context.Context, desiredDist Distribution, cdnStatus *v1alpha1.CDNStatus, ing client.Object) (Distribution, error) {

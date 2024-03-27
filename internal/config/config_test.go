@@ -74,6 +74,31 @@ func (s *ConfigTestSuite) TestParse_DefaultToBlockCreationIsFalse() {
 	s.False(cfg.IsCreateBlocked)
 }
 
+func (s *ConfigTestSuite) TestParse_BucketPrefixIsSet() {
+	testCases := []struct {
+		name   string
+		prefix string
+	}{
+		{
+			name:   "No trailing slash",
+			prefix: "foo/bar",
+		},
+		{
+			name:   "With trailing slash",
+			prefix: "foo/bar/",
+		},
+	}
+
+	for _, tc := range testCases {
+		viper.Set("cf_s3_bucket_log_prefix", tc.prefix)
+
+		cfg, err := Parse()
+
+		s.NoErrorf(err, "test case: %s", tc.name)
+		s.Equalf("foo/bar", cfg.CloudFrontS3BucketLogPrefix, "test case: %s", tc.name)
+	}
+}
+
 func (s *ConfigTestSuite) TestIsCreationAllowed_UnblockedCreationReturnsTrue() {
 	viper.Set(createBlockedKey, "false")
 
