@@ -282,7 +282,7 @@ func (r DistRepository) waitUntilDeployed(id string) (*string, error) {
 	defer cancel()
 
 	var eTag *string
-	condition := func(ctx context.Context) (done bool, err error) {
+	condition := func(context.Context) (done bool, err error) {
 		out, err := r.distributionByID(id)
 		if err != nil {
 			if cdnaws.IsErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) {
