@@ -59,7 +59,7 @@ func (r acmCertRepository) FindByFilter(filter CertFilter) ([]Certificate, error
 	var certs []Certificate
 	var certDiscoveryErr error
 
-	err := r.client.ListCertificatesPages(input, func(output *acm.ListCertificatesOutput, _ bool) bool {
+	err := r.client.ListCertificatesPages(input, func(output *acm.ListCertificatesOutput, lastPage bool) bool {
 		for _, acmCertSummary := range output.CertificateSummaryList {
 			acmCert, err := r.client.DescribeCertificate(&acm.DescribeCertificateInput{
 				CertificateArn: acmCertSummary.CertificateArn,
@@ -79,7 +79,8 @@ func (r acmCertRepository) FindByFilter(filter CertFilter) ([]Certificate, error
 				certs = append(certs, dnCert)
 			}
 		}
-		return true
+
+		return lastPage
 	})
 
 	if certDiscoveryErr != nil {
