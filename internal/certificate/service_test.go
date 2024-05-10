@@ -34,24 +34,76 @@ type CertificateServiceTestSuite struct {
 	suite.Suite
 }
 
-func (s *CertificateServiceTestSuite) TestMatchDomainFilter_MainDomain() {
-	cert := New(
-		"arn:xpto",
-		"foo.xpto.com",
-		[]string{"foo.xpto.com", "*.foo.xpto.com"},
-	)
+func (s *CertificateServiceTestSuite) TestMatchDomainFilters_Matches() {
+	testCases := []struct {
+		name                   string
+		certDomainName         string
+		certAlternativeDomains []string
+		distrDomains           []string
+	}{
+		{
+			name:                   "Matching distribution domains using all certificate alternative domains",
+			certDomainName:         "foo.com",
+			certAlternativeDomains: []string{"foo.com", "*.foo.com"},
+			distrDomains:           []string{"www.foo.com", "foo.com"},
+		},
+		{
+			name:                   "Matching distribution domains using all certificate alternative domains (alternative order on distr domains)",
+			certDomainName:         "foo.com",
+			certAlternativeDomains: []string{"foo.com", "*.foo.com"},
+			distrDomains:           []string{"foo.com", "www.foo.com"},
+		},
+		{
+			name:                   "Matching distribution domains using all certificate alternative domains (alternative order on cert domains)",
+			certDomainName:         "foo.com",
+			certAlternativeDomains: []string{"*.foo.com", "foo.com"},
+			distrDomains:           []string{"foo.com", "www.foo.com"},
+		},
+		{
+			name:                   "Matching distribution domains when certificate has additional alternative domains",
+			certDomainName:         "bar.com",
+			certAlternativeDomains: []string{"*.foo.com", "bar.com", "*.baz.com"},
+			distrDomains:           []string{"www.foo.com", "bar.com"},
+		},
+		{
+			name:                   "Matching distribution domains exactly with certificates domains",
+			certDomainName:         "bar.com",
+			certAlternativeDomains: []string{"baz.com"},
+			distrDomains:           []string{"bar.com", "baz.com"},
+		},
+	}
 
-	filter := matchingDomainFilter("foo.xpto.com")
-	s.True(filter(cert))
+	for _, tc := range testCases {
+		cert := New("arn:foo", tc.certDomainName, tc.certAlternativeDomains)
+		filter := matchingDomainFilter(tc.distrDomains)
+		s.Truef(filter(cert), "testCase: %s", tc.name)
+	}
 }
 
-func (s *CertificateServiceTestSuite) TestMatchDomainFilter_SubDomain() {
-	cert := New(
-		"arn:xpto",
-		"foo.xpto.com",
-		[]string{"foo.xpto.com", "*.foo.xpto.com"},
-	)
+func (s *CertificateServiceTestSuite) TestMatchDomainFilters_DoesntMatch() {
+	testCases := []struct {
+		name                   string
+		certDomainName         string
+		certAlternativeDomains []string
+		distrDomains           []string
+	}{
+		{
+			name:                   "Doesn't Match anything",
+			certDomainName:         "bar.com",
+			certAlternativeDomains: []string{"bar.com", "*.bar.com"},
+			distrDomains:           []string{"www.foo.com", "foo.com"},
+		},
+		{
+			name:                   "Doesn't Match one domain",
+			certDomainName:         "*.xpto.com",
+			certAlternativeDomains: []string{"*.xpto.com"},
+			distrDomains:           []string{"www.xpto.com", "xpto.com"},
+		},
+	}
 
-	filter := matchingDomainFilter("baz.foo.xpto.com")
-	s.True(filter(cert))
+	for _, tc := range testCases {
+		cert := New("arn:foo", tc.certDomainName, tc.certAlternativeDomains)
+		filter := matchingDomainFilter(tc.distrDomains)
+		s.Falsef(filter(cert), "testCase: %s", tc.name)
+	}
 }

@@ -217,7 +217,6 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 		group,
 		s.Config,
 	)
-
 	var err error
 	var cert certificate.Certificate
 	if s.Config.TLSIsEnabled() {
@@ -259,17 +258,17 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 
 // discoverCert returns the first found ACM Certificate that matches any Alternate Domain Name of the input Ingresses
 func (s *Service) discoverCert(ingresses []k8s.CDNIngress) (certificate.Certificate, error) {
-	errs := &multierror.Error{}
+	var alternateDomains []string
 	for _, ing := range ingresses {
-		for _, dn := range ing.AlternateDomainNames {
-			cert, err := s.CertService.DiscoverByHost(dn)
-			if err == nil {
-				return cert, nil
-			}
-			errs = multierror.Append(errs, fmt.Errorf("%q: %v", dn, err))
-		}
+		alternateDomains = append(alternateDomains, ing.AlternateDomainNames...)
 	}
-	return certificate.Certificate{}, errs.ErrorOrNil()
+
+	cert, err := s.CertService.DiscoverByHost(alternateDomains)
+	if err != nil {
+		return certificate.Certificate{}, fmt.Errorf("%v: %v", alternateDomains, err)
+	}
+
+	return cert, nil
 }
 
 func (s *Service) s3Prefix(group string) string {
