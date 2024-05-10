@@ -32,7 +32,7 @@ var (
 
 // Service handle the certificate actions as discovery
 type Service interface {
-	DiscoverByHost(string) (Certificate, error)
+	DiscoverByHost([]string) (Certificate, error)
 }
 
 // NewService creates a new Certificate Service
@@ -44,10 +44,10 @@ type acmCertService struct {
 	repo Repository
 }
 
-// DiscoverByHost tries to discover a certificate given a host
-func (a acmCertService) DiscoverByHost(host string) (Certificate, error) {
+// DiscoverByHost tries to discover a certificate given hosts
+func (a acmCertService) DiscoverByHost(hosts []string) (Certificate, error) {
 
-	certs, err := a.repo.FindByFilter(matchingDomainFilter(host))
+	certs, err := a.repo.FindByFilter(matchingDomainFilter(hosts))
 
 	if err != nil {
 		return Certificate{}, fmt.Errorf("discovery certificate: %v", err)
@@ -60,25 +60,33 @@ func (a acmCertService) DiscoverByHost(host string) (Certificate, error) {
 	return certs[0], nil
 }
 
-func matchingDomainFilter(host string) CertFilter {
+func matchingDomainFilter(hosts []string) CertFilter {
 	return func(c Certificate) bool {
-		if host == c.DomainName() {
+		for _, host := range hosts {
+			if !certMatches(host, c) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func certMatches(distHost string, c Certificate) bool {
+	for _, certHost := range append(c.AlternativeNames(), c.DomainName()) {
+		if distHost == certHost {
 			return true
 		}
+		hs := strings.Split(distHost, ".")
+		hostDomain := strings.Join(hs[1:], ".")
 
-		for _, alterName := range c.AlternativeNames() {
-			hs := strings.Split(host, ".")
-			hostDomain := strings.Join(hs[1:], ".")
-
-			if strings.HasPrefix(alterName, "*.") {
-				alterName = strings.ReplaceAll(alterName, "*.", "")
-			}
-
-			if alterName == hostDomain {
-				return true
-			}
+		if strings.HasPrefix(certHost, "*.") {
+			certHost = strings.ReplaceAll(certHost, "*.", "")
 		}
 
-		return false
+		if certHost == hostDomain {
+			return true
+		}
 	}
+
+	return false
 }
