@@ -6,6 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.271
 	github.com/creasty/defaults v1.7.0
 	github.com/go-logr/logr v1.2.4
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/viper v1.15.0
@@ -37,7 +38,6 @@ require (
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
