@@ -24,6 +24,11 @@ import (
 	"strings"
 
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
+	"github.com/google/uuid"
+)
+
+const (
+	oacNameCharLimit = 63
 )
 
 type OAC struct {
@@ -48,10 +53,23 @@ func NewOAC(distribution, originName string) OAC {
 }
 
 func oacName(distributionName, s3Host string) string {
+	// keeps the default behavior for already working AOC's.
 	s3Name := strings.Split(s3Host, ".")[0]
-	return fmt.Sprintf("%s-%s", distributionName, s3Name)
+	defaultOACName := fmt.Sprintf("%s-%s", distributionName, s3Name)
+	if len(defaultOACName) <= oacNameCharLimit {
+		return defaultOACName
+	}
+
+	// generates a short name to avoid AWS limits.
+	hostName := strings.Split(distributionName, ".")[0]
+	return fmt.Sprintf("%s-%s", hostName, generateShortID())
 }
 
 func oacDescription(originName string) string {
 	return fmt.Sprintf("OAC for %s, managed by cdn-origin-controller", originName)
+}
+
+func generateShortID() string {
+	id := uuid.New().String()
+	return strings.Split(id, "-")[0]
 }
