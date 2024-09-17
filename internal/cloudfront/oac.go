@@ -20,11 +20,11 @@
 package cloudfront
 
 import (
+	"crypto/md5"
 	"fmt"
 	"strings"
 
 	awscloudfront "github.com/aws/aws-sdk-go/service/cloudfront"
-	"github.com/google/uuid"
 )
 
 const (
@@ -62,14 +62,19 @@ func oacName(distributionName, s3Host string) string {
 
 	// generates a short name to avoid AWS limits.
 	hostName := strings.Split(distributionName, ".")[0]
-	return fmt.Sprintf("%s-%s", hostName, generateShortID())
+	return fmt.Sprintf("%s-%s", hostName, generateShortID(distributionName, s3Name))
 }
 
 func oacDescription(originName string) string {
 	return fmt.Sprintf("OAC for %s, managed by cdn-origin-controller", originName)
 }
 
-func generateShortID() string {
-	id := uuid.New().String()
-	return strings.Split(id, "-")[0]
+func generateShortID(distrName, domainName string) string {
+	md5 := generateMD5(fmt.Sprintf("%s-%s", distrName, domainName))
+	return md5[:8]
+}
+
+func generateMD5(text string) string {
+	data := []byte(text)
+	return fmt.Sprintf("%x", md5.Sum(data))
 }
