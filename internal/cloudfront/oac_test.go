@@ -20,7 +20,6 @@
 package cloudfront
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -43,6 +42,6 @@ func (s *OACTestSuite) TestNewOACWithDefaultNamePattern() {
 
 func (s *OACTestSuite) TestNewOACWithShortNamePattern() {
 	oac := NewOAC("wellz-accounts-fe-develop-nv.nv.dev.us.gympass.cloud", "gympass-develop-nv-wellz-accounts-fe-develop-nv.s3.us-east-1.amazonaws.com")
-	s.True(strings.HasPrefix(oac.Name, "wellz-accounts-fe-develop-nv-"))
+	s.Equal("wellz-accounts-fe-develop-nv-51d6956b", oac.Name)
 	s.True(len(oac.Name) <= 63)
 }
