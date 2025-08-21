@@ -167,7 +167,7 @@ When multiple ingresses share the same CloudFront distribution, the controller d
 
 1. **Priority to Explicit WebACLs:**
   - If any ingress in the group specifies a WebACL ARN using the annotation `cdn-origin-controller.gympass.com/cf.web-acl-arn`, that WebACL will be associated with the distribution.
-  - If multiple ingresses specify different WebACL ARNs, the controller will prioritize one (typically the first found, but this is not guaranteed—ensure consistency across your ingresses).
+  - If multiple ingresses specify different WebACL ARNs, the controller will return a reconciliation error for all of them as it's a conflicting configuration because a distribution can only have a single WebACL.
 2. **No Annotation or Empty Value:**
   - If no ingress in the group specifies a WebACL ARN, or if the annotation is present but empty, the controller will retain the current WebACL association on the distribution.
   - This means the WebACL will not be removed automatically if you remove or clear the annotation from your ingresses.
