@@ -247,7 +247,7 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 
 	if len(shared.WebACLARN) > 0 {
 		b = b.WithWebACL(shared.WebACLARN)
-	} else {
+	} else if len(distARN) > 0 {
 		b, err = s.keepCurrentWebACLConfig(b, distARN)
 		if err != nil {
 			return Distribution{}, fmt.Errorf("setting webacl config: %v", err)
