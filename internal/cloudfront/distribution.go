@@ -125,7 +125,6 @@ func NewDistributionBuilder(group string, cfg config.Config) DistributionBuilder
 		customOrigins:       make(map[string]Origin),
 		priceClass:          cfg.CloudFrontPriceClass,
 		group:               group,
-		webACLID:            cfg.CloudFrontWAFARN,
 		cfg:                 cfg,
 	}
 }

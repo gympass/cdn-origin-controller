@@ -56,6 +56,8 @@ type DistributionRepository interface {
 	ARNByGroup(group string) (string, error)
 	// Create creates the given Distribution on CloudFront. Returns the created dist.
 	Create(Distribution) (Distribution, error)
+	// Gets the Distribution configuration by ID.
+	DistributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error)
 	// Sync ensures the given Distribution is correctly configured on CloudFront. Returns synced dist.
 	Sync(Distribution) (Distribution, error)
 	// Delete deletes the Distribution at AWS
@@ -131,7 +133,7 @@ func (r DistRepository) Create(d Distribution) (Distribution, error) {
 
 func (r DistRepository) Sync(d Distribution) (Distribution, error) {
 	config := newAWSDistributionConfig(d, r.CallerRef, r.Cfg)
-	output, err := r.distributionConfigByID(d.ID)
+	output, err := r.DistributionConfigByID(d.ID)
 	if err != nil {
 		return Distribution{}, fmt.Errorf("getting distribution config: %v", err)
 	}
@@ -176,7 +178,7 @@ func (r DistRepository) Sync(d Distribution) (Distribution, error) {
 }
 
 func (r DistRepository) Delete(d Distribution) error {
-	output, err := r.distributionConfigByID(d.ID)
+	output, err := r.DistributionConfigByID(d.ID)
 	if err != nil {
 		return cdnaws.IgnoreErrorCodef("getting distribution config: %v", err, awscloudfront.ErrCodeNoSuchDistribution)
 	}
@@ -251,7 +253,7 @@ func (r DistRepository) distributionTags(d Distribution) *awscloudfront.Tags {
 	return &awsTags
 }
 
-func (r DistRepository) distributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error) {
+func (r DistRepository) DistributionConfigByID(id string) (*awscloudfront.GetDistributionConfigOutput, error) {
 	input := &awscloudfront.GetDistributionConfigInput{
 		Id: aws.String(id),
 	}
