@@ -43,7 +43,6 @@ func (s *DistributionTestSuite) SetupTest() {
 		DefaultOriginDomain:                                "test.default.origin",
 		CloudFrontDescriptionTemplate:                      "test description: {{group}}",
 		CloudFrontPriceClass:                               "test price class",
-		CloudFrontWAFARN:                                   "default-web-acl",
 		CloudFrontDefaultCachingPolicyID:                   "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
 		CloudFrontDefaultCacheRequestPolicyID:              "216adef6-5c7f-47e4-b989-5492eafa07d3",
 		CloudFrontDefaultPublicOriginAccessRequestPolicyID: "216adef6-5c7f-47e4-b989-5492eafa07d3",
@@ -78,7 +77,6 @@ func (s *DistributionTestSuite) TestDistributionBuilder_New() {
 	s.Equal("test.default.origin", dist.DefaultOrigin.Host)
 	s.Equal("test description: test group", dist.Description)
 	s.Equal("test price class", dist.PriceClass)
-	s.Equal("default-web-acl", dist.WebACLID)
 	s.Equal("true", dist.Tags["cdn-origin-controller.gympass.com/owned"])
 	s.Equal("test group", dist.Tags["cdn-origin-controller.gympass.com/cdn.group"])
 }

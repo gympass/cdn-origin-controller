@@ -247,6 +247,11 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 
 	if len(shared.WebACLARN) > 0 {
 		b = b.WithWebACL(shared.WebACLARN)
+	} else if len(distARN) > 0 {
+		b, err = s.keepCurrentWebACLConfig(b, distARN)
+		if err != nil {
+			return Distribution{}, fmt.Errorf("setting webacl config: %v", err)
+		}
 	}
 
 	if len(distARN) > 0 {
@@ -254,6 +259,23 @@ func (s *Service) newDistribution(ingresses []k8s.CDNIngress, group string, shar
 	}
 
 	return b.Build()
+}
+
+// keepCurrentWebACLConfig checks the current WebACL configuration on distribution and updates the desired state accordingly.
+func (s *Service) keepCurrentWebACLConfig(b DistributionBuilder, distARN string) (DistributionBuilder, error) {
+	distibutionID := b.extractID(distARN)
+
+	config, err := s.DistRepo.DistributionConfigByID(distibutionID)
+	if err != nil {
+		return b, fmt.Errorf("getting distribution config by ID (%s): %v", distibutionID, err)
+	}
+
+	// If there's a WebACLId in the existing distribution config, set it in the builder, otherwise keep the default (no WebACL).
+	if config.DistributionConfig.WebACLId != nil && len(*config.DistributionConfig.WebACLId) > 0 {
+		b = b.WithWebACL(*config.DistributionConfig.WebACLId)
+	}
+
+	return b, nil
 }
 
 // discoverCert returns the first found ACM Certificate that matches any Alternate Domain Name of the input Ingresses

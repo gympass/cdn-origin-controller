@@ -105,7 +105,6 @@ func (s *DistributionRepositoryTestSuite) SetupTest() {
 	s.cfg = config.Config{
 		DefaultOriginDomain:  "default.origin",
 		CloudFrontPriceClass: awscloudfront.PriceClassPriceClass100,
-		CloudFrontWAFARN:     "default-web-acl",
 	}
 }
 
