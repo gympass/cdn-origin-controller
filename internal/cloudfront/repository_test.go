@@ -305,6 +305,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantUpdateDistribution() {
 
 	var noError error
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(errors.New("mock err")).Once()
 
 	repo := DistRepository{
@@ -335,6 +336,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_CantSaveTags() {
 	}
 
 	var noError error
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(errors.New("mock err")).Once()
@@ -373,6 +375,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginDoesNotExistYet() {
 	}
 
 	var noError error
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -425,6 +428,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_OriginAlreadyExists() {
 	}
 
 	var noError error
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
@@ -524,6 +528,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorDoesNotExistYet() {
 	var noError error
 
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
 
@@ -604,6 +609,7 @@ func (s *DistributionRepositoryTestSuite) TestSync_BehaviorAlreadyExists() {
 
 	var noError error
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
 
@@ -662,6 +668,7 @@ func (s *DistributionRepositoryTestSuite) TestUpdate_ShouldSyncOneOACAndDeleteOn
 	}
 
 	var noError error
+	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("GetDistributionConfig", mock.Anything).Return(noError).Once()
 	s.cfClient.On("UpdateDistribution", mock.Anything).Return(noError).Once()
 	s.cfClient.On("TagResource", mock.Anything).Return(noError).Once()
