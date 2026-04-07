@@ -153,14 +153,21 @@ func (r DistRepository) Sync(d Distribution) (Distribution, error) {
 		}
 	})
 
-	config.SetCallerReference(*output.DistributionConfig.CallerReference)
-	config.SetDefaultRootObject(*output.DistributionConfig.DefaultRootObject)
-	config.SetCustomErrorResponses(output.DistributionConfig.CustomErrorResponses)
-	config.SetRestrictions(output.DistributionConfig.Restrictions)
+	// Fetch a fresh ETag right before updating to avoid PreconditionFailed errors
+	// caused by the ETag becoming stale during OAC sync operations.
+	freshOutput, err := r.DistributionConfigByID(d.ID)
+	if err != nil {
+		return Distribution{}, fmt.Errorf("getting fresh distribution config for update: %v", err)
+	}
+
+	config.SetCallerReference(*freshOutput.DistributionConfig.CallerReference)
+	config.SetDefaultRootObject(*freshOutput.DistributionConfig.DefaultRootObject)
+	config.SetCustomErrorResponses(freshOutput.DistributionConfig.CustomErrorResponses)
+	config.SetRestrictions(freshOutput.DistributionConfig.Restrictions)
 
 	updateInput := &awscloudfront.UpdateDistributionInput{
 		DistributionConfig: config,
-		IfMatch:            output.ETag,
+		IfMatch:            freshOutput.ETag,
 		Id:                 aws.String(d.ID),
 	}
 
