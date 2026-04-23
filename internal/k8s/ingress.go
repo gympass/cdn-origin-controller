@@ -47,6 +47,7 @@ const (
 	cfViewerFnAnnotation             = "cdn-origin-controller.gympass.com/cf.viewer-function-arn"
 	cfOrigReqPolicyAnnotation        = "cdn-origin-controller.gympass.com/cf.origin-request-policy"
 	cfCachePolicyAnnotation          = "cdn-origin-controller.gympass.com/cf.cache-policy"
+	cfResponsePolicyAnnotation       = "cdn-origin-controller.gympass.com/cf.response-policy"
 	cfOrigRespTimeoutAnnotation      = "cdn-origin-controller.gympass.com/cf.origin-response-timeout"
 	cfAlternateDomainNamesAnnotation = "cdn-origin-controller.gympass.com/cf.alternate-domain-names"
 	cfWebACLARNAnnotation            = "cdn-origin-controller.gympass.com/cf.web-acl-arn"
@@ -70,6 +71,7 @@ type CDNIngress struct {
 	OriginReqPolicy      string
 	OriginHeaders        map[string]string
 	CachePolicy          string
+	ResponsePolicy       string
 	OriginRespTimeout    int64
 	AlternateDomainNames []string
 	UnmergedWebACLARN    string
@@ -226,6 +228,7 @@ func NewCDNIngressFromV1(ctx context.Context, ing *networkingv1.Ingress, class C
 		OriginReqPolicy:      originReqPolicy(ing),
 		OriginHeaders:        headers,
 		CachePolicy:          cachePolicy(ing),
+		ResponsePolicy:       responsePolicy(ing),
 		OriginRespTimeout:    originRespTimeout(ing),
 		AlternateDomainNames: alternateDomainNames(ing),
 		UnmergedWebACLARN:    webACLARN(ing),
@@ -363,6 +366,10 @@ func originReqPolicy(obj client.Object) string {
 
 func cachePolicy(obj client.Object) string {
 	return obj.GetAnnotations()[cfCachePolicyAnnotation]
+}
+
+func responsePolicy(obj client.Object) string {
+	return obj.GetAnnotations()[cfResponsePolicyAnnotation]
 }
 
 func groupAnnotationValue(obj client.Object) string {

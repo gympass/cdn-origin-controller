@@ -60,6 +60,7 @@ func cdnIngressesForUserOrigins(obj client.Object) ([]CDNIngress, error) {
 			UnmergedPaths:     o.paths(),
 			OriginReqPolicy:   o.RequestPolicy,
 			CachePolicy:       o.CachePolicy,
+			ResponsePolicy:    o.ResponsePolicy,
 			OriginRespTimeout: o.ResponseTimeout,
 			UnmergedWebACLARN: o.WebACLARN,
 			OriginAccess:      o.OriginAccess,
@@ -79,6 +80,7 @@ type userOrigin struct {
 	ViewerFunctionARN string                 `yaml:"viewerFunctionARN"` // deprecated in favor of Behaviors
 	RequestPolicy     string                 `yaml:"originRequestPolicy"`
 	CachePolicy       string                 `yaml:"cachePolicy"`
+	ResponsePolicy    string                 `yaml:"responsePolicy"`
 	WebACLARN         string                 `yaml:"webACLARN"`
 	OriginAccess      string                 `yaml:"originAccess" default:"Public"`
 }
