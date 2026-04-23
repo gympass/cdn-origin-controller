@@ -127,6 +127,25 @@ func (s *OriginTestSuite) TestNewOriginBuilder_WithRequestPolicy() {
 	s.Equal("some-policy", o.Behaviors[1].RequestPolicy)
 }
 
+func (s *OriginTestSuite) TestNewOriginBuilder_WithResponsePolicy() {
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
+		WithBehavior("/").
+		WithBehavior("/foo").
+		WithResponsePolicy("some-response-policy").
+		Build()
+	s.Equal("origin", o.Host)
+	s.Len(o.Behaviors, 2)
+	s.Equal("some-response-policy", o.Behaviors[0].ResponsePolicy)
+	s.Equal("some-response-policy", o.Behaviors[1].ResponsePolicy)
+}
+
+func (s *OriginTestSuite) TestNewOriginBuilder_ResponsePolicyDefaultsToEmpty() {
+	o := NewOriginBuilder("dist", "origin", "Public", s.cfg).
+		WithBehavior("/").
+		Build()
+	s.Empty(o.Behaviors[0].ResponsePolicy)
+}
+
 func (s *OriginTestSuite) TestNewOriginBuilder_WithBucketType() {
 	o := NewOriginBuilder("dist", "origin", "Bucket", s.cfg).
 		Build()

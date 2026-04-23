@@ -1,8 +1,5 @@
 # cdn-origin-controller
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/ca2a2f38c1be40e5b4d94b25ad2134fd)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Gympass/cdn-origin-controller&amp;utm_campaign=Badge_Grade)
-[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/ca2a2f38c1be40e5b4d94b25ad2134fd)](https://www.codacy.com/gh/Gympass/cdn-origin-controller/dashboard?utm_source=github.com&utm_medium=referral&utm_content=Gympass/cdn-origin-controller&utm_campaign=Badge_Coverage)
-
 cdn-origin-controller is a Kubernetes controller to provision CDNs based on Ingress resources. This is made possible by configuring your Ingress resources with certain annotations, which tell the controller how origins should be configured at the CDN.
 
 The controller allows infrastructure engineers to provide infrastructure configuration of the CDN via environment variables while allowing developers to configure each origin through Ingresses, maintaining a clean cut between infrastructure and application contexts.
@@ -28,6 +25,7 @@ The following annotation controls how origins and behaviors are attached to Clou
 - `cdn-origin-controller.gympass.com/cf.alternate-domain-names`: a comma-separated list of alternate domains to be configured on the CloudFront distribution. Duplicates on the same or different Ingress resources from the same group cause no harm. Example: `alias1.foo,alias2.foo`
 - `cdn-origin-controller.gympass.com/cf.origin-request-policy`: the ID of the origin request policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "Managed-AllViewer" (ID: 216adef6-5c7f-47e4-b989-5492eafa07d3) for Public origins, and "Managed-CORS-S3Origin" (ID: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf) for Bucket origins, however these defaults can be overriden through configuration by setting the `CF_DEFAULT_PUBLIC_ORIGIN_ACCESS_REQUEST_POLICY_ID` or `CF_DEFAULT_PUBLIC_ORIGIN_ACCESS_REQUEST_POLICY_ID` environment variables. If set to`"None"` no policy will be associated.
 - `cdn-origin-controller.gympass.com/cf.cache-policy`: the ID of the cache policy that should be associated with the behaviors defined by the Ingress resource. Defaults to the ID of the AWS pre-defined policy "CachingDisabled" (ID: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad), this default can be overriden by setting the `CF_DEFAULT_CACHE_REQUEST_POLICY_ID` environment variable. More details about managed cache policies [see](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html).
+- `cdn-origin-controller.gympass.com/cf.response-policy`: the ID of the response headers policy that should be associated with the behaviors defined by the Ingress resource. No policy is associated by default. If set to `"None"` no policy will be associated. More details about managed response headers policies [see](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-response-headers-policies.html).
 - `cdn-origin-controller.gympass.com/cf.origin-response-timeout`: the number of seconds that CloudFront waits for a response from the origin, from 1 to 60. Example: `"30"`
 - `cdn-origin-controller.gympass.com/cf.function-associations`: configures Function Association to behaviors defined as Ingress paths. Refer to the [dedicated section](#function-associations) for details.
 - `cdn-origin-controller.gympass.com/cf.viewer-function-arn`: deprecated in favor of the more generic `cdn-origin-controller.gympass.com/cf.function-associations`, and will be removed at a later release.
@@ -242,6 +240,7 @@ metadata:
       - host: bar.com
         originAccess: Public
         originRequestPolicy: None
+        responsePolicy: 67f7725c-6f97-4210-82d7-5512b31e9d03
         webACLARN: "arn:aws:wafv2:us-east-1:123456789012:global/webacl/ExampleWebACL/473e64fd-f30b-4765-81a0-62ad96dd167a"
         behaviors:
           - path: /bar
@@ -273,6 +272,7 @@ The table below maps remaining available fields of an entry in this list to an a
 | .responseTimeout     | cdn-origin-controller.gympass.com/cf.origin-response-timeout | -                                                                            |
 | .viewerFunctionARN   | cdn-origin-controller.gympass.com/cf.viewer-function-arn     | deprecated, prefer defining associtions in .behaviors[].functionAssociations |
 | .cachePolicy         | cdn-origin-controller.gympass.com/cf.cache-policy            | -                                                                            |
+| .responsePolicy      | cdn-origin-controller.gympass.com/cf.response-policy         | -                                                                            |
 | .webACLARN           | cdn-origin-controller.gympass.com/cf.web-acl-arn             | -                                                                            |
 | .headers             | cdn-origin-controller.gympass.com/cf.origin-headers          | -                                                                            |
 

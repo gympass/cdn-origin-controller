@@ -1081,3 +1081,35 @@ func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_PolicySetToNone
 	)
 	s.Nil(cb.OriginRequestPolicyId)
 }
+
+func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_ResponsePolicySet() {
+	cb := baseCacheBehavior(
+		Behavior{
+			OriginHost:     "host",
+			PathPattern:    "path",
+			ResponsePolicy: "67f7725c-6f97-4210-82d7-5512b31e9d03",
+		},
+	)
+	s.Equal("67f7725c-6f97-4210-82d7-5512b31e9d03", *cb.ResponseHeadersPolicyId)
+}
+
+func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_ResponsePolicySetToNone() {
+	cb := baseCacheBehavior(
+		Behavior{
+			OriginHost:     "host",
+			PathPattern:    "path",
+			ResponsePolicy: "None",
+		},
+	)
+	s.Nil(cb.ResponseHeadersPolicyId)
+}
+
+func (s *DistributionRepositoryTestSuite) Test_baseCacheBehavior_ResponsePolicyEmpty() {
+	cb := baseCacheBehavior(
+		Behavior{
+			OriginHost:  "host",
+			PathPattern: "path",
+		},
+	)
+	s.Nil(cb.ResponseHeadersPolicyId)
+}

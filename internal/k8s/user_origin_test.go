@@ -100,6 +100,23 @@ func (s *userOriginSuite) Test_cdnIngressesForUserOrigins_Success() {
 			},
 		},
 		{
+			name: "Has a single user origin with response policy",
+			annotationValue: `
+                                - host: foo.com
+                                  paths:
+                                    - /foo
+                                  responsePolicy: 67f7725c-6f97-4210-82d7-5512b31e9d03`,
+			expectedIngs: []CDNIngress{
+				{
+					Group:          "group",
+					OriginHost:     "foo.com",
+					UnmergedPaths:  []Path{{PathPattern: "/foo"}},
+					ResponsePolicy: "67f7725c-6f97-4210-82d7-5512b31e9d03",
+					OriginAccess:   "Public",
+				},
+			},
+		},
+		{
 			name: "Has multiple user origins",
 			annotationValue: `
                                 - host: foo.com
