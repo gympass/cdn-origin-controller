@@ -103,6 +103,8 @@ type Behavior struct {
 	RequestPolicy string
 	// CachePolicy is the ID of the cache policy to be associated with this Behavior
 	CachePolicy string
+	// ResponsePolicy is the ID of the response headers policy to be associated with this Behavior
+	ResponsePolicy string
 	// OriginHost the origin's host this behavior belongs to
 	OriginHost string
 	// FunctionAssociations is a slice of Function that should be bound to this Behavior
@@ -116,6 +118,7 @@ type OriginBuilder struct {
 	requestPolicy    string
 	distributionName string
 	cachePolicy      string
+	responsePolicy   string
 	respTimeout      int64
 	accessType       string
 	behaviors        map[string][]Function
@@ -170,6 +173,14 @@ func (b OriginBuilder) WithCachePolicy(policy string) OriginBuilder {
 	return b
 }
 
+// WithResponsePolicy associates a given response headers policy ID with all Behaviors in the Origin being built
+func (b OriginBuilder) WithResponsePolicy(policy string) OriginBuilder {
+	if len(policy) > 0 {
+		b.responsePolicy = policy
+	}
+	return b
+}
+
 // WithResponseTimeout associates a custom response timeout to custom origin
 func (b OriginBuilder) WithResponseTimeout(rpTimeout int64) OriginBuilder {
 	if rpTimeout > 0 {
@@ -197,6 +208,7 @@ func (b OriginBuilder) Build() Origin {
 
 	origin = b.addCachePolicyBehaviors(origin)
 	origin = b.addRequestPolicyToBehaviors(origin)
+	origin = b.addResponsePolicyToBehaviors(origin)
 
 	origin.Access = b.accessType
 
@@ -222,6 +234,13 @@ func (b OriginBuilder) addRequestPolicyToBehaviors(origin Origin) Origin {
 func (b OriginBuilder) addCachePolicyBehaviors(origin Origin) Origin {
 	for i := range origin.Behaviors {
 		origin.Behaviors[i].CachePolicy = b.cachePolicy
+	}
+	return origin
+}
+
+func (b OriginBuilder) addResponsePolicyToBehaviors(origin Origin) Origin {
+	for i := range origin.Behaviors {
+		origin.Behaviors[i].ResponsePolicy = b.responsePolicy
 	}
 	return origin
 }

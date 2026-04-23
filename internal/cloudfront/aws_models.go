@@ -253,5 +253,9 @@ func baseCacheBehavior(b Behavior) *cloudfront.CacheBehavior {
 		cb.OriginRequestPolicyId = nil
 	}
 
+	if len(b.ResponsePolicy) > 0 && b.ResponsePolicy != "None" {
+		cb.ResponseHeadersPolicyId = aws.String(b.ResponsePolicy)
+	}
+
 	return cb
 }
