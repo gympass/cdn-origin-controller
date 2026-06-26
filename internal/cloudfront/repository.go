@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -290,6 +291,7 @@ func (r DistRepository) waitUntilDeployed(id string) (*string, error) {
 			if cdnaws.IsErrorCode(err, awscloudfront.ErrCodeNoSuchDistribution) {
 				return false, err
 			}
+			log.Printf("error checking distribution %s status, will retry: %v", id, err)
 			return false, nil
 		}
 		eTag = out.ETag
